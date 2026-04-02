@@ -38,12 +38,21 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
+const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
 function base64urlEncode(buffer: Uint8Array): string {
-  let str = "";
-  for (let i = 0; i < buffer.length; i++) {
-    str += String.fromCharCode(buffer[i]);
+  let result = "";
+  const len = buffer.length;
+  for (let i = 0; i < len; i += 3) {
+    const b0 = buffer[i];
+    const b1 = i + 1 < len ? buffer[i + 1] : 0;
+    const b2 = i + 2 < len ? buffer[i + 2] : 0;
+    result += BASE64_CHARS[(b0 >> 2) & 0x3f];
+    result += BASE64_CHARS[((b0 << 4) | (b1 >> 4)) & 0x3f];
+    result += i + 1 < len ? BASE64_CHARS[((b1 << 2) | (b2 >> 6)) & 0x3f] : "=";
+    result += i + 2 < len ? BASE64_CHARS[b2 & 0x3f] : "=";
   }
-  return btoa(str).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return result.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
 }
 
 function generateRandomString(length: number): string {
@@ -61,7 +70,13 @@ function generateRandomString(length: number): string {
     .join("");
 }
 
-async function generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: string }> {
+type PKCEResult = {
+  codeVerifier: string;
+  codeChallenge: string;
+  codeChallengeMethod: "S256" | "plain";
+};
+
+async function generatePKCE(): Promise<PKCEResult> {
   const codeVerifier = generateRandomString(64);
 
   if (
@@ -73,10 +88,10 @@ async function generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: st
     const data = encoder.encode(codeVerifier);
     const digest = await crypto.subtle.digest("SHA-256", data);
     const codeChallenge = base64urlEncode(new Uint8Array(digest));
-    return { codeVerifier, codeChallenge };
+    return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
   }
 
-  return { codeVerifier, codeChallenge: codeVerifier };
+  return { codeVerifier, codeChallenge: codeVerifier, codeChallengeMethod: "plain" };
 }
 
 async function getToken(): Promise<string | null> {
@@ -146,7 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const discovery = await discoveryRes.json();
       const authEndpoint: string = discovery.authorization_endpoint;
 
-      const { codeVerifier, codeChallenge } = await generatePKCE();
+      const { codeVerifier, codeChallenge, codeChallengeMethod } = await generatePKCE();
       const state = generateRandomString(32);
       const nonce = generateRandomString(32);
       const redirectUri = "mobile://callback";
@@ -157,7 +172,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", "openid email profile offline_access");
       authUrl.searchParams.set("code_challenge", codeChallenge);
-      authUrl.searchParams.set("code_challenge_method", "S256");
+      authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
       authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("nonce", nonce);
       authUrl.searchParams.set("prompt", "login consent");
