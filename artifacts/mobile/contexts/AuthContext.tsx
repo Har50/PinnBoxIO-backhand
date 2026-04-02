@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
 import * as Crypto from "expo-crypto";
+import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -133,7 +134,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { codeVerifier, codeChallenge, codeChallengeMethod } = await generatePKCE();
       const state = generateRandomString(32);
       const nonce = generateRandomString(32);
-      const redirectUri = "mobile://callback";
+      const redirectUri = Linking.createURL("callback");
 
       const authUrl = new URL(authEndpoint);
       authUrl.searchParams.set("client_id", CLIENT_ID);
