@@ -20,9 +20,18 @@ export const HealthCheckResponse = zod.object({
  */
 export const GetAccountsResponseItem = zod.object({
   id: zod.number(),
-  email: zod.string(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
   name: zod.string(),
-  provider: zod.enum(["gmail", "outlook", "yahoo", "imap", "other"]),
+  provider: zod.enum([
+    "gmail",
+    "outlook",
+    "yahoo",
+    "imap",
+    "other",
+    "whatsapp",
+    "phone",
+  ]),
   color: zod.string(),
   isActive: zod.boolean(),
   unreadCount: zod.number(),
@@ -34,9 +43,18 @@ export const GetAccountsResponse = zod.array(GetAccountsResponseItem);
  * @summary Add a new email account
  */
 export const CreateAccountBody = zod.object({
-  email: zod.string(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
   name: zod.string(),
-  provider: zod.enum(["gmail", "outlook", "yahoo", "imap", "other"]),
+  provider: zod.enum([
+    "gmail",
+    "outlook",
+    "yahoo",
+    "imap",
+    "other",
+    "whatsapp",
+    "phone",
+  ]),
   color: zod.string().optional(),
 });
 
@@ -49,9 +67,18 @@ export const GetAccountParams = zod.object({
 
 export const GetAccountResponse = zod.object({
   id: zod.number(),
-  email: zod.string(),
+  email: zod.string().nullish(),
+  phone: zod.string().nullish(),
   name: zod.string(),
-  provider: zod.enum(["gmail", "outlook", "yahoo", "imap", "other"]),
+  provider: zod.enum([
+    "gmail",
+    "outlook",
+    "yahoo",
+    "imap",
+    "other",
+    "whatsapp",
+    "phone",
+  ]),
   color: zod.string(),
   isActive: zod.boolean(),
   unreadCount: zod.number(),

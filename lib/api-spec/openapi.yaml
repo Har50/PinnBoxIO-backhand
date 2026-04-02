@@ -398,12 +398,14 @@ components:
         id:
           type: integer
         email:
-          type: string
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
         name:
           type: string
         provider:
           type: string
-          enum: [gmail, outlook, yahoo, imap, other]
+          enum: [gmail, outlook, yahoo, imap, other, whatsapp, phone]
         color:
           type: string
         isActive:
@@ -414,7 +416,6 @@ components:
           type: string
       required:
         - id
-        - email
         - name
         - provider
         - color
@@ -426,16 +427,17 @@ components:
       type: object
       properties:
         email:
-          type: string
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
         name:
           type: string
         provider:
           type: string
-          enum: [gmail, outlook, yahoo, imap, other]
+          enum: [gmail, outlook, yahoo, imap, other, whatsapp, phone]
         color:
           type: string
       required:
-        - email
         - name
         - provider
 

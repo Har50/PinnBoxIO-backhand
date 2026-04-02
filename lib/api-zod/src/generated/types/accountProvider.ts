@@ -15,4 +15,6 @@ export const AccountProvider = {
   yahoo: "yahoo",
   imap: "imap",
   other: "other",
+  whatsapp: "whatsapp",
+  phone: "phone",
 } as const;

@@ -8,7 +8,10 @@
 import type { CreateAccountBodyProvider } from "./createAccountBodyProvider";
 
 export interface CreateAccountBody {
-  email: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
   name: string;
   provider: CreateAccountBodyProvider;
   color?: string;

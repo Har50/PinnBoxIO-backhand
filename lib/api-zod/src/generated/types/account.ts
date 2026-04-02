@@ -9,7 +9,10 @@ import type { AccountProvider } from "./accountProvider";
 
 export interface Account {
   id: number;
-  email: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
   name: string;
   provider: AccountProvider;
   color: string;

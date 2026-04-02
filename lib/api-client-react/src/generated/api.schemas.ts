@@ -18,11 +18,16 @@ export const AccountProvider = {
   yahoo: "yahoo",
   imap: "imap",
   other: "other",
+  whatsapp: "whatsapp",
+  phone: "phone",
 } as const;
 
 export interface Account {
   id: number;
-  email: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
   name: string;
   provider: AccountProvider;
   color: string;
@@ -40,10 +45,15 @@ export const CreateAccountBodyProvider = {
   yahoo: "yahoo",
   imap: "imap",
   other: "other",
+  whatsapp: "whatsapp",
+  phone: "phone",
 } as const;
 
 export interface CreateAccountBody {
-  email: string;
+  /** @nullable */
+  email?: string | null;
+  /** @nullable */
+  phone?: string | null;
   name: string;
   provider: CreateAccountBodyProvider;
   color?: string;
