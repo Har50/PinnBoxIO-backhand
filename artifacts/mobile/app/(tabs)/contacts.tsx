@@ -212,7 +212,7 @@ export default function ContactsScreen() {
   const [selectedContact, setSelectedContact] = useState<Contact | null>(null);
 
   const debouncedSearch = search.length >= 2 ? search : undefined;
-  const { data: contacts, isLoading, refetch } = useGetContacts({ q: debouncedSearch });
+  const { data: contacts, isLoading, isFetching, refetch } = useGetContacts({ q: debouncedSearch });
 
   const handlePress = useCallback((c: Contact) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -264,7 +264,7 @@ export default function ContactsScreen() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => <ContactRow contact={item} onPress={() => handlePress(item)} />}
           refreshControl={
-            <RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={colors.primary} />
           }
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}

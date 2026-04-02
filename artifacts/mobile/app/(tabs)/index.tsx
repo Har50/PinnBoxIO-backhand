@@ -22,7 +22,7 @@ function StatCard({ label, value, icon, color }: { label: string; value: number 
   );
 }
 
-function ContactRow({ contact }: { contact: Contact }) {
+function ContactCard({ contact }: { contact: Contact }) {
   const colors = useColors();
   const initials = contact.name
     .split(" ")
@@ -32,28 +32,24 @@ function ContactRow({ contact }: { contact: Contact }) {
     .toUpperCase();
 
   return (
-    <View style={[styles.contactRow, { borderBottomColor: colors.border }]}>
+    <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
         <Text style={[styles.avatarText, { color: colors.primary }]}>{initials}</Text>
-      </View>
-      <View style={styles.contactInfo}>
-        <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>
-          {contact.name}
-        </Text>
-        <Text style={[styles.contactSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-          {contact.company || contact.email}
-        </Text>
       </View>
       {contact.unreadCount > 0 && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{contact.unreadCount > 9 ? "9+" : contact.unreadCount}</Text>
         </View>
       )}
-      {contact.lastMessageAt && (
-        <Text style={[styles.contactTime, { color: colors.mutedForeground }]}>
-          {formatDistanceToNow(new Date(contact.lastMessageAt), { addSuffix: false })}
-        </Text>
-      )}
+      <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>
+        {contact.name}
+      </Text>
+      <Text style={[styles.contactSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+        {contact.company || contact.email}
+      </Text>
+      <Text style={[styles.contactMsg, { color: colors.mutedForeground }]}>
+        {contact.messageCount} msg{contact.messageCount !== 1 ? "s" : ""}
+      </Text>
     </View>
   );
 }
@@ -65,14 +61,14 @@ export default function DashboardScreen() {
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetOverviewStats();
-  const { data: contacts, isLoading: contactsLoading, refetch: refetchContacts } = useGetContacts({});
+  const { data: stats, isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useGetOverviewStats();
+  const { data: contacts, isLoading: contactsLoading, isFetching: contactsFetching, refetch: refetchContacts } = useGetContacts({});
 
   const topContacts = contacts
     ? [...contacts].sort((a, b) => b.messageCount - a.messageCount).filter((c) => c.messageCount > 0).slice(0, 8)
     : [];
 
-  const isRefreshing = false;
+  const isRefreshing = (statsFetching && !statsLoading) || (contactsFetching && !contactsLoading);
 
   function handleRefresh() {
     refetchStats();
@@ -140,9 +136,9 @@ export default function DashboardScreen() {
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No contacts yet</Text>
         </View>
       ) : (
-        <View style={[styles.contactList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          {topContacts.map((c, i) => (
-            <ContactRow key={c.id} contact={c} />
+        <View style={styles.contactGrid}>
+          {topContacts.map((c) => (
+            <ContactCard key={c.id} contact={c} />
           ))}
         </View>
       )}
@@ -216,33 +212,36 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
-  contactList: {
-    marginHorizontal: 20,
+  contactGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    gap: 10,
+  },
+  contactCard: {
+    width: "47%",
+    flexGrow: 1,
     borderRadius: 14,
     borderWidth: 1,
-    overflow: "hidden",
-  },
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    gap: 12,
+    padding: 14,
+    gap: 4,
   },
   avatar: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+    marginBottom: 6,
   },
-  avatarText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  contactInfo: { flex: 1, minWidth: 0 },
-  contactName: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  contactSub: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+  avatarText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  contactName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  contactSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  contactMsg: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
   badge: {
+    position: "absolute",
+    top: 10,
+    right: 10,
     backgroundColor: "#ef4444",
     borderRadius: 10,
     minWidth: 20,
@@ -250,8 +249,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 5,
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
   },
   badgeText: { color: "#ffffff", fontSize: 11, fontFamily: "Inter_700Bold" },
-  contactTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
 });

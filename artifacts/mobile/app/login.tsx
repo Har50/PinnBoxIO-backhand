@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
 
 export default function LoginScreen() {
-  const { signIn } = useAuth();
+  const { signIn, signInError } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
@@ -124,6 +124,24 @@ export default function LoginScreen() {
       backgroundColor: colors.border,
       marginVertical: 4,
     },
+    errorBanner: {
+      backgroundColor: "#fef2f2",
+      borderColor: "#fecaca",
+      borderWidth: 1,
+      borderRadius: 10,
+      paddingVertical: 10,
+      paddingHorizontal: 14,
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: 8,
+    },
+    errorText: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      color: "#dc2626",
+      flex: 1,
+      lineHeight: 18,
+    },
   });
 
   const features = [
@@ -157,6 +175,13 @@ export default function LoginScreen() {
         </View>
 
         <View style={styles.divider} />
+
+        {signInError ? (
+          <View style={styles.errorBanner}>
+            <Feather name="alert-circle" size={14} color="#dc2626" style={{ marginTop: 2 }} />
+            <Text style={styles.errorText}>{signInError}</Text>
+          </View>
+        ) : null}
 
         <Pressable
           style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}

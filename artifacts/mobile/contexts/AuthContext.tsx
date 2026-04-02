@@ -23,6 +23,7 @@ interface AuthContextValue {
   user: AuthUser | null;
   token: string | null;
   isLoading: boolean;
+  signInError: string | null;
   signIn: () => Promise<void>;
   signOut: () => Promise<void>;
 }
@@ -31,6 +32,7 @@ const AuthContext = createContext<AuthContextValue>({
   user: null,
   token: null,
   isLoading: true,
+  signInError: null,
   signIn: async () => {},
   signOut: async () => {},
 });
@@ -102,6 +104,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [signInError, setSignInError] = useState<string | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -120,8 +123,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const signIn = useCallback(async () => {
+    setSignInError(null);
     try {
       const discoveryRes = await fetch(`${ISSUER}/.well-known/openid-configuration`);
+      if (!discoveryRes.ok) throw new Error("Failed to contact Replit auth server.");
       const discovery = await discoveryRes.json();
       const authEndpoint: string = discovery.authorization_endpoint;
 
@@ -149,7 +154,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const code = resultUrl.searchParams.get("code");
       const returnedState = resultUrl.searchParams.get("state");
 
-      if (!code || returnedState !== state) return;
+      if (!code || returnedState !== state) {
+        setSignInError("Sign-in was cancelled or the response was invalid. Please try again.");
+        return;
+      }
 
       const exchangeRes = await fetch(`${API_BASE}/api/mobile-auth/token-exchange`, {
         method: "POST",
@@ -163,19 +171,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       });
 
-      if (!exchangeRes.ok) return;
+      if (!exchangeRes.ok) {
+        setSignInError("Could not complete sign-in. Please try again.");
+        return;
+      }
 
       const { token: newToken } = await exchangeRes.json();
-      if (!newToken) return;
+      if (!newToken) {
+        setSignInError("No session token received. Please try again.");
+        return;
+      }
 
       const u = await fetchCurrentUser(newToken);
-      if (!u) return;
+      if (!u) {
+        setSignInError("Could not load your profile. Please try again.");
+        return;
+      }
 
       await saveToken(newToken);
       setToken(newToken);
       setUser(u);
+      setSignInError(null);
     } catch (err) {
       console.error("Sign-in error:", err);
+      setSignInError("An unexpected error occurred. Please check your connection and try again.");
     }
   }, []);
 
@@ -183,6 +202,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const currentToken = token;
     setUser(null);
     setToken(null);
+    setSignInError(null);
     await removeToken();
 
     if (currentToken) {
@@ -196,7 +216,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, token, isLoading, signInError, signIn, signOut }}>
       {children}
     </AuthContext.Provider>
   );
