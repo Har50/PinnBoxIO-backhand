@@ -1,15 +1,22 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Unified Communications Hub API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: accounts
+    description: Email account management
+  - name: messages
+    description: Messages and emails
+  - name: contacts
+    description: Contact management
+  - name: search
+    description: Search operations
 paths:
   /healthz:
     get:
@@ -24,6 +31,357 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /accounts:
+    get:
+      operationId: getAccounts
+      tags: [accounts]
+      summary: List all email accounts
+      responses:
+        "200":
+          description: List of accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Account"
+    post:
+      operationId: createAccount
+      tags: [accounts]
+      summary: Add a new email account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAccountBody"
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+
+  /accounts/{id}:
+    get:
+      operationId: getAccount
+      tags: [accounts]
+      summary: Get a single account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Account"
+        "404":
+          description: Not found
+    delete:
+      operationId: deleteAccount
+      tags: [accounts]
+      summary: Remove an email account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /messages:
+    get:
+      operationId: getMessages
+      tags: [messages]
+      summary: List messages, optionally filtered by account or folder
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: folder
+          in: query
+          schema:
+            type: ["string", "null"]
+        - name: limit
+          in: query
+          schema:
+            type: ["integer", "null"]
+        - name: offset
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Messages list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesResponse"
+    post:
+      operationId: createMessage
+      tags: [messages]
+      summary: Create/send a new message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateMessageBody"
+      responses:
+        "201":
+          description: Message created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+
+  /messages/{id}:
+    get:
+      operationId: getMessage
+      tags: [messages]
+      summary: Get a single message with full body
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateMessage
+      tags: [messages]
+      summary: Update message (mark read/starred, move folder)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateMessageBody"
+      responses:
+        "200":
+          description: Updated message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Message"
+    delete:
+      operationId: deleteMessage
+      tags: [messages]
+      summary: Delete a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /messages/{id}/attachments:
+    post:
+      operationId: addAttachment
+      tags: [messages]
+      summary: Add an attachment reference to a message
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateAttachmentBody"
+      responses:
+        "201":
+          description: Attachment added
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attachment"
+
+  /contacts:
+    get:
+      operationId: getContacts
+      tags: [contacts]
+      summary: List contacts
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: List of contacts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Contact"
+    post:
+      operationId: createContact
+      tags: [contacts]
+      summary: Create a contact
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateContactBody"
+      responses:
+        "201":
+          description: Contact created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+
+  /contacts/{id}:
+    get:
+      operationId: getContact
+      tags: [contacts]
+      summary: Get a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateContact
+      tags: [contacts]
+      summary: Update a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateContactBody"
+      responses:
+        "200":
+          description: Updated contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Contact"
+    delete:
+      operationId: deleteContact
+      tags: [contacts]
+      summary: Delete a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Deleted
+
+  /search:
+    get:
+      operationId: searchAll
+      tags: [search]
+      summary: Search across all messages and contacts
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: type
+          in: query
+          schema:
+            type: ["string", "null"]
+            enum: ["messages", "contacts", "all", null]
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResults"
+
+  /stats/overview:
+    get:
+      operationId: getOverviewStats
+      tags: [messages]
+      summary: Overview stats - unread counts, total per account
+      responses:
+        "200":
+          description: Stats overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OverviewStats"
+
+  /messages/recent:
+    get:
+      operationId: getRecentMessages
+      tags: [messages]
+      summary: Get recent messages across all accounts
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Recent messages
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Message"
+
 components:
   schemas:
     HealthStatus:
@@ -34,3 +392,347 @@ components:
       required:
         - status
 
+    Account:
+      type: object
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [gmail, outlook, yahoo, imap, other]
+        color:
+          type: string
+        isActive:
+          type: boolean
+        unreadCount:
+          type: integer
+        createdAt:
+          type: string
+      required:
+        - id
+        - email
+        - name
+        - provider
+        - color
+        - isActive
+        - unreadCount
+        - createdAt
+
+    CreateAccountBody:
+      type: object
+      properties:
+        email:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [gmail, outlook, yahoo, imap, other]
+        color:
+          type: string
+      required:
+        - email
+        - name
+        - provider
+
+    Message:
+      type: object
+      properties:
+        id:
+          type: integer
+        accountId:
+          type: integer
+        accountEmail:
+          type: string
+        accountName:
+          type: string
+        accountColor:
+          type: string
+        folder:
+          type: string
+        subject:
+          type: string
+        fromName:
+          type: string
+        fromEmail:
+          type: string
+        toList:
+          type: string
+        ccList:
+          type: ["string", "null"]
+        bodyText:
+          type: ["string", "null"]
+        bodyHtml:
+          type: ["string", "null"]
+        isRead:
+          type: boolean
+        isStarred:
+          type: boolean
+        hasAttachments:
+          type: boolean
+        attachments:
+          type: array
+          items:
+            $ref: "#/components/schemas/Attachment"
+        receivedAt:
+          type: string
+        createdAt:
+          type: string
+      required:
+        - id
+        - accountId
+        - accountEmail
+        - accountName
+        - accountColor
+        - folder
+        - subject
+        - fromName
+        - fromEmail
+        - toList
+        - isRead
+        - isStarred
+        - hasAttachments
+        - attachments
+        - receivedAt
+        - createdAt
+
+    MessagesResponse:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        total:
+          type: integer
+        hasMore:
+          type: boolean
+      required:
+        - messages
+        - total
+        - hasMore
+
+    CreateMessageBody:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        folder:
+          type: string
+        subject:
+          type: string
+        fromName:
+          type: string
+        fromEmail:
+          type: string
+        toList:
+          type: string
+        ccList:
+          type: ["string", "null"]
+        bodyText:
+          type: ["string", "null"]
+        bodyHtml:
+          type: ["string", "null"]
+        isRead:
+          type: boolean
+        isStarred:
+          type: boolean
+        receivedAt:
+          type: string
+      required:
+        - accountId
+        - folder
+        - subject
+        - fromName
+        - fromEmail
+        - toList
+        - receivedAt
+
+    UpdateMessageBody:
+      type: object
+      properties:
+        isRead:
+          type: ["boolean", "null"]
+        isStarred:
+          type: ["boolean", "null"]
+        folder:
+          type: ["string", "null"]
+
+    Attachment:
+      type: object
+      properties:
+        id:
+          type: integer
+        messageId:
+          type: integer
+        filename:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        url:
+          type: ["string", "null"]
+      required:
+        - id
+        - messageId
+        - filename
+        - mimeType
+        - size
+
+    CreateAttachmentBody:
+      type: object
+      properties:
+        filename:
+          type: string
+        mimeType:
+          type: string
+        size:
+          type: integer
+        url:
+          type: ["string", "null"]
+      required:
+        - filename
+        - mimeType
+        - size
+
+    Contact:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+        messageCount:
+          type: integer
+        lastMessageAt:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+      required:
+        - id
+        - name
+        - email
+        - messageCount
+        - createdAt
+
+    CreateContactBody:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+      required:
+        - name
+        - email
+
+    UpdateContactBody:
+      type: object
+      properties:
+        name:
+          type: ["string", "null"]
+        email:
+          type: ["string", "null"]
+        phone:
+          type: ["string", "null"]
+        company:
+          type: ["string", "null"]
+        avatarUrl:
+          type: ["string", "null"]
+        notes:
+          type: ["string", "null"]
+
+    SearchResults:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        contacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Contact"
+        query:
+          type: string
+        totalMessages:
+          type: integer
+        totalContacts:
+          type: integer
+      required:
+        - messages
+        - contacts
+        - query
+        - totalMessages
+        - totalContacts
+
+    OverviewStats:
+      type: object
+      properties:
+        totalAccounts:
+          type: integer
+        totalMessages:
+          type: integer
+        totalUnread:
+          type: integer
+        totalStarred:
+          type: integer
+        totalContacts:
+          type: integer
+        accountBreakdown:
+          type: array
+          items:
+            $ref: "#/components/schemas/AccountStat"
+      required:
+        - totalAccounts
+        - totalMessages
+        - totalUnread
+        - totalStarred
+        - totalContacts
+        - accountBreakdown
+
+    AccountStat:
+      type: object
+      properties:
+        accountId:
+          type: integer
+        email:
+          type: string
+        name:
+          type: string
+        color:
+          type: string
+        unread:
+          type: integer
+        total:
+          type: integer
+      required:
+        - accountId
+        - email
+        - name
+        - color
+        - unread
+        - total
