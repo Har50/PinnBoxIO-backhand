@@ -1,7 +1,8 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
+import { PayModal } from "./pay-modal";
 import { useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -10,6 +11,7 @@ import { Badge } from "./ui/badge";
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [isPayOpen, setIsPayOpen] = useState(false);
   const [importantExpanded, setImportantExpanded] = useState(true);
 
   const { data: allContacts } = useGetContacts({});
@@ -51,10 +53,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           <span className="font-semibold text-lg tracking-tight">CommsHub</span>
         </div>
 
-        <div className="px-4 py-2">
+        <div className="px-4 py-2 flex flex-col gap-2">
           <Button onClick={() => setIsComposeOpen(true)} className="w-full justify-start gap-2 shadow-sm font-medium" size="lg">
             <PenSquare className="w-4 h-4" />
             Compose
+          </Button>
+          <Button
+            onClick={() => setIsPayOpen(true)}
+            variant="outline"
+            size="lg"
+            className="w-full justify-start gap-2 font-medium border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/60"
+          >
+            <CreditCard className="w-4 h-4" />
+            Pay
           </Button>
         </div>
 
@@ -195,6 +206,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} />
+      <PayModal open={isPayOpen} onOpenChange={setIsPayOpen} />
     </div>
   );
 }
