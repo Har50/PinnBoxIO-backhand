@@ -102,7 +102,7 @@ export default function SearchScreen() {
   const enabled = query.trim().length >= 2;
   const { data, isLoading } = useSearchAll(
     { q: query.trim(), type: "all" },
-    { query: { enabled, queryKey: ["search", query.trim()] as any } }
+    { query: { enabled } }
   );
 
   const noResults =

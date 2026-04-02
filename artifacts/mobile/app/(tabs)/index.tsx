@@ -1,17 +1,20 @@
-import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
+import { useGetContacts, useGetOverviewStats, type Contact } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import type { ComponentProps } from "react";
+import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatDistanceToNow } from "date-fns";
 
-function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: string; color: string }) {
+type FeatherName = ComponentProps<typeof Feather>["name"];
+
+function StatCard({ label, value, icon, color }: { label: string; value: number | string; icon: FeatherName; color: string }) {
   const colors = useColors();
   return (
     <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.statIcon, { backgroundColor: color + "18" }]}>
-        <Feather name={icon as any} size={18} color={color} />
+        <Feather name={icon} size={18} color={color} />
       </View>
       <Text style={[styles.statValue, { color: colors.foreground }]}>{value}</Text>
       <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{label}</Text>
@@ -19,11 +22,11 @@ function StatCard({ label, value, icon, color }: { label: string; value: number 
   );
 }
 
-function ContactRow({ contact }: { contact: any }) {
+function ContactRow({ contact }: { contact: Contact }) {
   const colors = useColors();
   const initials = contact.name
     .split(" ")
-    .map((n: string) => n[0])
+    .map((n) => n[0])
     .join("")
     .substring(0, 2)
     .toUpperCase();

@@ -2,6 +2,7 @@ import { useGetAccounts } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
+import type { ComponentProps } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -38,7 +39,9 @@ const PROVIDER_LABELS: Record<string, string> = {
   phone: "Phone",
 };
 
-function providerIcon(provider: string): string {
+type FeatherName = ComponentProps<typeof Feather>["name"];
+
+function providerIcon(provider: string): FeatherName {
   switch (provider) {
     case "whatsapp":
       return "message-circle";
@@ -61,7 +64,7 @@ function AccountCard({ account }: { account: Account }) {
         <View style={styles.cardTop}>
           <View style={styles.cardLeft}>
             <View style={[styles.providerIcon, { backgroundColor: account.color + "20" }]}>
-              <Feather name={providerIcon(account.provider) as any} size={18} color={account.color} />
+              <Feather name={providerIcon(account.provider)} size={18} color={account.color} />
             </View>
             <View style={styles.cardTitles}>
               <Text style={[styles.accountName, { color: colors.foreground }]} numberOfLines={1}>
@@ -220,7 +223,7 @@ const styles = StyleSheet.create({
   emptyState: {
     borderRadius: 16,
     borderWidth: 1,
-    borderStyle: "dashed" as any,
+    borderStyle: "dashed",
     padding: 32,
     alignItems: "center",
     gap: 8,

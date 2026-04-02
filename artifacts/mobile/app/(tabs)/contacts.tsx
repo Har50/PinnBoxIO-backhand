@@ -1,4 +1,4 @@
-import { useGetContacts } from "@workspace/api-client-react";
+import { useGetContacts, useSearchAll } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import {
@@ -75,6 +75,12 @@ function ContactDetail({ contact, onBack }: { contact: Contact; onBack: () => vo
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const { data: searchData, isLoading: historyLoading } = useSearchAll(
+    { q: contact.email, type: "messages" },
+    { query: { enabled: !!contact.email } }
+  );
+  const messageHistory = searchData?.messages ?? [];
 
   const initials = contact.name
     .split(" ")
@@ -160,6 +166,38 @@ function ContactDetail({ contact, onBack }: { contact: Contact; onBack: () => vo
           <Text style={[styles.notesText, { color: colors.foreground }]}>{contact.notes}</Text>
         </View>
       )}
+
+      <View style={[styles.infoCard, { backgroundColor: colors.card, borderColor: colors.border, marginTop: 12 }]}>
+        <Text style={[styles.cardTitle, { color: colors.mutedForeground }]}>Message History</Text>
+        {historyLoading ? (
+          <ActivityIndicator color={colors.primary} size="small" style={{ marginVertical: 12 }} />
+        ) : messageHistory.length === 0 ? (
+          <Text style={[styles.emptyHistoryText, { color: colors.mutedForeground }]}>No messages found</Text>
+        ) : (
+          messageHistory.map((msg) => (
+            <View key={msg.id} style={[styles.historyRow, { borderTopColor: colors.border }]}>
+              <View style={styles.historyRowTop}>
+                <Text style={[styles.historySubject, { color: colors.foreground }]} numberOfLines={1}>
+                  {msg.subject}
+                </Text>
+                <Text style={[styles.historyTime, { color: colors.mutedForeground }]}>
+                  {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: true })}
+                </Text>
+              </View>
+              <View style={styles.historyMeta}>
+                <Text style={[styles.historyFrom, { color: colors.mutedForeground }]} numberOfLines={1}>
+                  {msg.fromName}
+                </Text>
+                {msg.accountColor && (
+                  <View style={[styles.historyBadge, { backgroundColor: msg.accountColor + "20" }]}>
+                    <Text style={[styles.historyBadgeText, { color: msg.accountColor }]}>{msg.accountName}</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+          ))
+        )}
+      </View>
     </ScrollView>
   );
 }
@@ -306,4 +344,13 @@ const styles = StyleSheet.create({
   infoLabel: { fontSize: 11, fontFamily: "Inter_400Regular" },
   infoValue: { fontSize: 14, fontFamily: "Inter_500Medium", marginTop: 2 },
   notesText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 22 },
+  emptyHistoryText: { fontSize: 13, fontFamily: "Inter_400Regular", marginVertical: 8 },
+  historyRow: { paddingTop: 12, borderTopWidth: StyleSheet.hairlineWidth, gap: 4 },
+  historyRowTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
+  historySubject: { flex: 1, fontSize: 13, fontFamily: "Inter_500Medium" },
+  historyTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
+  historyMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
+  historyFrom: { flex: 1, fontSize: 12, fontFamily: "Inter_400Regular" },
+  historyBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexShrink: 0 },
+  historyBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
 });

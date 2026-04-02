@@ -3,9 +3,11 @@ import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
 import * as Haptics from "expo-haptics";
+
+const PAGE_SIZE = 20;
 
 type Message = {
   id: number;
@@ -213,9 +215,29 @@ export default function InboxScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [offset, setOffset] = useState(0);
+  const [allMessages, setAllMessages] = useState<Message[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const offsetRef = useRef(offset);
+  offsetRef.current = offset;
 
-  const { data, isLoading, refetch } = useGetMessages({ limit: 50 });
-  const messages = data?.messages ?? [];
+  const { data, isLoading, isFetching, refetch } = useGetMessages({ limit: PAGE_SIZE, offset });
+
+  useEffect(() => {
+    if (!data?.messages) return;
+    if (offsetRef.current === 0) {
+      setAllMessages(data.messages);
+    } else {
+      setAllMessages((prev) => {
+        const existingIds = new Set(prev.map((m) => m.id));
+        const newOnes = data.messages.filter((m) => !existingIds.has(m.id));
+        return [...prev, ...newOnes];
+      });
+    }
+  }, [data]);
+
+  const total = data?.total ?? 0;
+  const hasMore = allMessages.length < total;
 
   const updateMessage = useUpdateMessage();
 
@@ -225,7 +247,20 @@ export default function InboxScreen() {
     if (!msg.isRead) {
       updateMessage.mutate({ id: msg.id, data: { isRead: true } });
     }
-  }, []);
+  }, [updateMessage]);
+
+  const handleRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    setOffset(0);
+    await refetch();
+    setIsRefreshing(false);
+  }, [refetch]);
+
+  const handleLoadMore = useCallback(() => {
+    if (!isFetching && hasMore) {
+      setOffset((prev) => prev + PAGE_SIZE);
+    }
+  }, [isFetching, hasMore]);
 
   if (selectedId !== null) {
     return <MessageDetail messageId={selectedId} onBack={() => setSelectedId(null)} />;
@@ -235,20 +270,18 @@ export default function InboxScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.listHeader, { paddingTop: topPad + 12 }]}>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Inbox</Text>
-        {data && (
-          <View style={styles.totalBadge}>
-            <Text style={[styles.totalText, { color: colors.mutedForeground }]}>
-              {data.total} messages
-            </Text>
-          </View>
+        {total > 0 && (
+          <Text style={[styles.totalText, { color: colors.mutedForeground }]}>
+            {allMessages.length} of {total}
+          </Text>
         )}
       </View>
 
-      {isLoading ? (
+      {isLoading && allMessages.length === 0 ? (
         <View style={styles.loadingCenter}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
-      ) : messages.length === 0 ? (
+      ) : allMessages.length === 0 ? (
         <View style={styles.emptyState}>
           <Feather name="inbox" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
@@ -256,13 +289,26 @@ export default function InboxScreen() {
         </View>
       ) : (
         <FlatList
-          data={messages}
+          data={allMessages}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
             <MessageRow message={item} onPress={() => handlePressMessage(item)} />
           )}
           refreshControl={
-            <RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.primary} />
+            <RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />
+          }
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.3}
+          ListFooterComponent={
+            isFetching && allMessages.length > 0 ? (
+              <View style={styles.footerLoader}>
+                <ActivityIndicator color={colors.primary} size="small" />
+              </View>
+            ) : hasMore ? (
+              <Pressable style={styles.loadMoreButton} onPress={handleLoadMore}>
+                <Text style={[styles.loadMoreText, { color: colors.primary }]}>Load more</Text>
+              </Pressable>
+            ) : null
           }
           contentContainerStyle={{ paddingBottom: 100 }}
           showsVerticalScrollIndicator={false}
@@ -288,6 +334,9 @@ const styles = StyleSheet.create({
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  footerLoader: { paddingVertical: 16, alignItems: "center" },
+  loadMoreButton: { paddingVertical: 14, alignItems: "center" },
+  loadMoreText: { fontSize: 14, fontFamily: "Inter_500Medium" },
   messageRow: {
     flexDirection: "row",
     paddingVertical: 14,
