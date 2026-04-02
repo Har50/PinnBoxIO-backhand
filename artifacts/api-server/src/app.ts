@@ -11,6 +11,7 @@ import { logger } from "./lib/logger";
 const PgSession = connectPgSimple(session);
 
 const app: Express = express();
+app.set("trust proxy", 1);
 
 app.use(
   pinoHttp({

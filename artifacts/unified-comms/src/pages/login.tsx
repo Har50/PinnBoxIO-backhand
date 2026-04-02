@@ -27,7 +27,7 @@ export default function Login() {
           </div>
 
           <Button onClick={login} size="lg" className="w-full gap-2 font-medium">
-            Sign in
+            Sign in with Replit
           </Button>
 
           <p className="text-xs text-muted-foreground">

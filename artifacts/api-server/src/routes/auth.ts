@@ -12,9 +12,15 @@ import { getOidcConfig, ISSUER_URL, type SessionData } from "../lib/auth";
 const router: IRouter = Router();
 
 function getOrigin(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || "https";
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  const proto =
+    (req.headers["x-forwarded-proto"] as string)?.split(",")[0]?.trim() ||
+    req.protocol ||
+    "https";
   const host =
-    req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
+    (req.headers["x-forwarded-host"] as string)?.split(",")[0]?.trim() ||
+    req.headers["host"] ||
+    "localhost";
   return `${proto}://${host}`;
 }
 
