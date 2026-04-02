@@ -1,4 +1,4 @@
-import { useSearchAll } from "@workspace/api-client-react";
+import { useSearchAll, getSearchAllQueryKey, SearchAllType } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import {
@@ -100,9 +100,10 @@ export default function SearchScreen() {
   const [query, setQuery] = useState("");
 
   const enabled = query.trim().length >= 2;
+  const searchParams = { q: query.trim(), type: SearchAllType.all };
   const { data, isLoading } = useSearchAll(
-    { q: query.trim(), type: "all" },
-    { query: { enabled } }
+    searchParams,
+    { query: { enabled, queryKey: getSearchAllQueryKey(searchParams) } }
   );
 
   const noResults =

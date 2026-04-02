@@ -1,4 +1,4 @@
-import { useGetContacts, useSearchAll } from "@workspace/api-client-react";
+import { useGetContacts, useSearchAll, getSearchAllQueryKey, SearchAllType } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import {
@@ -76,9 +76,10 @@ function ContactDetail({ contact, onBack }: { contact: Contact; onBack: () => vo
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  const historyParams = { q: contact.email, type: SearchAllType.messages };
   const { data: searchData, isLoading: historyLoading } = useSearchAll(
-    { q: contact.email, type: "messages" },
-    { query: { enabled: !!contact.email } }
+    historyParams,
+    { query: { enabled: !!contact.email, queryKey: getSearchAllQueryKey(historyParams) } }
   );
   const messageHistory = searchData?.messages ?? [];
 
