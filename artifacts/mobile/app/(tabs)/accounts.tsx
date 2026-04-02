@@ -146,7 +146,7 @@ export default function AccountsScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const { data: accounts, isLoading, refetch } = useGetAccounts();
+  const { data: accounts, isLoading, isFetching, refetch } = useGetAccounts();
 
   return (
     <ScrollView
@@ -154,7 +154,7 @@ export default function AccountsScreen() {
       contentContainerStyle={{ paddingTop: topPad + 12, paddingBottom: 100, paddingHorizontal: 20, gap: 20 }}
       showsVerticalScrollIndicator={false}
       refreshControl={
-        <RefreshControl refreshing={false} onRefresh={refetch} tintColor={colors.primary} />
+        <RefreshControl refreshing={isFetching && !isLoading} onRefresh={refetch} tintColor={colors.primary} />
       }
     >
       <Text style={[styles.screenTitle, { color: colors.foreground }]}>Accounts</Text>
