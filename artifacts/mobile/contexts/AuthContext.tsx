@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
 import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
+import * as Crypto from "expo-crypto";
 import { Platform } from "react-native";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -38,23 +39,6 @@ export function useAuth() {
   return useContext(AuthContext);
 }
 
-const BASE64_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
-
-function base64urlEncode(buffer: Uint8Array): string {
-  let result = "";
-  const len = buffer.length;
-  for (let i = 0; i < len; i += 3) {
-    const b0 = buffer[i];
-    const b1 = i + 1 < len ? buffer[i + 1] : 0;
-    const b2 = i + 2 < len ? buffer[i + 2] : 0;
-    result += BASE64_CHARS[(b0 >> 2) & 0x3f];
-    result += BASE64_CHARS[((b0 << 4) | (b1 >> 4)) & 0x3f];
-    result += i + 1 < len ? BASE64_CHARS[((b1 << 2) | (b2 >> 6)) & 0x3f] : "=";
-    result += i + 2 < len ? BASE64_CHARS[b2 & 0x3f] : "=";
-  }
-  return result.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
-}
-
 function generateRandomString(length: number): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
   const array = new Uint8Array(length);
@@ -70,28 +54,15 @@ function generateRandomString(length: number): string {
     .join("");
 }
 
-type PKCEResult = {
-  codeVerifier: string;
-  codeChallenge: string;
-  codeChallengeMethod: "S256" | "plain";
-};
-
-async function generatePKCE(): Promise<PKCEResult> {
+async function generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: string; codeChallengeMethod: "S256" }> {
   const codeVerifier = generateRandomString(64);
-
-  if (
-    typeof crypto !== "undefined" &&
-    crypto.subtle &&
-    typeof TextEncoder !== "undefined"
-  ) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(codeVerifier);
-    const digest = await crypto.subtle.digest("SHA-256", data);
-    const codeChallenge = base64urlEncode(new Uint8Array(digest));
-    return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
-  }
-
-  return { codeVerifier, codeChallenge: codeVerifier, codeChallengeMethod: "plain" };
+  const base64Digest = await Crypto.digestStringAsync(
+    Crypto.CryptoDigestAlgorithm.SHA256,
+    codeVerifier,
+    { encoding: Crypto.CryptoEncoding.BASE64 }
+  );
+  const codeChallenge = base64Digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
 }
 
 async function getToken(): Promise<string | null> {

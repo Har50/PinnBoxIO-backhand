@@ -1,6 +1,6 @@
 import { useGetMessages, useGetMessage, useUpdateMessage } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useCallback, useEffect, useRef } from "react";
@@ -137,9 +137,9 @@ function MessageDetail({
           <Text style={[styles.backText, { color: colors.primary }]}>Inbox</Text>
         </Pressable>
         <Pressable onPress={toggleStar} style={styles.starButton} testID="star-button">
-          <Feather
-            name={message.isStarred ? "star" : "star"}
-            size={20}
+          <Ionicons
+            name={message.isStarred ? "star" : "star-outline"}
+            size={22}
             color={message.isStarred ? "#f59e0b" : colors.mutedForeground}
           />
         </Pressable>
