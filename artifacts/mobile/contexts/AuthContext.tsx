@@ -41,14 +41,7 @@ export function useAuth() {
 
 function generateRandomString(length: number): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const array = new Uint8Array(length);
-  if (typeof crypto !== "undefined" && crypto.getRandomValues) {
-    crypto.getRandomValues(array);
-  } else {
-    for (let i = 0; i < length; i++) {
-      array[i] = Math.floor(Math.random() * 256);
-    }
-  }
+  const array = Crypto.getRandomBytes(length);
   return Array.from(array)
     .map((b) => chars[b % chars.length])
     .join("");
