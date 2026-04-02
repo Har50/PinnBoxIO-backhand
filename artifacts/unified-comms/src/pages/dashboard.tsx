@@ -1,6 +1,8 @@
-import { useGetOverviewStats, useGetRecentMessages } from "@workspace/api-client-react";
+import { useGetOverviewStats, useGetRecentMessages, useGetContacts } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, InboxIcon, Star, Users, MessageSquare } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Mail, InboxIcon, Star, Users, MessageSquare, Phone, Clock, Building2 } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -8,6 +10,14 @@ import { formatDistanceToNow } from "date-fns";
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetOverviewStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentMessages({ limit: 5 });
+  const { data: allContacts, isLoading: contactsLoading } = useGetContacts({});
+
+  const importantPeople = allContacts
+    ? [...allContacts]
+        .sort((a, b) => b.messageCount - a.messageCount)
+        .filter((c) => c.messageCount > 0)
+        .slice(0, 6)
+    : [];
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
@@ -16,6 +26,7 @@ export default function Dashboard() {
         <p className="text-muted-foreground mt-1">Overview of all your communications.</p>
       </div>
 
+      {/* Stats row */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {statsLoading ? (
           Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)
@@ -73,6 +84,94 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* Important People section */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Important People</h2>
+            <p className="text-sm text-muted-foreground mt-0.5">Your most active contacts by message volume</p>
+          </div>
+          <Link href="/contacts" className="text-sm text-primary hover:underline font-medium">
+            View all contacts
+          </Link>
+        </div>
+
+        {contactsLoading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-24 rounded-xl" />
+            ))}
+          </div>
+        ) : importantPeople.length === 0 ? (
+          <Card className="shadow-sm border-border">
+            <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-3">
+              <Users className="w-10 h-10 opacity-20" />
+              <p className="text-sm">No contacts with messages yet. Add contacts to see them here.</p>
+            </div>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {importantPeople.map((contact) => (
+              <Link key={contact.id} href="/contacts">
+                <Card className="shadow-sm border-border hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group">
+                  <CardContent className="p-4">
+                    <div className="flex items-start gap-3">
+                      <Avatar className="h-11 w-11 border border-border flex-shrink-0">
+                        <AvatarImage src={contact.avatarUrl || ""} />
+                        <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
+                          {contact.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()}
+                        </AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
+                            {contact.name}
+                          </span>
+                        </div>
+                        {contact.company && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 truncate">
+                            <Building2 className="w-3 h-3 flex-shrink-0" />
+                            <span className="truncate">{contact.company}</span>
+                          </div>
+                        )}
+                        {!contact.company && (
+                          <div className="text-xs text-muted-foreground mb-2 truncate">{contact.email}</div>
+                        )}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <Badge
+                            variant="secondary"
+                            className="flex items-center gap-1 text-xs px-2 py-0.5 bg-primary/10 text-primary border-0 font-medium"
+                          >
+                            <MessageSquare className="w-3 h-3" />
+                            {contact.messageCount} {contact.messageCount === 1 ? "message" : "messages"}
+                          </Badge>
+                          {contact.phone && (
+                            <Badge
+                              variant="secondary"
+                              className="flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border-0 font-medium"
+                            >
+                              <Phone className="w-3 h-3" />
+                              {contact.phone}
+                            </Badge>
+                          )}
+                        </div>
+                        {contact.lastMessageAt && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
+                            <Clock className="w-3 h-3" />
+                            Last contact {formatDistanceToNow(new Date(contact.lastMessageAt), { addSuffix: true })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Recent messages + account breakdown */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-4">
           <div className="flex items-center justify-between">
