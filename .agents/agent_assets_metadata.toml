@@ -1,0 +1,8 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "IGvBsBMHKS2FexivA-Agd"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "commshub app icon"
