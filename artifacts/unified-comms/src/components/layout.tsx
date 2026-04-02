@@ -5,8 +5,10 @@ import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
 import { useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
+import { useAuth } from "@workspace/replit-auth-web";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
+import { LogOut } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
@@ -16,6 +18,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const { data: allContacts } = useGetContacts({});
   const { data: stats } = useGetOverviewStats();
+  const { user, logout } = useAuth();
 
   const importantPeople = allContacts
     ? [...allContacts]
@@ -186,14 +189,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
         </nav>
 
         <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-3 py-2">
-            <div className="w-8 h-8 rounded-full bg-sidebar-accent border border-sidebar-border flex items-center justify-center overflow-hidden">
-              <span className="text-xs font-semibold">ME</span>
+          <div className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-sidebar-accent/40 transition-colors group">
+            <Avatar className="w-8 h-8 border border-sidebar-border flex-shrink-0">
+              <AvatarImage src={user?.profileImageUrl || ""} />
+              <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
+                {user?.firstName?.[0]}{user?.lastName?.[0]}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <div className="text-sm font-medium truncate">
+                {user?.firstName && user?.lastName
+                  ? `${user.firstName} ${user.lastName}`
+                  : user?.email ?? "My Workspace"}
+              </div>
+              <div className="text-xs text-sidebar-foreground/60 truncate">
+                {user?.email ?? ""}
+              </div>
             </div>
-            <div className="flex flex-col">
-              <span className="text-sm font-medium">My Workspace</span>
-              <span className="text-xs text-sidebar-foreground/60">Pro Plan</span>
-            </div>
+            <button
+              onClick={logout}
+              title="Sign out"
+              className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         </div>
       </div>

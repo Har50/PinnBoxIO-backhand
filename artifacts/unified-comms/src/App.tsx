@@ -2,7 +2,9 @@ import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { useAuth } from "@workspace/replit-auth-web";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
 import { Layout } from "./components/layout";
 import Dashboard from "./pages/dashboard";
 import Inbox from "./pages/inbox";
@@ -20,6 +22,25 @@ const queryClient = new QueryClient({
 });
 
 function Router() {
+  const { isLoading, isAuthenticated } = useAuth();
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 rounded-xl bg-primary flex items-center justify-center shadow-md">
+            <span className="text-lg font-bold text-primary-foreground">UC</span>
+          </div>
+          <div className="w-6 h-6 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <Login />;
+  }
+
   return (
     <Layout>
       <Switch>
