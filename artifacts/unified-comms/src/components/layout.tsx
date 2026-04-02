@@ -1,9 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, MessageSquare, ChevronDown, ChevronRight, Phone } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { useState } from "react";
-import { useGetContacts } from "@workspace/api-client-react";
+import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 
@@ -13,6 +13,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [importantExpanded, setImportantExpanded] = useState(true);
 
   const { data: allContacts } = useGetContacts({});
+  const { data: stats } = useGetOverviewStats();
 
   const importantPeople = allContacts
     ? [...allContacts]
@@ -21,9 +22,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
         .slice(0, 5)
     : [];
 
+  const totalUnread = stats?.totalUnread ?? 0;
+
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/inbox", label: "Inbox", icon: Mail },
+    { href: "/inbox", label: "Inbox", icon: Mail, badge: totalUnread },
     { href: "/contacts", label: "Contacts", icon: Users },
   ];
 
@@ -66,7 +69,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
                 <item.icon className="w-4 h-4" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge != null && item.badge > 0 && (
+                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                    {item.badge > 99 ? "99+" : item.badge}
+                  </span>
+                )}
               </Link>
             );
           })}
@@ -99,12 +107,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
                       title={`View messages from ${contact.name}`}
                       className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-sidebar-accent/60 transition-colors text-left group"
                     >
-                      <Avatar className="h-7 w-7 flex-shrink-0 border border-sidebar-border/50">
-                        <AvatarImage src={contact.avatarUrl || ""} />
-                        <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
-                          {contact.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
+                      <div className="relative flex-shrink-0">
+                        <Avatar className="h-7 w-7 border border-sidebar-border/50">
+                          <AvatarImage src={contact.avatarUrl || ""} />
+                          <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
+                            {contact.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()}
+                          </AvatarFallback>
+                        </Avatar>
+                        {contact.unreadCount > 0 && (
+                          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none border border-sidebar">
+                            {contact.unreadCount > 9 ? "9+" : contact.unreadCount}
+                          </span>
+                        )}
+                      </div>
                       <div className="flex-1 min-w-0">
                         <div className="text-xs font-medium truncate text-sidebar-foreground/90 group-hover:text-sidebar-foreground">
                           {contact.name}
@@ -117,11 +132,15 @@ export function Layout({ children }: { children: React.ReactNode }) {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                        {contact.messageCount > 0 && (
-                          <Badge className="h-4 min-w-4 px-1 text-[10px] font-bold bg-primary/90 text-primary-foreground border-0 rounded-full leading-none flex items-center justify-center">
+                        {contact.unreadCount > 0 ? (
+                          <Badge className="h-4 min-w-4 px-1 text-[10px] font-bold bg-red-500 text-white border-0 rounded-full leading-none flex items-center justify-center">
+                            {contact.unreadCount}
+                          </Badge>
+                        ) : contact.messageCount > 0 ? (
+                          <Badge className="h-4 min-w-4 px-1 text-[10px] font-bold bg-muted text-muted-foreground border-0 rounded-full leading-none flex items-center justify-center">
                             {contact.messageCount}
                           </Badge>
-                        )}
+                        ) : null}
                       </div>
                     </button>
                   ))
@@ -136,13 +155,19 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Bottom nav: Search, WhatsApp, Accounts */}
           {bottomNavItems.map((item) => {
             const isActive = location === item.href || (location.startsWith(item.href) && item.href !== "/");
+            const isWhatsApp = item.href === "/whatsapp";
             return (
               <Link
                 key={item.href}
                 href={item.href}
                 className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
-                <item.icon className="w-4 h-4" />
+                <div className="relative">
+                  <item.icon className="w-4 h-4" />
+                  {isWhatsApp && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 border border-sidebar animate-pulse" />
+                  )}
+                </div>
                 {item.label}
               </Link>
             );

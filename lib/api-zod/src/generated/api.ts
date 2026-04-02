@@ -249,6 +249,7 @@ export const GetContactsResponseItem = zod.object({
   avatarUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   messageCount: zod.number(),
+  unreadCount: zod.number(),
   lastMessageAt: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -282,6 +283,7 @@ export const GetContactResponse = zod.object({
   avatarUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   messageCount: zod.number(),
+  unreadCount: zod.number(),
   lastMessageAt: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -311,6 +313,7 @@ export const UpdateContactResponse = zod.object({
   avatarUrl: zod.string().nullish(),
   notes: zod.string().nullish(),
   messageCount: zod.number(),
+  unreadCount: zod.number(),
   lastMessageAt: zod.string().nullish(),
   createdAt: zod.string(),
 });
@@ -381,6 +384,7 @@ export const SearchAllResponse = zod.object({
       avatarUrl: zod.string().nullish(),
       notes: zod.string().nullish(),
       messageCount: zod.number(),
+      unreadCount: zod.number(),
       lastMessageAt: zod.string().nullish(),
       createdAt: zod.string(),
     }),

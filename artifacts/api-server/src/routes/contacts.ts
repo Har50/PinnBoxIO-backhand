@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, count, max, sql } from "drizzle-orm";
+import { eq, ilike, or, count, max, sql, and } from "drizzle-orm";
 import { db, contactsTable, messagesTable } from "@workspace/db";
 import {
   CreateContactBody,
@@ -40,7 +40,7 @@ router.get("/contacts", async (req, res): Promise<void> => {
     contacts = await db.select().from(contactsTable).orderBy(contactsTable.name);
   }
 
-  // Get message counts per contact email
+  // Get total + unread message counts per contact email
   const messageCounts = await db
     .select({
       fromEmail: messagesTable.fromEmail,
@@ -50,13 +50,21 @@ router.get("/contacts", async (req, res): Promise<void> => {
     .from(messagesTable)
     .groupBy(messagesTable.fromEmail);
 
+  const unreadCounts = await db
+    .select({ fromEmail: messagesTable.fromEmail, cnt: count() })
+    .from(messagesTable)
+    .where(eq(messagesTable.isRead, false))
+    .groupBy(messagesTable.fromEmail);
+
   const countMap = new Map(messageCounts.map((r) => [r.fromEmail, { cnt: Number(r.cnt), lastAt: r.lastAt }]));
+  const unreadMap = new Map(unreadCounts.map((r) => [r.fromEmail, Number(r.cnt)]));
 
   const result = contacts.map((c) => {
     const stats = countMap.get(c.email);
     return {
       ...c,
       messageCount: stats?.cnt ?? 0,
+      unreadCount: unreadMap.get(c.email) ?? 0,
       lastMessageAt: stats?.lastAt ? stats.lastAt.toISOString() : null,
       createdAt: c.createdAt.toISOString(),
     };
@@ -102,10 +110,16 @@ router.get("/contacts/:id", async (req, res): Promise<void> => {
     .from(messagesTable)
     .where(eq(messagesTable.fromEmail, contact.email));
 
+  const [unreadRow] = await db
+    .select({ cnt: count() })
+    .from(messagesTable)
+    .where(and(eq(messagesTable.fromEmail, contact.email), eq(messagesTable.isRead, false)));
+
   res.json(
     GetContactResponse.parse({
       ...contact,
       messageCount: Number(stats?.cnt ?? 0),
+      unreadCount: Number(unreadRow?.cnt ?? 0),
       lastMessageAt: stats?.lastAt ? stats.lastAt.toISOString() : null,
       createdAt: contact.createdAt.toISOString(),
     })
@@ -149,10 +163,16 @@ router.patch("/contacts/:id", async (req, res): Promise<void> => {
     .from(messagesTable)
     .where(eq(messagesTable.fromEmail, contact.email));
 
+  const [unreadRow2] = await db
+    .select({ cnt: count() })
+    .from(messagesTable)
+    .where(and(eq(messagesTable.fromEmail, contact.email), eq(messagesTable.isRead, false)));
+
   res.json(
     UpdateContactResponse.parse({
       ...contact,
       messageCount: Number(stats?.cnt ?? 0),
+      unreadCount: Number(unreadRow2?.cnt ?? 0),
       lastMessageAt: stats?.lastAt ? stats.lastAt.toISOString() : null,
       createdAt: contact.createdAt.toISOString(),
     })

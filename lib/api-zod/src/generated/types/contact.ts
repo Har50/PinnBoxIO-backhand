@@ -19,6 +19,7 @@ export interface Contact {
   /** @nullable */
   notes?: string | null;
   messageCount: number;
+  unreadCount: number;
   /** @nullable */
   lastMessageAt?: string | null;
   createdAt: string;

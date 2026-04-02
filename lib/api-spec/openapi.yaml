@@ -619,6 +619,8 @@ components:
           type: ["string", "null"]
         messageCount:
           type: integer
+        unreadCount:
+          type: integer
         lastMessageAt:
           type: ["string", "null"]
         createdAt:
@@ -628,6 +630,7 @@ components:
         - name
         - email
         - messageCount
+        - unreadCount
         - createdAt
 
     CreateContactBody:
