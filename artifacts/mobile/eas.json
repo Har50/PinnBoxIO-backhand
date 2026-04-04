@@ -6,11 +6,7 @@
   "build": {
     "development": {
       "developmentClient": true,
-      "distribution": "internal",
-      "env": {
-        "EXPO_PUBLIC_DOMAIN": "",
-        "EXPO_PUBLIC_REPL_ID": ""
-      }
+      "distribution": "internal"
     },
     "preview": {
       "distribution": "internal",
@@ -23,16 +19,6 @@
     }
   },
   "submit": {
-    "production": {
-      "ios": {
-        "appleId": "",
-        "ascAppId": "",
-        "appleTeamId": ""
-      },
-      "android": {
-        "serviceAccountKeyPath": "./google-services-key.json",
-        "track": "internal"
-      }
-    }
+    "production": {}
   }
 }

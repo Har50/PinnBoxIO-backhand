@@ -2,6 +2,7 @@
   "expo": {
     "name": "CommsHub Mobile",
     "slug": "commshub-mobile",
+    "owner": "plav",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -15,7 +16,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.commshub.mobile"
+      "bundleIdentifier": "com.commshub.mobile",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "package": "com.commshub.mobile",
