@@ -166,10 +166,10 @@ importers:
         version: 4.0.0(typescript@5.9.3)
       stripe:
         specifier: 20.0.0
-        version: 20.0.0(@types/node@25.3.5)
+        version: 20.0.0(@types/node@25.5.2)
       stripe-replit-sync:
         specifier: 1.0.0
-        version: 1.0.0(stripe@20.0.0(@types/node@25.3.5))
+        version: 1.0.0(stripe@20.0.0(@types/node@25.5.2))
     devDependencies:
       prettier:
         specifier: ^3.8.1
@@ -2822,6 +2822,9 @@ packages:
   '@types/node@25.3.5':
     resolution: {integrity: sha512-oX8xrhvpiyRCQkG1MFchB09f+cXftgIXb3a7UUa4Y3wpmZPw5tyZGTLWhlESOLq1Rq6oDlc8npVU2/9xiCuXMA==}
 
+  '@types/node@25.5.2':
+    resolution: {integrity: sha512-tO4ZIRKNC+MDWV4qKVZe3Ql/woTnmHDr5JD8UI5hn2pwBrHEwOEMZK7WlNb5RKB6EoJ02gwmQS9OrjuFnZYdpg==}
+
   '@types/pg@8.18.0':
     resolution: {integrity: sha512-gT+oueVQkqnj6ajGJXblFR4iavIXWsGAFCk3dP4Kki5+a9R4NMt0JARdk6s8cUKcfUoqP5dAtDSLU8xYUTFV+Q==}
 
@@ -5163,10 +5166,6 @@ packages:
   picomatch@3.0.2:
     resolution: {integrity: sha512-cfDHL6LStTEKlNilboNtobT/kEa30PtAf2Q1OgszfrG/rpVl1xaFWT9ktfkS306GmHgmnad1Sw4wabhlvFtsTw==}
     engines: {node: '>=10'}
-
-  picomatch@4.0.3:
-    resolution: {integrity: sha512-5gTmgEY/sqK6gFXLIsQNH19lWb4ebPDLA4SdLP7dsWkIXHWlG66oPuVvXSGFPppYZz8ZDZq0dYYrbHfBCVUb1Q==}
-    engines: {node: '>=12'}
 
   picomatch@4.0.4:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
@@ -9089,7 +9088,7 @@ snapshots:
 
   '@types/graceful-fs@4.1.9':
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.2
 
   '@types/hammerjs@2.0.46': {}
 
@@ -9120,6 +9119,10 @@ snapshots:
   '@types/node@10.17.60': {}
 
   '@types/node@25.3.5':
+    dependencies:
+      undici-types: 7.18.2
+
+  '@types/node@25.5.2':
     dependencies:
       undici-types: 7.18.2
 
@@ -9286,7 +9289,7 @@ snapshots:
   anymatch@3.1.3:
     dependencies:
       normalize-path: 3.0.0
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   arg@5.0.2: {}
 
@@ -10782,7 +10785,7 @@ snapshots:
     dependencies:
       '@jest/types': 29.6.3
       '@types/graceful-fs': 4.1.9
-      '@types/node': 25.3.5
+      '@types/node': 25.5.2
       anymatch: 3.1.3
       fb-watchman: 2.0.2
       graceful-fs: 4.2.11
@@ -10821,7 +10824,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 3.9.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   jest-validate@29.7.0:
     dependencies:
@@ -10834,7 +10837,7 @@ snapshots:
 
   jest-worker@29.7.0:
     dependencies:
-      '@types/node': 25.3.5
+      '@types/node': 25.5.2
       jest-util: 29.7.0
       merge-stream: 2.0.0
       supports-color: 8.1.1
@@ -11369,7 +11372,7 @@ snapshots:
   micromatch@4.0.8:
     dependencies:
       braces: 3.0.3
-      picomatch: 4.0.3
+      picomatch: 4.0.4
 
   mime-db@1.52.0: {}
 
@@ -11721,8 +11724,6 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@3.0.2: {}
-
-  picomatch@4.0.3: {}
 
   picomatch@4.0.4: {}
 
@@ -12558,11 +12559,11 @@ snapshots:
 
   strip-json-comments@5.0.3: {}
 
-  stripe-replit-sync@1.0.0(stripe@20.0.0(@types/node@25.3.5)):
+  stripe-replit-sync@1.0.0(stripe@20.0.0(@types/node@25.5.2)):
     dependencies:
       pg: 8.20.0
       pg-node-migrations: 0.0.8
-      stripe: 20.0.0(@types/node@25.3.5)
+      stripe: 20.0.0(@types/node@25.5.2)
       ws: 8.20.0
       yesql: 7.0.0
     transitivePeerDependencies:
@@ -12575,6 +12576,12 @@ snapshots:
       qs: 6.15.0
     optionalDependencies:
       '@types/node': 25.3.5
+
+  stripe@20.0.0(@types/node@25.5.2):
+    dependencies:
+      qs: 6.15.0
+    optionalDependencies:
+      '@types/node': 25.5.2
 
   strtok3@10.3.5:
     dependencies:
