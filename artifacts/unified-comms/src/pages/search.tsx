@@ -1,13 +1,42 @@
-import { useSearchAll } from "@workspace/api-client-react";
 import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
-import { Search as SearchIcon, Mail, Users, FileText } from "lucide-react";
+import { Search as SearchIcon, Mail, Users, FileText, MessageCircle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
+
+interface SearchResults {
+  query: string;
+  messages: any[];
+  contacts: any[];
+  whatsappMessages: any[];
+  totalMessages: number;
+  totalContacts: number;
+  totalWhatsapp: number;
+}
+
+function useUnifiedSearch(q: string) {
+  const [data, setData] = useState<SearchResults | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const enabled = q.length > 1;
+
+  useEffect(() => {
+    if (!enabled) { setData(null); return; }
+    let cancelled = false;
+    setIsLoading(true);
+    fetch(`/api/search?q=${encodeURIComponent(q)}&type=all`, { credentials: "include" })
+      .then((r) => r.json())
+      .then((d) => { if (!cancelled) setData(d); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setIsLoading(false); });
+    return () => { cancelled = true; };
+  }, [q, enabled]);
+
+  return { data, isLoading };
+}
 
 export default function SearchPage() {
   const rawSearch = useSearch();
@@ -17,23 +46,20 @@ export default function SearchPage() {
   const [query, setQuery] = useState(initialQ);
   const debouncedQuery = useDebounce(query, 300);
 
-  // Update when the URL param changes (e.g., clicking a different person in sidebar)
   useEffect(() => {
     const q = new URLSearchParams(rawSearch).get("q") || "";
     setQuery(q);
   }, [rawSearch]);
 
-  const { data: results, isLoading } = useSearchAll(
-    { q: debouncedQuery, type: "all" },
-    { query: { enabled: debouncedQuery.length > 1, queryKey: ["search", debouncedQuery] as any } }
-  );
+  const { data: results, isLoading } = useUnifiedSearch(debouncedQuery);
+  const hasResults = results && (results.messages.length > 0 || results.contacts.length > 0 || results.whatsappMessages.length > 0);
 
   return (
     <div className="p-8 max-w-5xl mx-auto space-y-8 flex flex-col h-full overflow-hidden">
       <div className="space-y-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Global Search</h1>
-          <p className="text-muted-foreground mt-1">Find messages, contacts, and attachments.</p>
+          <p className="text-muted-foreground mt-1">Find messages, contacts, and WhatsApp conversations.</p>
         </div>
 
         <div className="relative max-w-2xl">
@@ -65,21 +91,21 @@ export default function SearchPage() {
               {Array.from({ length: 2 }).map((_, i) => <Skeleton key={`c-${i}`} className="h-16 w-full" />)}
             </div>
           </div>
-        ) : !results || (results.messages.length === 0 && results.contacts.length === 0) ? (
+        ) : !hasResults ? (
           <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
             <FileText className="h-12 w-12 mb-4 opacity-30" />
             <p>No results found for "{debouncedQuery}"</p>
           </div>
         ) : (
           <div className="space-y-10">
-            {results.messages.length > 0 && (
+            {results!.messages.length > 0 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2 tracking-tight">
                   <Mail className="h-5 w-5 text-primary" />
-                  Messages ({results.totalMessages})
+                  Messages ({results!.totalMessages})
                 </h2>
                 <div className="border rounded-xl divide-y bg-background shadow-sm overflow-hidden">
-                  {results.messages.map((msg) => (
+                  {results!.messages.map((msg: any) => (
                     <Link
                       key={msg.id}
                       href="/inbox"
@@ -101,14 +127,14 @@ export default function SearchPage() {
               </div>
             )}
 
-            {results.contacts.length > 0 && (
+            {results!.contacts.length > 0 && (
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold flex items-center gap-2 tracking-tight">
                   <Users className="h-5 w-5 text-emerald-500" />
-                  Contacts ({results.totalContacts})
+                  Contacts ({results!.totalContacts})
                 </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {results.contacts.map((contact) => (
+                  {results!.contacts.map((contact: any) => (
                     <Link
                       key={contact.id}
                       href="/contacts"
@@ -125,6 +151,35 @@ export default function SearchPage() {
                         <div className="text-xs text-muted-foreground truncate">{contact.email}</div>
                         {contact.company && <div className="text-xs text-muted-foreground truncate mt-0.5">{contact.company}</div>}
                       </div>
+                    </Link>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {results!.whatsappMessages.length > 0 && (
+              <div className="space-y-4">
+                <h2 className="text-lg font-semibold flex items-center gap-2 tracking-tight">
+                  <MessageCircle className="h-5 w-5 text-[#25D366]" />
+                  WhatsApp ({results!.totalWhatsapp})
+                </h2>
+                <div className="border rounded-xl divide-y bg-background shadow-sm overflow-hidden">
+                  {results!.whatsappMessages.map((m: any) => (
+                    <Link
+                      key={m.id}
+                      href="/whatsapp"
+                      className="p-4 hover:bg-muted/30 flex flex-col gap-1 transition-colors block group cursor-pointer border-l-2 border-l-transparent hover:border-l-[#25D366]"
+                    >
+                      <div className="flex items-center justify-between">
+                        <div className="font-semibold text-sm group-hover:text-[#25D366] transition-colors">{m.chatName}</div>
+                        {m.timestamp && (
+                          <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(m.timestamp))} ago</div>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        {m.fromMe ? <span className="font-medium text-foreground/80">You</span> : null}
+                      </div>
+                      <div className="text-sm text-muted-foreground line-clamp-2">{m.text}</div>
                     </Link>
                   ))}
                 </div>

@@ -7,6 +7,14 @@ import { Sparkles, Send, Plus, Trash2, Loader2 } from "lucide-react";
 import { useGetStripeSubscription, useGetStripeProducts } from "@/hooks/useStripe";
 import { cn } from "@/lib/utils";
 
+type Provider = "openai" | "claude" | "gemini";
+
+const PROVIDERS: { id: Provider; label: string; model: string }[] = [
+  { id: "openai", label: "GPT-4o", model: "OpenAI" },
+  { id: "claude", label: "Claude", model: "Anthropic" },
+  { id: "gemini", label: "Gemini", model: "Google" },
+];
+
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -55,6 +63,7 @@ function AiChat() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [provider, setProvider] = useState<Provider>("openai");
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -130,7 +139,7 @@ function AiChat() {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content: userMsg }),
+        body: JSON.stringify({ content: userMsg, provider }),
       });
 
       if (!res.body) throw new Error("No response body");
@@ -245,15 +254,33 @@ function AiChat() {
       </div>
 
       <div className="flex-1 flex flex-col">
-        <div className="px-6 py-4 border-b flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
+        <div className="px-6 py-4 border-b flex items-center gap-3 flex-wrap">
+          <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
           <div>
             <h1 className="font-semibold text-foreground">AI Assistant</h1>
             <p className="text-xs text-muted-foreground">Context-aware help for your inbox</p>
           </div>
-          <Badge variant="secondary" className="ml-auto">Pro</Badge>
+          <div className="ml-auto flex items-center gap-2 flex-wrap">
+            <div className="flex rounded-lg border overflow-hidden text-xs">
+              {PROVIDERS.map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setProvider(p.id)}
+                  className={cn(
+                    "px-3 py-1.5 font-medium transition-colors",
+                    provider === p.id
+                      ? "bg-primary text-primary-foreground"
+                      : "hover:bg-muted text-muted-foreground"
+                  )}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <Badge variant="secondary">Pro</Badge>
+          </div>
         </div>
 
         <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">

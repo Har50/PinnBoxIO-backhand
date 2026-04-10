@@ -1,93 +1,69 @@
-import { useSearchAll, getSearchAllQueryKey, SearchAllType } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import {
   ActivityIndicator,
-  FlatList,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
+  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
+import { getApiBaseUrl } from "@workspace/api-client-react";
+import * as SecureStore from "expo-secure-store";
 
-type SearchMessage = {
-  id: number;
-  accountName: string;
-  accountColor: string;
-  subject: string;
-  fromName: string;
-  fromEmail: string;
-  bodyText?: string | null;
-  receivedAt: string;
-  isRead: boolean;
-};
-
-type SearchContact = {
-  id: number;
-  name: string;
-  email: string;
-  company?: string | null;
-  messageCount: number;
-};
-
-function MessageResult({ message }: { message: SearchMessage }) {
-  const colors = useColors();
-  return (
-    <View style={[styles.resultCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={styles.resultHeader}>
-        <Text style={[styles.resultSubject, { color: colors.foreground }]} numberOfLines={2}>
-          {message.subject}
-        </Text>
-        <Text style={[styles.resultTime, { color: colors.mutedForeground }]}>
-          {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false })} ago
-        </Text>
-      </View>
-      <View style={styles.resultMeta}>
-        <Text style={[styles.resultFrom, { color: colors.foreground }]}>{message.fromName}</Text>
-        <View style={[styles.accountBadge, { backgroundColor: message.accountColor + "20" }]}>
-          <Text style={[styles.accountBadgeText, { color: message.accountColor }]}>{message.accountName}</Text>
-        </View>
-      </View>
-      {message.bodyText && (
-        <Text style={[styles.resultPreview, { color: colors.mutedForeground }]} numberOfLines={2}>
-          {message.bodyText}
-        </Text>
-      )}
-    </View>
-  );
+async function getAuthToken(): Promise<string | null> {
+  if (Platform.OS === "web") return localStorage.getItem("commshub_session_token");
+  return SecureStore.getItemAsync("commshub_session_token");
 }
 
-function ContactResult({ contact }: { contact: SearchContact }) {
-  const colors = useColors();
-  const initials = contact.name.substring(0, 2).toUpperCase();
+interface SearchResults {
+  query: string;
+  messages: any[];
+  contacts: any[];
+  whatsappMessages: any[];
+  totalMessages: number;
+  totalContacts: number;
+  totalWhatsapp: number;
+}
 
+function useUnifiedSearch(q: string) {
+  const [data, setData] = useState<SearchResults | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const baseUrl = getApiBaseUrl ? getApiBaseUrl() : "";
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (q.length < 2) { setData(null); return; }
+    timerRef.current = setTimeout(async () => {
+      setIsLoading(true);
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`${baseUrl}/api/search?q=${encodeURIComponent(q)}&type=all`, {
+          credentials: "include",
+          headers: token ? { Authorization: `Bearer ${token}` } : {},
+        });
+        if (res.ok) setData(await res.json());
+      } catch {}
+      setIsLoading(false);
+    }, 350);
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, [q, baseUrl]);
+
+  return { data, isLoading };
+}
+
+function SectionHeader({ icon, label, color }: { icon: string; label: string; color: string }) {
+  const colors = useColors();
   return (
-    <View style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-      <View style={[styles.contactAvatar, { backgroundColor: colors.accent }]}>
-        <Text style={[styles.contactAvatarText, { color: colors.primary }]}>{initials}</Text>
-      </View>
-      <View style={styles.contactInfo}>
-        <Text style={[styles.contactName, { color: colors.foreground }]} numberOfLines={1}>
-          {contact.name}
-        </Text>
-        <Text style={[styles.contactEmail, { color: colors.mutedForeground }]} numberOfLines={1}>
-          {contact.email}
-        </Text>
-        {contact.company && (
-          <Text style={[styles.contactCompany, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {contact.company}
-          </Text>
-        )}
-      </View>
-      <View style={styles.messageCount}>
-        <Text style={[styles.messageCountNum, { color: colors.primary }]}>{contact.messageCount}</Text>
-        <Text style={[styles.messageCountLabel, { color: colors.mutedForeground }]}>msgs</Text>
-      </View>
+    <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 8 }}>
+      <Feather name={icon as any} size={14} color={color} />
+      <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: colors.foreground }}>{label}</Text>
     </View>
   );
 }
@@ -98,20 +74,10 @@ export default function SearchScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [query, setQuery] = useState("");
+  const { data, isLoading } = useUnifiedSearch(query);
 
   const enabled = query.trim().length >= 2;
-  const searchParams = { q: query.trim(), type: SearchAllType.all };
-  const { data, isLoading } = useSearchAll(
-    searchParams,
-    { query: { enabled, queryKey: getSearchAllQueryKey(searchParams) } }
-  );
-
-  const noResults =
-    !isLoading &&
-    enabled &&
-    data &&
-    data.messages.length === 0 &&
-    data.contacts.length === 0;
+  const hasResults = data && (data.messages.length > 0 || data.contacts.length > 0 || data.whatsappMessages.length > 0);
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -122,7 +88,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search messages, contacts..."
+            placeholder="Search messages, WhatsApp, contacts..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
             returnKeyType="search"
@@ -130,12 +96,9 @@ export default function SearchScreen() {
             testID="search-input"
           />
           {query.length > 0 && (
-            <Feather
-              name="x-circle"
-              size={16}
-              color={colors.mutedForeground}
-              onPress={() => setQuery("")}
-            />
+            <TouchableOpacity onPress={() => setQuery("")}>
+              <Feather name="x-circle" size={16} color={colors.mutedForeground} />
+            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -145,14 +108,14 @@ export default function SearchScreen() {
           <Feather name="search" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Search everything</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Enter at least 2 characters to search messages and contacts
+            Enter at least 2 characters to search emails, WhatsApp, and contacts
           </Text>
         </View>
       ) : isLoading ? (
         <View style={styles.loadingCenter}>
           <ActivityIndicator color={colors.primary} size="large" />
         </View>
-      ) : noResults ? (
+      ) : !hasResults ? (
         <View style={styles.emptyState}>
           <Feather name="file-text" size={40} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No results</Text>
@@ -162,34 +125,74 @@ export default function SearchScreen() {
         </View>
       ) : (
         <ScrollView
-          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100, gap: 20 }}
+          contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 100, gap: 24, paddingTop: 8 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {data && data.messages.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Feather name="mail" size={14} color={colors.primary} />
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Messages ({data.totalMessages})
-                </Text>
-              </View>
-              {data.messages.map((msg) => (
-                <MessageResult key={msg.id} message={msg} />
+          {data!.messages.length > 0 && (
+            <View>
+              <SectionHeader icon="mail" label={`Messages (${data!.totalMessages})`} color={colors.primary} />
+              {data!.messages.map((msg: any) => (
+                <View key={msg.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={styles.cardHeader}>
+                    <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={2}>{msg.subject}</Text>
+                    {msg.receivedAt && (
+                      <Text style={[styles.cardTime, { color: colors.mutedForeground }]}>
+                        {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: false })} ago
+                      </Text>
+                    )}
+                  </View>
+                  <Text style={[styles.cardSub, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {msg.fromName} &lt;{msg.fromEmail}&gt;
+                  </Text>
+                  {msg.bodyText && (
+                    <Text style={[styles.cardPreview, { color: colors.mutedForeground }]} numberOfLines={2}>
+                      {msg.bodyText}
+                    </Text>
+                  )}
+                </View>
               ))}
             </View>
           )}
 
-          {data && data.contacts.length > 0 && (
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Feather name="users" size={14} color="#10b981" />
-                <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-                  Contacts ({data.totalContacts})
-                </Text>
-              </View>
-              {data.contacts.map((c) => (
-                <ContactResult key={c.id} contact={c} />
+          {data!.whatsappMessages.length > 0 && (
+            <View>
+              <SectionHeader icon="message-circle" label={`WhatsApp (${data!.totalWhatsapp})`} color="#25D366" />
+              {data!.whatsappMessages.map((m: any) => (
+                <View key={m.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: "#25D366", borderLeftWidth: 3 }]}>
+                  <View style={styles.cardHeader}>
+                    <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>{m.chatName}</Text>
+                    {m.timestamp && (
+                      <Text style={[styles.cardTime, { color: colors.mutedForeground }]}>
+                        {formatDistanceToNow(new Date(m.timestamp), { addSuffix: false })} ago
+                      </Text>
+                    )}
+                  </View>
+                  {m.fromMe && <Text style={[styles.cardSub, { color: "#25D366" }]}>You</Text>}
+                  <Text style={[styles.cardPreview, { color: colors.mutedForeground }]} numberOfLines={2}>{m.text}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          {data!.contacts.length > 0 && (
+            <View>
+              <SectionHeader icon="users" label={`Contacts (${data!.totalContacts})`} color="#10b981" />
+              {data!.contacts.map((c: any) => (
+                <View key={c.id} style={[styles.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <View style={[styles.avatar, { backgroundColor: colors.accent }]}>
+                    <Text style={[styles.avatarText, { color: colors.primary }]}>{c.name.substring(0, 2).toUpperCase()}</Text>
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>{c.name}</Text>
+                    <Text style={[styles.cardSub, { color: colors.mutedForeground }]} numberOfLines={1}>{c.email}</Text>
+                    {c.company && <Text style={[styles.cardSub, { color: colors.mutedForeground }]} numberOfLines={1}>{c.company}</Text>}
+                  </View>
+                  <View style={{ alignItems: "center" }}>
+                    <Text style={[{ fontSize: 18, fontFamily: "Inter_700Bold", color: colors.primary }]}>{c.messageCount}</Text>
+                    <Text style={[{ fontSize: 10, fontFamily: "Inter_400Regular", color: colors.mutedForeground }]}>msgs</Text>
+                  </View>
+                </View>
               ))}
             </View>
           )}
@@ -224,23 +227,18 @@ const styles = StyleSheet.create({
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
-  section: { gap: 10 },
-  sectionHeader: { flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 },
-  sectionTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  resultCard: {
+  card: {
     borderRadius: 12,
     borderWidth: 1,
     padding: 14,
-    gap: 6,
+    gap: 4,
+    marginBottom: 10,
   },
-  resultHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
-  resultSubject: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
-  resultTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
-  resultMeta: { flexDirection: "row", alignItems: "center", gap: 8 },
-  resultFrom: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  accountBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  accountBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  resultPreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
+  cardHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", gap: 8 },
+  cardTitle: { flex: 1, fontSize: 14, fontFamily: "Inter_500Medium" },
+  cardTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
+  cardSub: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  cardPreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 18 },
   contactCard: {
     borderRadius: 12,
     borderWidth: 1,
@@ -248,14 +246,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
+    marginBottom: 10,
   },
-  contactAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  contactAvatarText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  contactInfo: { flex: 1, minWidth: 0 },
-  contactName: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  contactEmail: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  contactCompany: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  messageCount: { alignItems: "center", flexShrink: 0 },
-  messageCountNum: { fontSize: 18, fontFamily: "Inter_700Bold" },
-  messageCountLabel: { fontSize: 10, fontFamily: "Inter_400Regular" },
+  avatar: { width: 42, height: 42, borderRadius: 21, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  avatarText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
 });

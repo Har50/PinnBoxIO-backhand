@@ -32,6 +32,13 @@ async function getAuthToken(): Promise<string | null> {
   return SecureStore.getItemAsync("commshub_session_token");
 }
 
+type Provider = "openai" | "claude" | "gemini";
+const PROVIDERS: { id: Provider; label: string }[] = [
+  { id: "openai", label: "GPT-4o" },
+  { id: "claude", label: "Claude" },
+  { id: "gemini", label: "Gemini" },
+];
+
 export default function AiScreen() {
   const colors = useColors();
   const { isSubscribed, isLoading: subLoading } = useSubscription();
@@ -39,6 +46,7 @@ export default function AiScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
+  const [provider, setProvider] = useState<Provider>("openai");
   const scrollRef = useRef<ScrollView>(null);
   const baseUrl = getApiBaseUrl ? getApiBaseUrl() : "";
 
@@ -88,7 +96,7 @@ export default function AiScreen() {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
         credentials: "include",
-        body: JSON.stringify({ content: userMsg }),
+        body: JSON.stringify({ content: userMsg, provider }),
       });
 
       if (!res.body) throw new Error("No response body");
@@ -158,6 +166,14 @@ export default function AiScreen() {
       borderRadius: 8,
     },
     newBtnText: { fontSize: 13, color: colors.primary, fontFamily: "Inter_600SemiBold" },
+    providerRow: { flexDirection: "row", gap: 6, marginTop: 6 },
+    providerBtn: {
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 6,
+      borderWidth: 1,
+    },
+    providerBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
     scrollContent: { padding: 16, paddingBottom: 8 },
     bubble: {
       maxWidth: "85%",
@@ -219,12 +235,30 @@ export default function AiScreen() {
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>AI Assistant</Text>
-          <Text style={styles.headerSub}>Your personal comms helper</Text>
+          <View style={[styles.providerRow]}>
+            {PROVIDERS.map((p) => (
+              <TouchableOpacity
+                key={p.id}
+                onPress={() => setProvider(p.id)}
+                style={[
+                  styles.providerBtn,
+                  { borderColor: colors.border, backgroundColor: provider === p.id ? colors.primary : colors.card }
+                ]}
+              >
+                <Text style={[
+                  styles.providerBtnText,
+                  { color: provider === p.id ? "#fff" : colors.mutedForeground }
+                ]}>
+                  {p.label}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
         <TouchableOpacity style={styles.newBtn} onPress={startConversation}>
-          <Text style={styles.newBtnText}>New chat</Text>
+          <Text style={styles.newBtnText}>New</Text>
         </TouchableOpacity>
       </View>
 

@@ -15,7 +15,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Validation**: Zod (`zod/v4`), `drizzle-zod`
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
-- **AI**: OpenAI via Replit AI proxy (`@workspace/integrations-openai-ai-server`)
+- **AI**: OpenAI, Anthropic (Claude), Google Gemini via Replit AI proxy (`@workspace/integrations-openai-ai-server`, `@workspace/integrations-anthropic-ai`, `@workspace/integrations-gemini-ai`)
 - **Payments (web)**: Stripe via Replit integration (`conn_stripe_01KNV6EDHC6M2CZC01JTTH0DQD`)
 - **Payments (mobile)**: RevenueCat via Replit integration (`conn_revenuecat_01KNV6BP3EBM58RFPCRXS6PX0K`)
 

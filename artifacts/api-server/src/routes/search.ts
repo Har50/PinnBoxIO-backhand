@@ -1,39 +1,37 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, count, max, desc } from "drizzle-orm";
 import { db, accountsTable, messagesTable, contactsTable, attachmentsTable } from "@workspace/db";
-import { SearchAllQueryParams, SearchAllResponse } from "@workspace/api-zod";
+import { whatsappService } from "../services/whatsapp.js";
 
 const router: IRouter = Router();
 
 router.get("/search", async (req, res): Promise<void> => {
-  const query = SearchAllQueryParams.safeParse(req.query);
-  if (!query.success) {
-    res.status(400).json({ error: query.error.message });
+  const q = (req.query.q as string || "").trim();
+  const type = req.query.type as string | undefined;
+
+  if (!q) {
+    res.status(400).json({ error: "q is required" });
     return;
   }
 
-  const { q, type, accountId } = query.data;
-
   let messages: unknown[] = [];
   let contacts: unknown[] = [];
+  let whatsappMessages: unknown[] = [];
 
   if (!type || type === "messages" || type === "all") {
-    const msgConditions = [
-      or(
-        ilike(messagesTable.subject, `%${q}%`),
-        ilike(messagesTable.fromName, `%${q}%`),
-        ilike(messagesTable.fromEmail, `%${q}%`),
-        ilike(messagesTable.bodyText, `%${q}%`),
-        ilike(messagesTable.toList, `%${q}%`)
-      ),
-    ];
-    if (accountId) msgConditions.push(eq(messagesTable.accountId, accountId));
-
     const msgs = await db
       .select({ msg: messagesTable, account: accountsTable })
       .from(messagesTable)
       .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
-      .where(msgConditions.length === 1 ? msgConditions[0] : (msgConditions[0]))
+      .where(
+        or(
+          ilike(messagesTable.subject, `%${q}%`),
+          ilike(messagesTable.fromName, `%${q}%`),
+          ilike(messagesTable.fromEmail, `%${q}%`),
+          ilike(messagesTable.bodyText, `%${q}%`),
+          ilike(messagesTable.toList, `%${q}%`)
+        )
+      )
       .orderBy(desc(messagesTable.receivedAt))
       .limit(30);
 
@@ -107,15 +105,44 @@ router.get("/search", async (req, res): Promise<void> => {
     });
   }
 
-  res.json(
-    SearchAllResponse.parse({
-      messages,
-      contacts,
-      query: q,
-      totalMessages: messages.length,
-      totalContacts: contacts.length,
-    })
-  );
+  if (!type || type === "whatsapp" || type === "all") {
+    const lowerQ = q.toLowerCase();
+    const chats = whatsappService.getChats();
+    for (const chat of chats) {
+      const msgs = whatsappService.getMessages(chat.id);
+      for (const m of msgs) {
+        const text = (
+          m.message?.conversation ??
+          m.message?.extendedTextMessage?.text ??
+          ""
+        ).trim();
+        if (text.toLowerCase().includes(lowerQ)) {
+          whatsappMessages.push({
+            id: m.key?.id ?? "",
+            chatId: chat.id,
+            chatName: chat.name ?? chat.id,
+            text,
+            fromMe: m.key?.fromMe ?? false,
+            timestamp: m.messageTimestamp
+              ? new Date(Number(m.messageTimestamp) * 1000).toISOString()
+              : null,
+          });
+          if (whatsappMessages.length >= 20) break;
+        }
+      }
+      if (whatsappMessages.length >= 20) break;
+    }
+  }
+
+  res.json({
+    query: q,
+    messages,
+    contacts,
+    whatsappMessages,
+    totalMessages: messages.length,
+    totalContacts: contacts.length,
+    totalWhatsapp: whatsappMessages.length,
+  });
 });
 
 export default router;

@@ -30,6 +30,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>AI</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="search">
+        <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
+        <Label>Search</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="accounts">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Accounts</Label>
@@ -130,7 +134,18 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen name="contacts" options={{ href: null }} />
-      <Tabs.Screen name="search" options={{ href: null }} />
+      <Tabs.Screen
+        name="search"
+        options={{
+          title: "Search",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="magnifyingglass" tintColor={color} size={22} />
+            ) : (
+              <Feather name="search" size={22} color={color} />
+            ),
+        }}
+      />
       <Tabs.Screen
         name="accounts"
         options={{

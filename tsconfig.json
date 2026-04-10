@@ -20,6 +20,12 @@
     },
     {
       "path": "./lib/integrations-openai-ai-react"
+    },
+    {
+      "path": "./lib/integrations-anthropic-ai"
+    },
+    {
+      "path": "./lib/integrations-gemini-ai"
     }
   ]
 }
