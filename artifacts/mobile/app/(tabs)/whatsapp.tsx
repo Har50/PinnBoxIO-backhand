@@ -15,21 +15,26 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as SecureStore from "expo-secure-store";
 
 const WA_GREEN = "#25D366";
 const WA_DARK = "#128C7E";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
-async function apiGet<T>(path: string): Promise<T> {
-  let token: string | null = null;
+async function getToken(): Promise<string | null> {
   try {
-    token = Platform.OS === "web"
-      ? localStorage.getItem("commshub_session_token")
-      : await SecureStore.getItemAsync("commshub_session_token");
-  } catch {}
+    if (Platform.OS === "web") {
+      return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+    }
+    const SecureStore = await import("expo-secure-store");
+    return await SecureStore.getItemAsync("commshub_session_token");
+  } catch {
+    return null;
+  }
+}
 
+async function apiGet<T>(path: string): Promise<T> {
+  const token = await getToken();
   const res = await fetch(`${API_BASE}/api${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
@@ -38,12 +43,7 @@ async function apiGet<T>(path: string): Promise<T> {
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  let token: string | null = null;
-  try {
-    token = Platform.OS === "web"
-      ? localStorage.getItem("commshub_session_token")
-      : await SecureStore.getItemAsync("commshub_session_token");
-  } catch {}
+  const token = await getToken();
 
   const res = await fetch(`${API_BASE}/api${path}`, {
     method: "POST",

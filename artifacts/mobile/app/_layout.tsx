@@ -17,7 +17,6 @@ import { ActivityIndicator, Platform, Text, View, Alert as RNAlert } from "react
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
-import * as SecureStore from "expo-secure-store";
 import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 const REQUIRED_ENV: Record<string, string | undefined> = {
@@ -33,8 +32,9 @@ setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 setAuthTokenGetter(async () => {
   try {
     if (Platform.OS === "web") {
-      return localStorage.getItem("commshub_session_token");
+      return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
     }
+    const SecureStore = await import("expo-secure-store");
     return await SecureStore.getItemAsync("commshub_session_token");
   } catch {
     return null;

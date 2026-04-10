@@ -14,8 +14,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useSubscription } from "@/lib/revenuecat";
 import { getApiBaseUrl } from "@workspace/api-client-react";
-import * as SecureStore from "expo-secure-store";
-
 interface Message {
   role: "user" | "assistant";
   content: string;
@@ -28,7 +26,10 @@ interface Conversation {
 }
 
 async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") return localStorage.getItem("commshub_session_token");
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+  }
+  const SecureStore = await import("expo-secure-store");
   return SecureStore.getItemAsync("commshub_session_token");
 }
 

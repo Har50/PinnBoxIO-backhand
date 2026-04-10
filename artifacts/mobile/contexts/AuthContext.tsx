@@ -1,7 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import * as SecureStore from "expo-secure-store";
 import * as WebBrowser from "expo-web-browser";
-import * as Crypto from "expo-crypto";
 import * as Linking from "expo-linking";
 import { Platform } from "react-native";
 
@@ -45,28 +43,45 @@ export function useAuth() {
 
 function generateRandomString(length: number): string {
   const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
-  const array = Crypto.getRandomBytes(length);
-  return Array.from(array)
-    .map((b) => chars[b % chars.length])
-    .join("");
+  let array: Uint8Array;
+  if (Platform.OS === "web") {
+    array = new Uint8Array(length);
+    (globalThis.crypto ?? (globalThis as any).msCrypto).getRandomValues(array);
+  } else {
+    const { getRandomValues } = require("expo-crypto");
+    array = getRandomValues(new Uint8Array(length));
+  }
+  return Array.from(array).map((b) => chars[b % chars.length]).join("");
 }
 
 async function generatePKCE(): Promise<{ codeVerifier: string; codeChallenge: string; codeChallengeMethod: "S256" }> {
   const codeVerifier = generateRandomString(64);
-  const base64Digest = await Crypto.digestStringAsync(
-    Crypto.CryptoDigestAlgorithm.SHA256,
-    codeVerifier,
-    { encoding: Crypto.CryptoEncoding.BASE64 }
-  );
-  const codeChallenge = base64Digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  let codeChallenge: string;
+  if (Platform.OS === "web") {
+    const encoder = new TextEncoder();
+    const data = encoder.encode(codeVerifier);
+    const hashBuffer = await globalThis.crypto.subtle.digest("SHA-256", data);
+    const hashArray = new Uint8Array(hashBuffer);
+    codeChallenge = btoa(String.fromCharCode(...hashArray))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  } else {
+    const Crypto = await import("expo-crypto");
+    const base64Digest = await Crypto.digestStringAsync(
+      Crypto.CryptoDigestAlgorithm.SHA256,
+      codeVerifier,
+      { encoding: Crypto.CryptoEncoding.BASE64 }
+    );
+    codeChallenge = base64Digest.replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+  }
   return { codeVerifier, codeChallenge, codeChallengeMethod: "S256" };
 }
 
 async function getToken(): Promise<string | null> {
   try {
     if (Platform.OS === "web") {
-      return localStorage.getItem(SECURE_STORE_KEY);
+      return typeof localStorage !== "undefined" ? localStorage.getItem(SECURE_STORE_KEY) : null;
     }
+    const SecureStore = await import("expo-secure-store");
     return await SecureStore.getItemAsync(SECURE_STORE_KEY);
   } catch {
     return null;
@@ -75,16 +90,18 @@ async function getToken(): Promise<string | null> {
 
 async function saveToken(token: string): Promise<void> {
   if (Platform.OS === "web") {
-    localStorage.setItem(SECURE_STORE_KEY, token);
+    if (typeof localStorage !== "undefined") localStorage.setItem(SECURE_STORE_KEY, token);
   } else {
+    const SecureStore = await import("expo-secure-store");
     await SecureStore.setItemAsync(SECURE_STORE_KEY, token);
   }
 }
 
 async function removeToken(): Promise<void> {
   if (Platform.OS === "web") {
-    localStorage.removeItem(SECURE_STORE_KEY);
+    if (typeof localStorage !== "undefined") localStorage.removeItem(SECURE_STORE_KEY);
   } else {
+    const SecureStore = await import("expo-secure-store");
     await SecureStore.deleteItemAsync(SECURE_STORE_KEY);
   }
 }

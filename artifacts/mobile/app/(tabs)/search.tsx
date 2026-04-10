@@ -14,10 +14,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { getApiBaseUrl } from "@workspace/api-client-react";
-import * as SecureStore from "expo-secure-store";
 
 async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") return localStorage.getItem("commshub_session_token");
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+  }
+  const SecureStore = await import("expo-secure-store");
   return SecureStore.getItemAsync("commshub_session_token");
 }
 
