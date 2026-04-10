@@ -1,5 +1,7 @@
 import type { AuthUser } from "@workspace/api-zod";
 import { type Request, type Response, type NextFunction } from "express";
+import { db } from "@workspace/db";
+import { sql } from "drizzle-orm";
 
 declare module "express-session" {
   interface SessionData {
@@ -29,6 +31,18 @@ declare global {
   }
 }
 
+async function getUserFromSessionId(sessionId: string): Promise<AuthUser | null> {
+  try {
+    const result = await db.execute(
+      sql`SELECT sess FROM sessions WHERE sid = ${sessionId} AND expire > NOW() LIMIT 1`
+    );
+    const row = result.rows[0] as { sess?: { user?: AuthUser } } | undefined;
+    return row?.sess?.user ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export async function authMiddleware(
   req: Request,
   _res: Response,
@@ -40,6 +54,18 @@ export async function authMiddleware(
 
   if (req.session?.user?.id) {
     req.user = req.session.user;
+    return next();
+  }
+
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    const sessionId = authHeader.slice(7).trim();
+    if (sessionId) {
+      const user = await getUserFromSessionId(sessionId);
+      if (user?.id) {
+        req.user = user;
+      }
+    }
   }
 
   next();
