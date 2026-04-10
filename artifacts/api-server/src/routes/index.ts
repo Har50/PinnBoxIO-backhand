@@ -6,6 +6,8 @@ import messagesRouter from "./messages";
 import contactsRouter from "./contacts";
 import searchRouter from "./search";
 import statsRouter from "./stats";
+import stripeRouter from "./stripe";
+import aiRouter from "./ai";
 
 const router: IRouter = Router();
 
@@ -26,5 +28,7 @@ router.use(messagesRouter);
 router.use(contactsRouter);
 router.use(searchRouter);
 router.use(statsRouter);
+router.use(stripeRouter);
+router.use(aiRouter);
 
 export default router;

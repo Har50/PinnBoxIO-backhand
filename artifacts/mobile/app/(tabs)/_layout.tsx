@@ -20,13 +20,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "tray", selected: "tray.fill" }} />
         <Label>Inbox</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="ai">
+        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
+        <Label>AI</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="contacts">
         <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
         <Label>Contacts</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search" role="search">
-        <Icon sf="magnifyingglass" />
-        <Label>Search</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="accounts">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
@@ -99,6 +99,18 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="ai"
+        options={{
+          title: "AI",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="sparkles" tintColor={color} size={22} />
+            ) : (
+              <Feather name="zap" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
         name="contacts"
         options={{
           title: "Contacts",
@@ -110,18 +122,7 @@ function ClassicTabLayout() {
             ),
         }}
       />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="magnifyingglass" tintColor={color} size={22} />
-            ) : (
-              <Feather name="search" size={22} color={color} />
-            ),
-        }}
-      />
+      <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen
         name="accounts"
         options={{

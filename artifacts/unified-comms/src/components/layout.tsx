@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
@@ -32,6 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
     { href: "/inbox", label: "Inbox", icon: Mail, badge: totalUnread },
+    { href: "/ai", label: "AI Assistant", icon: Sparkles },
     { href: "/contacts", label: "Contacts", icon: Users },
   ];
 

@@ -12,6 +12,7 @@ import Contacts from "./pages/contacts";
 import SearchPage from "./pages/search";
 import Accounts from "./pages/accounts";
 import WhatsApp from "./pages/whatsapp";
+import AiPage from "./pages/ai";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -50,6 +51,8 @@ function Router() {
         <Route path="/search" component={SearchPage} />
         <Route path="/accounts" component={Accounts} />
         <Route path="/whatsapp" component={WhatsApp} />
+        <Route path="/ai" component={AiPage} />
+        <Route path="/settings" component={AiPage} />
         <Route component={NotFound} />
       </Switch>
     </Layout>
