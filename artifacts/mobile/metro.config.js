@@ -1,3 +1,10 @@
 const { getDefaultConfig } = require("expo/metro-config");
 
-module.exports = getDefaultConfig(__dirname);
+const config = getDefaultConfig(__dirname);
+
+config.resolver.blockList = [
+  /protobufjs_tmp.*/,
+  /node_modules\/.*\/protobufjs_tmp.*/,
+];
+
+module.exports = config;

@@ -17,5 +17,15 @@
     "@replit/revenuecat-sdk": "4.0.0",
     "stripe": "20.0.0",
     "stripe-replit-sync": "1.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@whiskeysockets/baileys",
+      "protobufjs",
+      "better-sqlite3",
+      "bufferutil",
+      "canvas",
+      "utf-8-validate"
+    ]
   }
 }

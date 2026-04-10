@@ -9,6 +9,7 @@ import router from "./routes";
 import { logger } from "./lib/logger";
 import { WebhookHandlers } from "./lib/webhookHandlers";
 import { getStripeSync } from "./lib/stripeClient";
+import { whatsappService } from "./services/whatsapp";
 
 const PgSession = connectPgSimple(session);
 
@@ -85,5 +86,7 @@ app.use("/api", router);
 getStripeSync()
   .then((sync) => sync.syncProducts().then(() => sync.syncPrices()))
   .catch((err) => logger.warn({ err }, "Stripe sync skipped or failed on startup"));
+
+whatsappService.connect().catch((err) => logger.warn({ err }, "WhatsApp auto-connect skipped"));
 
 export default app;

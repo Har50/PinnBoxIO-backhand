@@ -8,6 +8,7 @@ import searchRouter from "./search";
 import statsRouter from "./stats";
 import stripeRouter from "./stripe";
 import aiRouter from "./ai";
+import whatsappRouter from "./whatsapp";
 
 const router: IRouter = Router();
 
@@ -30,5 +31,6 @@ router.use(searchRouter);
 router.use(statsRouter);
 router.use(stripeRouter);
 router.use(aiRouter);
+router.use(whatsappRouter);
 
 export default router;
