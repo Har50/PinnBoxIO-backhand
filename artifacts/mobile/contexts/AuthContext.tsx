@@ -8,6 +8,7 @@ import { Platform } from "react-native";
 WebBrowser.maybeCompleteAuthSession();
 
 const SECURE_STORE_KEY = "commshub_session_token";
+const PKCE_STORAGE_KEY = "commshub_pkce_state";
 const ISSUER = "https://replit.com/oidc";
 const CLIENT_ID = process.env.EXPO_PUBLIC_REPL_ID ?? "";
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
@@ -101,14 +102,107 @@ async function fetchCurrentUser(token: string): Promise<AuthUser | null> {
   }
 }
 
+function getWebCallbackUrl(): string {
+  if (typeof window === "undefined") return "";
+  return `${window.location.origin}/callback`;
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [signInError, setSignInError] = useState<string | null>(null);
 
+  const completeWebCallback = useCallback(async (code: string, storedState: string, returnedState: string) => {
+    if (returnedState !== storedState) {
+      setSignInError("Sign-in response was invalid. Please try again.");
+      setIsLoading(false);
+      return;
+    }
+
+    const stored = Platform.OS === "web" ? sessionStorage.getItem(PKCE_STORAGE_KEY) : null;
+    if (!stored) {
+      setSignInError("Sign-in session expired. Please try again.");
+      setIsLoading(false);
+      return;
+    }
+
+    let pkce: { codeVerifier: string; nonce: string };
+    try {
+      pkce = JSON.parse(stored);
+    } catch {
+      setSignInError("Sign-in session was corrupted. Please try again.");
+      setIsLoading(false);
+      return;
+    }
+
+    sessionStorage.removeItem(PKCE_STORAGE_KEY);
+
+    try {
+      const redirectUri = getWebCallbackUrl();
+      const exchangeRes = await fetch(`${API_BASE}/api/mobile-auth/token-exchange`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code,
+          code_verifier: pkce.codeVerifier,
+          redirect_uri: redirectUri,
+          state: returnedState,
+          nonce: pkce.nonce,
+        }),
+      });
+
+      if (!exchangeRes.ok) {
+        setSignInError("Could not complete sign-in. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const { token: newToken } = await exchangeRes.json();
+      if (!newToken) {
+        setSignInError("No session token received. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      const u = await fetchCurrentUser(newToken);
+      if (!u) {
+        setSignInError("Could not load your profile. Please try again.");
+        setIsLoading(false);
+        return;
+      }
+
+      await saveToken(newToken);
+      setToken(newToken);
+      setUser(u);
+      setSignInError(null);
+
+      if (typeof window !== "undefined") {
+        window.history.replaceState({}, "", "/");
+      }
+    } catch (err) {
+      console.error("Token exchange error:", err);
+      setSignInError("An unexpected error occurred. Please try again.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     (async () => {
+      if (Platform.OS === "web" && typeof window !== "undefined") {
+        const params = new URLSearchParams(window.location.search);
+        const code = params.get("code");
+        const state = params.get("state");
+        const storedState = sessionStorage.getItem("commshub_oauth_state");
+
+        if (code && state && storedState) {
+          sessionStorage.removeItem("commshub_oauth_state");
+          await completeWebCallback(code, storedState, state);
+          return;
+        }
+      }
+
       const stored = await getToken();
       if (stored) {
         const u = await fetchCurrentUser(stored);
@@ -121,7 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
       setIsLoading(false);
     })();
-  }, []);
+  }, [completeWebCallback]);
 
   const signIn = useCallback(async () => {
     setSignInError(null);
@@ -134,6 +228,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const { codeVerifier, codeChallenge, codeChallengeMethod } = await generatePKCE();
       const state = generateRandomString(32);
       const nonce = generateRandomString(32);
+
+      if (Platform.OS === "web") {
+        const redirectUri = getWebCallbackUrl();
+
+        sessionStorage.setItem("commshub_oauth_state", state);
+        sessionStorage.setItem(PKCE_STORAGE_KEY, JSON.stringify({ codeVerifier, nonce }));
+
+        const authUrl = new URL(authEndpoint);
+        authUrl.searchParams.set("client_id", CLIENT_ID);
+        authUrl.searchParams.set("redirect_uri", redirectUri);
+        authUrl.searchParams.set("response_type", "code");
+        authUrl.searchParams.set("scope", "openid email profile offline_access");
+        authUrl.searchParams.set("code_challenge", codeChallenge);
+        authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
+        authUrl.searchParams.set("state", state);
+        authUrl.searchParams.set("nonce", nonce);
+
+        window.location.href = authUrl.toString();
+        return;
+      }
+
       const redirectUri = Linking.createURL("callback");
 
       const authUrl = new URL(authEndpoint);
@@ -145,7 +260,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
       authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("nonce", nonce);
-      authUrl.searchParams.set("prompt", "login consent");
 
       const result = await WebBrowser.openAuthSessionAsync(authUrl.toString(), redirectUri);
 

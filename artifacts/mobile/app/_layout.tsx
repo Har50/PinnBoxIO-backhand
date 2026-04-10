@@ -67,6 +67,7 @@ function RootLayoutNav() {
       <>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
+          <Stack.Screen name="callback" />
         </Stack>
         <Redirect href="/login" />
       </>
