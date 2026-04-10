@@ -49,6 +49,8 @@
       "eas": {
         "projectId": "c17cf529-42be-4549-848f-bdd57d81dfa0"
       }
-    }
+    },
+    "marketingUrl": "https://unified-inbox-search.replit.app",
+    "privacyPolicyUrl": "https://unified-inbox-search.replit.app/privacy"
   }
 }
