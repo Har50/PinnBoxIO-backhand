@@ -9,6 +9,8 @@ import { Platform, StyleSheet, View, useColorScheme } from "react-native";
 
 import { useColors } from "@/hooks/useColors";
 
+const WA_GREEN = "#25D366";
+
 function NativeTabLayout() {
   return (
     <NativeTabs>
@@ -20,13 +22,13 @@ function NativeTabLayout() {
         <Icon sf={{ default: "tray", selected: "tray.fill" }} />
         <Label>Inbox</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="whatsapp">
+        <Icon sf={{ default: "bubble.left.and.bubble.right", selected: "bubble.left.and.bubble.right.fill" }} />
+        <Label>WhatsApp</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="ai">
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>AI</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="contacts">
-        <Icon sf={{ default: "person.2", selected: "person.2.fill" }} />
-        <Label>Contacts</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="accounts">
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
@@ -99,6 +101,23 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
+        name="whatsapp"
+        options={{
+          title: "WhatsApp",
+          tabBarIcon: ({ color, focused }) =>
+            isIOS ? (
+              <SymbolView
+                name="bubble.left.and.bubble.right.fill"
+                tintColor={focused ? WA_GREEN : color}
+                size={22}
+              />
+            ) : (
+              <Feather name="message-circle" size={22} color={focused ? WA_GREEN : color} />
+            ),
+          tabBarActiveTintColor: WA_GREEN,
+        }}
+      />
+      <Tabs.Screen
         name="ai"
         options={{
           title: "AI",
@@ -110,18 +129,7 @@ function ClassicTabLayout() {
             ),
         }}
       />
-      <Tabs.Screen
-        name="contacts"
-        options={{
-          title: "Contacts",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="person.2" tintColor={color} size={22} />
-            ) : (
-              <Feather name="users" size={22} color={color} />
-            ),
-        }}
-      />
+      <Tabs.Screen name="contacts" options={{ href: null }} />
       <Tabs.Screen name="search" options={{ href: null }} />
       <Tabs.Screen
         name="accounts"
