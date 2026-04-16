@@ -9,11 +9,13 @@ import statsRouter from "./stats";
 import stripeRouter from "./stripe";
 import aiRouter from "./ai";
 import whatsappRouter from "./whatsapp";
+import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
+router.use(linkedinPublicRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated()) {
@@ -32,5 +34,6 @@ router.use(statsRouter);
 router.use(stripeRouter);
 router.use(aiRouter);
 router.use(whatsappRouter);
+router.use(linkedinRouter);
 
 export default router;

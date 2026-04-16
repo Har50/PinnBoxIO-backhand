@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
@@ -39,6 +39,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const bottomNavItems = [
     { href: "/search", label: "Search", icon: Search },
     { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
+    { href: "/linkedin", label: "LinkedIn", icon: Linkedin },
     { href: "/accounts", label: "Accounts", icon: Settings },
   ];
 
@@ -171,6 +172,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {bottomNavItems.map((item) => {
             const isActive = location === item.href || (location.startsWith(item.href) && item.href !== "/");
             const isWhatsApp = item.href === "/whatsapp";
+            const isLinkedIn = item.href === "/linkedin";
             return (
               <Link
                 key={item.href}
@@ -181,6 +183,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
                   <item.icon className="w-4 h-4" />
                   {isWhatsApp && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 border border-sidebar animate-pulse" />
+                  )}
+                  {isLinkedIn && (
+                    <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#0A66C2] border border-sidebar" />
                   )}
                 </div>
                 {item.label}
