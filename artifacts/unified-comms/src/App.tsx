@@ -15,6 +15,7 @@ import Accounts from "./pages/accounts";
 import WhatsApp from "./pages/whatsapp";
 import LinkedInPage from "./pages/linkedin";
 import AiPage from "./pages/ai";
+import StoragePage from "./pages/storage";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -53,6 +54,7 @@ function Router() {
               <Route path="/whatsapp" component={WhatsApp} />
               <Route path="/linkedin" component={LinkedInPage} />
               <Route path="/ai" component={AiPage} />
+              <Route path="/storage" component={StoragePage} />
               <Route path="/settings" component={AiPage} />
               <Route component={NotFound} />
             </Switch>

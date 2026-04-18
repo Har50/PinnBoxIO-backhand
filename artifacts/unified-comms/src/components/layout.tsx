@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut, HardDrive } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
@@ -33,6 +33,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/inbox", label: "Inbox", icon: Mail, badge: totalUnread },
     { href: "/ai", label: "AI Assistant", icon: Sparkles },
     { href: "/contacts", label: "Contacts", icon: Users },
+    { href: "/storage", label: "Storage", icon: HardDrive },
   ];
 
   const bottomNavItems = [

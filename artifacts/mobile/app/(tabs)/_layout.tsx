@@ -31,6 +31,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "person.crop.square", selected: "person.crop.square.fill" }} />
         <Label>LinkedIn</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="storage">
+        <Icon sf={{ default: "externaldrive", selected: "externaldrive.fill" }} />
+        <Label>Storage</Label>
+      </NativeTabs.Trigger>
       <NativeTabs.Trigger name="ai">
         <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
         <Label>AI</Label>
@@ -124,6 +128,18 @@ function ClassicTabLayout() {
               <Feather name="message-circle" size={22} color={focused ? WA_GREEN : color} />
             ),
           tabBarActiveTintColor: WA_GREEN,
+        }}
+      />
+      <Tabs.Screen
+        name="storage"
+        options={{
+          title: "Storage",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="externaldrive.fill" tintColor={color} size={22} />
+            ) : (
+              <Feather name="hard-drive" size={22} color={color} />
+            ),
         }}
       />
       <Tabs.Screen

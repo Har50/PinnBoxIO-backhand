@@ -10,6 +10,7 @@ import stripeRouter from "./stripe";
 import aiRouter from "./ai";
 import whatsappRouter from "./whatsapp";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
+import storageRouter from "./storage";
 
 const router: IRouter = Router();
 
@@ -35,5 +36,6 @@ router.use(stripeRouter);
 router.use(aiRouter);
 router.use(whatsappRouter);
 router.use(linkedinRouter);
+router.use(storageRouter);
 
 export default router;
