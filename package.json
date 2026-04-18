@@ -19,6 +19,10 @@
     "stripe-replit-sync": "1.0.0"
   },
   "pnpm": {
+    "overrides": {
+      "protobufjs@6.8.8": "7.5.5",
+      "protobufjs@7.5.4": "7.5.5"
+    },
     "onlyBuiltDependencies": [
       "@whiskeysockets/baileys",
       "protobufjs",
