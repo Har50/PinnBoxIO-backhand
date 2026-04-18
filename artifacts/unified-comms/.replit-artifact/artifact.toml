@@ -1,6 +1,6 @@
 kind = "web"
 previewPath = "/"
-title = "Unified Communications Hub"
+title = "CommsHub"
 version = "1.0.0"
 id = "artifacts/unified-comms"
 router = "path"
