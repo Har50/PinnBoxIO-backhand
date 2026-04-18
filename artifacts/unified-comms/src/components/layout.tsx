@@ -53,9 +53,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <div className="w-64 flex-shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col">
         <div className="p-4 flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md">
-            UC
+            PI
           </div>
-          <span className="font-semibold text-lg tracking-tight">CommsHub</span>
+          <span className="font-semibold text-lg tracking-tight">PinnboxIO</span>
         </div>
 
         <div className="px-4 py-2 flex flex-col gap-2">

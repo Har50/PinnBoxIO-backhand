@@ -8,7 +8,7 @@ export default function PrivacyPolicy() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">Overview</h2>
           <p className="text-gray-600 leading-relaxed">
-            CommsHub ("we", "our", or "us") is a unified communications platform that lets you manage
+            PinnboxIO ("we", "our", or "us") is a unified communications platform that lets you manage
             messages across multiple channels in one place. This Privacy Policy explains what information
             we collect, how we use it, and the choices you have.
           </p>
@@ -40,7 +40,7 @@ export default function PrivacyPolicy() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">How We Use Your Information</h2>
           <ul className="list-disc pl-5 space-y-2 text-gray-600">
-            <li>To provide, operate, and maintain the CommsHub service.</li>
+            <li>To provide, operate, and maintain the PinnboxIO service.</li>
             <li>To authenticate you and keep your account secure.</li>
             <li>To sync and display your messages from connected accounts.</li>
             <li>To diagnose technical problems and improve reliability.</li>
@@ -62,7 +62,7 @@ export default function PrivacyPolicy() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">Third-Party Services</h2>
           <p className="text-gray-600 leading-relaxed">
-            CommsHub integrates with third-party messaging platforms (such as WhatsApp) on your
+            PinnboxIO integrates with third-party messaging platforms (such as WhatsApp) on your
             behalf. Your use of those platforms is governed by their own privacy policies. We only
             access the data needed to display your messages within the app.
           </p>
@@ -89,7 +89,7 @@ export default function PrivacyPolicy() {
         <section className="mb-8">
           <h2 className="text-xl font-semibold text-gray-800 mb-3">Children's Privacy</h2>
           <p className="text-gray-600 leading-relaxed">
-            CommsHub is not directed at children under the age of 13. We do not knowingly collect
+            PinnboxIO is not directed at children under the age of 13. We do not knowingly collect
             personal information from children. If you believe a child has provided us with personal
             information, please contact us and we will delete it promptly.
           </p>

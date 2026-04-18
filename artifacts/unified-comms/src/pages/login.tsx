@@ -10,10 +10,10 @@ export default function Login() {
       <div className="w-full max-w-sm space-y-8 text-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <span className="text-2xl font-bold text-primary-foreground">UC</span>
+            <span className="text-2xl font-bold text-primary-foreground">PI</span>
           </div>
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">CommsHub</h1>
+            <h1 className="text-2xl font-bold tracking-tight">PinnboxIO</h1>
             <p className="text-muted-foreground mt-1 text-sm">Unified Communications for your team</p>
           </div>
         </div>
