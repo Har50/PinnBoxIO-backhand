@@ -414,7 +414,7 @@ function PaywallScreen({ colors }: { colors: any }) {
     <SafeAreaView style={styles.container} edges={["top"]}>
       <ScrollView contentContainerStyle={styles.inner}>
         <View style={styles.badge}>
-          <Text style={styles.badgeText}>CommsHub Pro</Text>
+          <Text style={styles.badgeText}>PinnboxIO Pro</Text>
         </View>
         <Text style={styles.title}>Unlock AI-powered communications</Text>
         <Text style={styles.subtitle}>
@@ -460,7 +460,7 @@ function PaywallScreen({ colors }: { colors: any }) {
           <View style={styles.modal}>
             <Text style={styles.modalTitle}>Confirm Purchase</Text>
             <Text style={styles.modalText}>
-              Subscribe to CommsHub Pro for {price}? You can cancel anytime from your account settings.
+              Subscribe to PinnboxIO Pro for {price}? You can cancel anytime from your account settings.
             </Text>
             <View style={styles.modalButtons}>
               <TouchableOpacity style={styles.modalCancel} onPress={() => setShowConfirm(false)}>

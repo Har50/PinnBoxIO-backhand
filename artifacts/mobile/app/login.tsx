@@ -156,7 +156,7 @@ export default function LoginScreen() {
         <View style={styles.logoBox}>
           <Text style={styles.logoText}>CH</Text>
         </View>
-        <Text style={styles.appName}>CommsHub</Text>
+        <Text style={styles.appName}>PinnboxIO</Text>
         <Text style={styles.tagline}>
           Your unified communications workspace — email, contacts, and messages in one place.
         </Text>
