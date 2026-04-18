@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
@@ -8,7 +8,6 @@ import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react
 import { useAuth } from "@workspace/replit-auth-web";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
-import { LogOut } from "lucide-react";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
@@ -49,45 +48,79 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
-      {/* Sidebar */}
-      <div className="w-64 flex-shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col">
-        <div className="p-4 flex items-center gap-3">
-          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md">
+      {/* Sidebar — slim (52px) on mobile, full (256px) on md+ */}
+      <div className="w-[52px] md:w-64 flex-shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200">
+
+        {/* Logo */}
+        <div className="p-3 md:p-4 flex items-center gap-3 min-h-[56px]">
+          <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md flex-shrink-0 text-xs">
             PI
           </div>
-          <span className="font-semibold text-lg tracking-tight">PinnboxIO</span>
+          <span className="font-semibold text-lg tracking-tight hidden md:block">PinnboxIO</span>
         </div>
 
-        <div className="px-4 py-2 flex flex-col gap-2">
-          <Button onClick={() => setIsComposeOpen(true)} className="w-full justify-start gap-2 shadow-sm font-medium" size="lg">
+        {/* Action buttons */}
+        <div className="px-2 md:px-4 py-2 flex flex-col gap-2">
+          {/* Mobile: icon-only compose button */}
+          <button
+            onClick={() => setIsComposeOpen(true)}
+            title="Compose"
+            className="md:hidden w-8 h-8 mx-auto rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-sm hover:bg-primary/90 transition-colors"
+          >
+            <PenSquare className="w-4 h-4" />
+          </button>
+          {/* Desktop: full Compose button */}
+          <Button
+            onClick={() => setIsComposeOpen(true)}
+            className="hidden md:flex w-full justify-start gap-2 shadow-sm font-medium"
+            size="lg"
+          >
             <PenSquare className="w-4 h-4" />
             Compose
           </Button>
+
+          {/* Mobile: icon-only pay button */}
+          <button
+            onClick={() => setIsPayOpen(true)}
+            title="Pay"
+            className="md:hidden w-8 h-8 mx-auto rounded-full border border-emerald-500/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-500/10 transition-colors"
+          >
+            <CreditCard className="w-4 h-4" />
+          </button>
+          {/* Desktop: full Pay button */}
           <Button
             onClick={() => setIsPayOpen(true)}
             variant="outline"
             size="lg"
-            className="w-full justify-start gap-2 font-medium border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/60"
+            className="hidden md:flex w-full justify-start gap-2 font-medium border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/60"
           >
             <CreditCard className="w-4 h-4" />
             Pay
           </Button>
         </div>
 
-        <nav className="flex-1 overflow-y-auto py-3 px-3 flex flex-col gap-0.5">
-          {/* Top nav: Dashboard, Inbox, Contacts */}
+        <nav className="flex-1 overflow-y-auto py-3 px-1.5 md:px-3 flex flex-col gap-0.5">
+          {/* Primary nav items */}
           {navItems.map((item) => {
             const isActive = location === item.href || (location.startsWith(item.href) && item.href !== "/");
             return (
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
+                title={item.label}
+                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium relative ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
-                <item.icon className="w-4 h-4" />
-                <span className="flex-1">{item.label}</span>
+                <div className="relative flex-shrink-0">
+                  <item.icon className="w-4 h-4" />
+                  {/* Mobile-only badge dot */}
+                  {item.badge != null && item.badge > 0 && (
+                    <span className="md:hidden absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-sidebar" />
+                  )}
+                </div>
+                <span className="hidden md:block flex-1">{item.label}</span>
+                {/* Desktop badge count */}
                 {item.badge != null && item.badge > 0 && (
-                  <span className="min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold flex items-center justify-center leading-none">
+                  <span className="hidden md:flex min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center leading-none">
                     {item.badge > 99 ? "99+" : item.badge}
                   </span>
                 )}
@@ -95,8 +128,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {/* Important People section */}
-          <div className="mt-3">
+          {/* Important People — desktop only */}
+          <div className="mt-3 hidden md:block">
             <button
               onClick={() => setImportantExpanded((v) => !v)}
               className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/50 hover:text-sidebar-foreground/80 transition-colors rounded-md"
@@ -166,9 +199,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
           </div>
 
           {/* Divider */}
-          <div className="mx-3 my-2 border-t border-sidebar-border/40" />
+          <div className="mx-1.5 md:mx-3 my-2 border-t border-sidebar-border/40" />
 
-          {/* Bottom nav: Search, WhatsApp, Accounts */}
+          {/* Secondary nav items */}
           {bottomNavItems.map((item) => {
             const isActive = location === item.href || (location.startsWith(item.href) && item.href !== "/");
             const isWhatsApp = item.href === "/whatsapp";
@@ -177,9 +210,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.href}
                 href={item.href}
-                className={`flex items-center gap-3 px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
+                title={item.label}
+                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
-                <div className="relative">
+                <div className="relative flex-shrink-0">
                   <item.icon className="w-4 h-4" />
                   {isWhatsApp && (
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-green-500 border border-sidebar animate-pulse" />
@@ -188,14 +222,35 @@ export function Layout({ children }: { children: React.ReactNode }) {
                     <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-[#0A66C2] border border-sidebar" />
                   )}
                 </div>
-                {item.label}
+                <span className="hidden md:block">{item.label}</span>
               </Link>
             );
           })}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border">
-          <div className="flex items-center gap-3 px-2 py-2 rounded-md hover:bg-sidebar-accent/40 transition-colors group">
+        {/* User footer */}
+        <div className="p-2 md:p-4 border-t border-sidebar-border">
+          {/* Mobile: avatar only with sign-out on tap */}
+          <div className="md:hidden flex justify-center">
+            <button
+              onClick={logout}
+              title="Sign out"
+              className="relative group"
+            >
+              <Avatar className="w-8 h-8 border border-sidebar-border">
+                <AvatarImage src={user?.profileImageUrl || ""} />
+                <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
+                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                </AvatarFallback>
+              </Avatar>
+              <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sidebar-border hidden group-hover:flex items-center justify-center">
+                <LogOut className="w-2.5 h-2.5 text-sidebar-foreground/60" />
+              </span>
+            </button>
+          </div>
+
+          {/* Desktop: full user row */}
+          <div className="hidden md:flex items-center gap-3 px-2 py-2 rounded-md hover:bg-sidebar-accent/40 transition-colors group">
             <Avatar className="w-8 h-8 border border-sidebar-border flex-shrink-0">
               <AvatarImage src={user?.profileImageUrl || ""} />
               <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
