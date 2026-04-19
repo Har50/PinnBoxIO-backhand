@@ -31,7 +31,10 @@ export default function Login() {
           </Button>
 
           <p className="text-xs text-muted-foreground">
-            By signing in you agree to the workspace terms of access.
+            By signing in you agree to our{" "}
+            <a href="/terms" className="underline hover:text-foreground">Terms of Service</a>
+            {" "}and{" "}
+            <a href="/privacy" className="underline hover:text-foreground">Privacy Policy</a>.
           </p>
         </div>
 
@@ -43,6 +46,13 @@ export default function Login() {
           <span>Email</span>
           <span>Contacts</span>
           <span>Search</span>
+        </div>
+
+        <div className="flex items-center justify-center flex-wrap gap-4 text-xs text-muted-foreground pt-2">
+          <a href="/terms" className="hover:text-foreground transition-colors">Terms</a>
+          <a href="/privacy" className="hover:text-foreground transition-colors">Privacy</a>
+          <a href="/refunds" className="hover:text-foreground transition-colors">Refunds</a>
+          <a href="/cookies" className="hover:text-foreground transition-colors">Cookies</a>
         </div>
       </div>
     </div>

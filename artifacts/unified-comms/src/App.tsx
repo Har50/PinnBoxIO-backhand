@@ -16,6 +16,9 @@ import WhatsApp from "./pages/whatsapp";
 import LinkedInPage from "./pages/linkedin";
 import AiPage from "./pages/ai";
 import StoragePage from "./pages/storage";
+import TermsOfService from "./pages/terms";
+import RefundsAndCancellations from "./pages/refunds";
+import CookiePolicy from "./pages/cookies";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,6 +34,9 @@ function Router() {
   return (
     <Switch>
       <Route path="/privacy" component={PrivacyPolicy} />
+      <Route path="/terms" component={TermsOfService} />
+      <Route path="/refunds" component={RefundsAndCancellations} />
+      <Route path="/cookies" component={CookiePolicy} />
       <Route>
         {isLoading ? (
           <div className="min-h-screen flex items-center justify-center bg-background">
