@@ -5,7 +5,7 @@ import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import {
   ActivityIndicator,
-  FlatList,
+  Linking,
   Platform,
   Pressable,
   RefreshControl,
@@ -141,6 +141,47 @@ function UserCard() {
   );
 }
 
+const WEB_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "https://pinnboxio.net";
+
+const LEGAL_LINKS = [
+  { label: "Privacy Policy", icon: "shield" as const, path: "/privacy" },
+  { label: "Terms of Service", icon: "file-text" as const, path: "/terms" },
+  { label: "Refunds & Cancellations", icon: "refresh-cw" as const, path: "/refunds" },
+  { label: "Cookie Policy", icon: "aperture" as const, path: "/cookies" },
+];
+
+function LegalSection() {
+  const colors = useColors();
+
+  return (
+    <View style={styles.section}>
+      <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Legal</Text>
+      <View style={[styles.legalCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        {LEGAL_LINKS.map((item, idx) => (
+          <View key={item.path}>
+            {idx > 0 && <View style={[styles.legalDivider, { backgroundColor: colors.border }]} />}
+            <Pressable
+              style={({ pressed }) => [styles.legalRow, pressed && { opacity: 0.6 }]}
+              onPress={() => Linking.openURL(WEB_BASE + item.path)}
+            >
+              <View style={[styles.legalIconWrap, { backgroundColor: colors.muted }]}>
+                <Feather name={item.icon} size={15} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.legalLabel, { color: colors.foreground }]}>{item.label}</Text>
+              <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+            </Pressable>
+          </View>
+        ))}
+      </View>
+      <Text style={[styles.copyright, { color: colors.mutedForeground }]}>
+        © {new Date().getFullYear()} PinnboxIO · pinnboxio.net
+      </Text>
+    </View>
+  );
+}
+
 export default function AccountsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
@@ -184,6 +225,8 @@ export default function AccountsScreen() {
           </View>
         )}
       </View>
+
+      <LegalSection />
     </ScrollView>
   );
 }
@@ -269,4 +312,27 @@ const styles = StyleSheet.create({
   },
   unreadLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   unreadCount: { fontSize: 16, fontFamily: "Inter_700Bold" },
+  legalCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  legalRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  legalIconWrap: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  legalLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
+  legalDivider: { height: StyleSheet.hairlineWidth, marginLeft: 60 },
+  copyright: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", paddingTop: 4 },
 });
