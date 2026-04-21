@@ -192,6 +192,16 @@ router.get("/auth/callback", handleCallback);
 router.get("/logout", handleLogout);
 router.get("/auth/logout", handleLogout);
 
+router.get("/mobile-auth/callback", (req: Request, res: Response) => {
+  const deepLink = new URL("pinnboxio://callback");
+  for (const [key, value] of Object.entries(req.query)) {
+    if (typeof value === "string") {
+      deepLink.searchParams.set(key, value);
+    }
+  }
+  res.redirect(deepLink.toString());
+});
+
 router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) => {
   const parsed = ExchangeMobileAuthorizationCodeBody.safeParse(req.body);
   if (!parsed.success) {

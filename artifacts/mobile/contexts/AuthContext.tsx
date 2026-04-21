@@ -10,6 +10,7 @@ const PKCE_STORAGE_KEY = "commshub_pkce_state";
 const ISSUER = "https://replit.com/oidc";
 const CLIENT_ID = process.env.EXPO_PUBLIC_REPL_ID ?? "";
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
+const MOBILE_OIDC_REDIRECT_URI = `${API_BASE}/api/mobile-auth/callback`;
 
 export interface AuthUser {
   id: string;
@@ -266,11 +267,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const redirectUri = Linking.createURL("callback");
+      const appCallbackUri = Linking.createURL("callback");
 
       const authUrl = new URL(authEndpoint);
       authUrl.searchParams.set("client_id", CLIENT_ID);
-      authUrl.searchParams.set("redirect_uri", redirectUri);
+      authUrl.searchParams.set("redirect_uri", MOBILE_OIDC_REDIRECT_URI);
       authUrl.searchParams.set("response_type", "code");
       authUrl.searchParams.set("scope", "openid email profile offline_access");
       authUrl.searchParams.set("code_challenge", codeChallenge);
@@ -278,7 +279,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("nonce", nonce);
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl.toString(), redirectUri);
+      const result = await WebBrowser.openAuthSessionAsync(authUrl.toString(), appCallbackUri);
 
       if (result.type !== "success") return;
 
@@ -297,7 +298,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         body: JSON.stringify({
           code,
           code_verifier: codeVerifier,
-          redirect_uri: redirectUri,
+          redirect_uri: MOBILE_OIDC_REDIRECT_URI,
           state,
           nonce,
         }),

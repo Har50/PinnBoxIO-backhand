@@ -154,7 +154,7 @@ export default function LoginScreen() {
     <View style={styles.container}>
       <View style={styles.topSection}>
         <View style={styles.logoBox}>
-          <Text style={styles.logoText}>CH</Text>
+          <Text style={styles.logoText}>PB</Text>
         </View>
         <Text style={styles.appName}>PinnboxIO</Text>
         <Text style={styles.tagline}>
@@ -194,7 +194,7 @@ export default function LoginScreen() {
           ) : (
             <>
               <Feather name="log-in" size={18} color={colors.primaryForeground} />
-              <Text style={styles.signInButtonText}>Sign in with Replit</Text>
+              <Text style={styles.signInButtonText}>Sign in</Text>
             </>
           )}
         </Pressable>
