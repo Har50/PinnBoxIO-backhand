@@ -9,8 +9,11 @@ const SECURE_STORE_KEY = "commshub_session_token";
 const PKCE_STORAGE_KEY = "commshub_pkce_state";
 const ISSUER = "https://replit.com/oidc";
 const CLIENT_ID = process.env.EXPO_PUBLIC_REPL_ID ?? "";
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}` : "";
-const MOBILE_OIDC_REDIRECT_URI = `${API_BASE}/api/mobile-auth/callback`;
+const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
+const AUTH_REDIRECT_DOMAIN = process.env.EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN ?? API_DOMAIN;
+const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
+const AUTH_REDIRECT_BASE = AUTH_REDIRECT_DOMAIN ? `https://${AUTH_REDIRECT_DOMAIN}` : "";
+const MOBILE_OIDC_REDIRECT_URI = `${AUTH_REDIRECT_BASE}/api/mobile-auth/callback`;
 
 export interface AuthUser {
   id: string;

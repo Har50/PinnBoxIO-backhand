@@ -123,7 +123,7 @@ Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 - iOS bundle ID: `com.pinnboxio.mobile`
 - Env vars set: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, etc.
 - RevenueCat storage packages: `storage_10gb_monthly`, `storage_50gb_monthly`, `storage_100gb_monthly`.
-- EAS production builds include `EXPO_PUBLIC_DOMAIN=pinnboxio.net` and `EXPO_PUBLIC_REPL_ID=38defd90-5362-4523-ab8a-d909d0a8000a` so TestFlight builds can reach the production app/API.
+- EAS production builds include `EXPO_PUBLIC_DOMAIN=pinnboxio.net`, `EXPO_PUBLIC_API_DOMAIN=38defd90-5362-4523-ab8a-d909d0a8000a-00-rdlmxu7tmz57.picard.replit.dev`, `EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN=38defd90-5362-4523-ab8a-d909d0a8000a-00-rdlmxu7tmz57.picard.replit.dev`, and `EXPO_PUBLIC_REPL_ID=38defd90-5362-4523-ab8a-d909d0a8000a` so TestFlight builds can reach the API and use an accepted Replit OIDC callback while the custom domain is still returning 404.
 
 ## AI Integration Notes
 
