@@ -123,6 +123,7 @@ Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 - iOS bundle ID: `com.pinnboxio.mobile`
 - Env vars set: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, etc.
 - RevenueCat storage packages: `storage_10gb_monthly`, `storage_50gb_monthly`, `storage_100gb_monthly`.
+- EAS production builds include `EXPO_PUBLIC_DOMAIN=pinnboxio.net` and `EXPO_PUBLIC_REPL_ID=38defd90-5362-4523-ab8a-d909d0a8000a` so TestFlight builds can reach the production app/API.
 
 ## AI Integration Notes
 
