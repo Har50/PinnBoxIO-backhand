@@ -2,7 +2,7 @@ import { useGetContacts } from "@workspace/api-client-react";
 import { useState } from "react";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
-import { Search, Mail, Phone, Building2, Calendar, MessageSquare, Clock } from "lucide-react";
+import { Search, Mail, Phone, Building2, MessageSquare, Clock, Users, ArrowLeft } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,7 +21,7 @@ export default function Contacts() {
   return (
     <div className="h-full flex overflow-hidden bg-background">
       {/* List Column */}
-      <div className="w-[350px] border-r flex flex-col bg-muted/10">
+      <div className={`${selectedContact ? "hidden md:flex" : "flex"} w-full md:w-[350px] md:shrink-0 border-r flex-col bg-muted/10`}>
         <div className="p-4 border-b space-y-3">
           <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
           <div className="relative">
@@ -68,7 +68,7 @@ export default function Contacts() {
       </div>
 
       {/* Detail Column */}
-      <div className="flex-1 bg-background flex flex-col">
+      <div className={`${selectedContact ? "flex" : "hidden md:flex"} flex-1 min-w-0 bg-background flex-col`}>
         {!selectedContact ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground flex-col gap-4 bg-muted/5">
             <Users className="w-16 h-16 opacity-20" />
@@ -76,20 +76,29 @@ export default function Contacts() {
           </div>
         ) : (
           <ScrollArea className="flex-1">
-            <div className="p-8 max-w-3xl mx-auto space-y-8">
-              <div className="flex items-center gap-6 pb-8 border-b">
-                <Avatar className="h-24 w-24 border-2 border-border bg-muted shadow-sm">
+            <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto space-y-6 sm:space-y-8">
+              <button
+                type="button"
+                onClick={() => setSelectedContactId(null)}
+                className="md:hidden inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to contacts
+              </button>
+
+              <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6 pb-6 sm:pb-8 border-b">
+                <Avatar className="h-20 w-20 sm:h-24 sm:w-24 border-2 border-border bg-muted shadow-sm">
                   <AvatarImage src={selectedContact.avatarUrl || ''} />
                   <AvatarFallback className="text-2xl font-bold bg-primary/10 text-primary">
                     {selectedContact.name.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
-                <div>
-                  <h2 className="text-3xl font-bold tracking-tight mb-1">{selectedContact.name}</h2>
+                <div className="min-w-0">
+                  <h2 className="text-2xl sm:text-3xl font-bold tracking-tight mb-1 break-words">{selectedContact.name}</h2>
                   {selectedContact.company && (
-                    <div className="flex items-center gap-2 text-muted-foreground font-medium">
-                      <Building2 className="w-4 h-4" />
-                      {selectedContact.company}
+                    <div className="flex items-center gap-2 text-muted-foreground font-medium min-w-0">
+                      <Building2 className="w-4 h-4 shrink-0" />
+                      <span className="truncate">{selectedContact.company}</span>
                     </div>
                   )}
                 </div>
@@ -101,23 +110,23 @@ export default function Contacts() {
                     <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Contact Info</h3>
                   </CardHeader>
                   <CardContent className="p-5 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 shrink-0 rounded-full bg-primary/10 flex items-center justify-center">
                         <Mail className="w-4 h-4 text-primary" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-xs text-muted-foreground">Email</div>
-                        <div className="text-sm font-medium">{selectedContact.email}</div>
+                        <div className="text-sm font-medium break-all">{selectedContact.email}</div>
                       </div>
                     </div>
                     {selectedContact.phone && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-emerald-500/10 flex items-center justify-center">
                           <Phone className="w-4 h-4 text-emerald-600" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs text-muted-foreground">Phone</div>
-                          <div className="text-sm font-medium">{selectedContact.phone}</div>
+                          <div className="text-sm font-medium break-words">{selectedContact.phone}</div>
                         </div>
                       </div>
                     )}
@@ -129,21 +138,21 @@ export default function Contacts() {
                     <h3 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground">Activity</h3>
                   </CardHeader>
                   <CardContent className="p-5 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 shrink-0 rounded-full bg-indigo-500/10 flex items-center justify-center">
                         <MessageSquare className="w-4 h-4 text-indigo-600" />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="text-xs text-muted-foreground">Total Messages</div>
                         <div className="text-sm font-medium">{selectedContact.messageCount}</div>
                       </div>
                     </div>
                     {selectedContact.lastMessageAt && (
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-8 h-8 shrink-0 rounded-full bg-amber-500/10 flex items-center justify-center">
                           <Clock className="w-4 h-4 text-amber-600" />
                         </div>
-                        <div>
+                        <div className="min-w-0">
                           <div className="text-xs text-muted-foreground">Last Message</div>
                           <div className="text-sm font-medium">{formatDistanceToNow(new Date(selectedContact.lastMessageAt), { addSuffix: true })}</div>
                         </div>
@@ -170,5 +179,3 @@ export default function Contacts() {
     </div>
   );
 }
-// Add import for Users
-import { Users } from "lucide-react";
