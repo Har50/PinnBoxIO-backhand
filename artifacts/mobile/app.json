@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.pinnboxio.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
-      }
+      },
+      "buildNumber": "2"
     },
     "android": {
       "package": "com.pinnboxio.mobile",
