@@ -79,6 +79,7 @@ Express 5 API server.
 React + Vite web app. Routes: `/`, `/inbox`, `/contacts`, `/ai`, `/search`, `/accounts`, `/whatsapp`.
 
 - AI page (`/ai`): shows AI chat with SSE streaming.
+- Inbox page (`/inbox`): desktop uses three panes; mobile uses a drill-down flow from mailboxes to folder messages to message detail.
 
 ### `artifacts/mobile` (`@workspace/mobile`)
 
