@@ -169,7 +169,16 @@ export default function Inbox() {
           ) : messagesData?.messages?.length === 0 ? (
             <div className="p-8 text-center flex flex-col items-center justify-center h-48">
               <Mail className="h-10 w-10 text-muted-foreground/30 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">No messages found in this view.</p>
+              {selectedAccountId === -1 ? (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">Gmail is connected, but inbox reading is not available yet.</p>
+                  <p className="text-xs text-muted-foreground mt-2 max-w-sm">
+                    The current Gmail permission allows labels and sending, but not reading mailbox messages. Outlook inbox reading is available.
+                  </p>
+                </>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground">No messages found in this view.</p>
+              )}
             </div>
           ) : (
             messagesData?.messages?.map(msg => {

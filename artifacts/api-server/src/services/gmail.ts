@@ -38,6 +38,10 @@ type GmailProfile = {
   threadsTotal?: number;
 };
 
+type GmailLabelsResponse = {
+  labels?: Array<{ id: string; name: string }>;
+};
+
 const folderLabelMap: Record<string, string> = {
   Inbox: "INBOX",
   Sent: "SENT",
@@ -157,15 +161,27 @@ export async function getGmailProfile(): Promise<GmailProfile | null> {
   }
 }
 
+async function hasGmailConnection() {
+  try {
+    const response = await gmailProxy("/gmail/v1/users/me/labels");
+    if (!response.ok) return false;
+    const data = (await response.json()) as GmailLabelsResponse;
+    return Boolean(data.labels?.length);
+  } catch {
+    return false;
+  }
+}
+
 export async function getGmailAccount() {
   const profile = await getGmailProfile();
-  if (!profile?.emailAddress) return null;
+  const isConnected = profile?.emailAddress ? true : await hasGmailConnection();
+  if (!isConnected) return null;
 
   return {
     id: GMAIL_ACCOUNT_ID,
-    email: profile.emailAddress,
+    email: profile?.emailAddress ?? null,
     phone: null,
-    name: "Gmail",
+    name: profile?.emailAddress ? "Gmail" : "Gmail (permission needed)",
     provider: "gmail",
     color: GMAIL_COLOR,
     isActive: true,
