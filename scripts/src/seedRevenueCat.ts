@@ -25,16 +25,16 @@ import {
   type CreateProductData,
 } from "@replit/revenuecat-sdk";
 
-const PROJECT_NAME = "CommsHub";
-const PRODUCT_IDENTIFIER = "commshub_pro_monthly";
-const PLAY_STORE_PRODUCT_IDENTIFIER = "commshub_pro_monthly:monthly";
-const PRODUCT_DISPLAY_NAME = "CommsHub Pro Monthly";
-const PRODUCT_USER_FACING_TITLE = "CommsHub Pro Monthly";
+const PROJECT_NAME = "PinnboxIO";
+const PRODUCT_IDENTIFIER = "pinnboxio_pro_monthly";
+const PLAY_STORE_PRODUCT_IDENTIFIER = "pinnboxio_pro_monthly:monthly";
+const PRODUCT_DISPLAY_NAME = "PinnboxIO Pro Monthly";
+const PRODUCT_USER_FACING_TITLE = "PinnboxIO Pro Monthly";
 const PRODUCT_DURATION = "P1M";
-const APP_STORE_APP_NAME = "CommsHub iOS";
-const APP_STORE_BUNDLE_ID = "com.commshub.mobile";
-const PLAY_STORE_APP_NAME = "CommsHub Android";
-const PLAY_STORE_PACKAGE_NAME = "com.commshub.mobile";
+const APP_STORE_APP_NAME = "PinnboxIO iOS";
+const APP_STORE_BUNDLE_ID = "com.pinnboxio.mobile";
+const PLAY_STORE_APP_NAME = "PinnboxIO Android";
+const PLAY_STORE_PACKAGE_NAME = "com.pinnboxio.mobile";
 const ENTITLEMENT_IDENTIFIER = "pro";
 const ENTITLEMENT_DISPLAY_NAME = "Pro Access";
 const OFFERING_IDENTIFIER = "default";

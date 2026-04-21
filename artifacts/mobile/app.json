@@ -1,12 +1,12 @@
 {
   "expo": {
     "name": "PinnboxIO",
-    "slug": "commshub-mobile",
+    "slug": "pinnboxio-mobile",
     "owner": "plav",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "commshub",
+    "scheme": "pinnboxio",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -16,13 +16,13 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.commshub.mobile",
+      "bundleIdentifier": "com.pinnboxio.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
-      "package": "com.commshub.mobile",
+      "package": "com.pinnboxio.mobile",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"

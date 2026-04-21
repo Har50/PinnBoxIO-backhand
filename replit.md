@@ -34,8 +34,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 artifacts-monorepo/
 ├── artifacts/
 │   ├── api-server/         # Express API server (port via PORT env)
-│   ├── unified-comms/      # React + Vite web app (CommsHub)
-│   └── mobile/             # Expo React Native app (CommsHub Mobile)
+│   ├── unified-comms/      # React + Vite web app (PinnboxIO)
+│   └── mobile/             # Expo React Native app (PinnboxIO Mobile)
 ├── lib/
 │   ├── api-spec/           # OpenAPI spec + Orval codegen config
 │   ├── api-client-react/   # Generated React Query hooks
@@ -120,7 +120,7 @@ Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 
 - Project ID: `projce947fce`
 - Entitlement: `pro` at $7.99/month
-- iOS bundle ID: `com.commshub.mobile`
+- iOS bundle ID: `com.pinnboxio.mobile`
 - Env vars set: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, etc.
 - RevenueCat storage packages: `storage_10gb_monthly`, `storage_50gb_monthly`, `storage_100gb_monthly`.
 
