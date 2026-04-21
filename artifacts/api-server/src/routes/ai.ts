@@ -54,7 +54,7 @@ async function getUserContext(userId: string): Promise<string> {
   }
   waMessages.sort((a, b) => b.timestamp - a.timestamp);
 
-  let context = "You are a smart communications assistant for CommsHub.\n";
+  let context = "You are a smart communications assistant for PinnboxIO.\n";
   context += "You help users manage their email, WhatsApp, and phone communications.\n";
   context += "You have full memory of all past messages in this conversation.\n\n";
 

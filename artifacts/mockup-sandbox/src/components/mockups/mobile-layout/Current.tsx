@@ -32,7 +32,7 @@ export function Current() {
       <div className="w-[52px] flex-shrink-0 bg-slate-900 flex flex-col items-center py-4 gap-1">
         {/* Logo */}
         <div className="w-8 h-8 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-[10px] mb-3">
-          PI
+          PB
         </div>
 
         {/* Compose FAB */}

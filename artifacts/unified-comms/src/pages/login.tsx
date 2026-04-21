@@ -10,7 +10,7 @@ export default function Login() {
       <div className="w-full max-w-sm space-y-8 text-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-16 h-16 rounded-2xl bg-primary flex items-center justify-center shadow-lg">
-            <span className="text-2xl font-bold text-primary-foreground">PI</span>
+            <span className="text-2xl font-bold text-primary-foreground">PB</span>
           </div>
           <div>
             <h1 className="text-2xl font-bold tracking-tight">PinnboxIO</h1>
@@ -27,7 +27,7 @@ export default function Login() {
           </div>
 
           <Button onClick={login} size="lg" className="w-full gap-2 font-medium">
-            Sign in with Replit
+            Sign in
           </Button>
 
           <p className="text-xs text-muted-foreground">

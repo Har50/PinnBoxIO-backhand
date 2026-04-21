@@ -55,7 +55,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
         {/* Logo */}
         <div className="p-3 md:p-4 flex items-center gap-3 min-h-[56px]">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md flex-shrink-0 text-xs">
-            PI
+            PB
           </div>
           <span className="font-semibold text-lg tracking-tight hidden md:block">PinnboxIO</span>
         </div>

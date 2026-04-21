@@ -30,7 +30,7 @@ async function main() {
   const stripe = new Stripe(secretKey, { apiVersion: "2025-08-27.basil" as any });
 
   const existing = await stripe.products.list({ limit: 20 });
-  const hasProProduct = existing.data.some((p) => p.name === "CommsHub Pro");
+  const hasProProduct = existing.data.some((p) => p.name === "PinnboxIO Pro");
 
   if (hasProProduct) {
     console.log("Pro product already exists in Stripe. Listing products:");
@@ -47,7 +47,7 @@ async function main() {
   }
 
   const product = await stripe.products.create({
-    name: "CommsHub Pro",
+    name: "PinnboxIO Pro",
     description: "AI-powered communications assistant with premium features",
     metadata: { tier: "pro" },
   });

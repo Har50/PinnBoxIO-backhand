@@ -106,7 +106,7 @@ Database layer using Drizzle ORM with PostgreSQL.
 
 Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 
-- `seed-stripe` — creates CommsHub Pro product in Stripe ($7.99/mo, $71.88/yr)
+- `seed-stripe` — creates PinnboxIO Pro product in Stripe ($7.99/mo, $71.88/yr)
 - `setup-stripe-schema` — runs `stripe-replit-sync` DB migrations (creates `stripe.*` tables)
 
 ## Stripe Integration Notes
@@ -114,7 +114,7 @@ Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 - Stripe schema (`stripe.*` tables) synced from Stripe API on server startup via `StripeSync.syncProducts()`/`syncPrices()`
 - Webhook endpoint: `POST /api/stripe/webhook` (raw body before JSON middleware)
 - Checkout success redirects to `/ai?upgrade=success`
-- Products seeded: `prod_UJCaUSfDbnDywe` (CommsHub Pro), prices: `price_1TKaBkBPepAwyKcGu83TlBTF` (monthly), `price_1TKaBkBPepAwyKcGj7jpaFEc` (yearly)
+- Products seeded: `prod_UJCaUSfDbnDywe` (PinnboxIO Pro), prices: `price_1TKaBkBPepAwyKcGu83TlBTF` (monthly), `price_1TKaBkBPepAwyKcGj7jpaFEc` (yearly)
 
 ## RevenueCat Integration Notes
 

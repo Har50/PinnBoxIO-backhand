@@ -74,7 +74,7 @@ class WhatsAppService extends EventEmitter {
         },
         printQRInTerminal: false,
         logger: logger as any,
-        browser: ["CommsHub", "Chrome", "1.0.0"],
+        browser: ["PinnboxIO", "Chrome", "1.0.0"],
         syncFullHistory: false,
         markOnlineOnConnect: false,
       });

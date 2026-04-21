@@ -14,7 +14,7 @@ export default function RefundsAndCancellations() {
           <div className="mb-8">
             <div className="flex items-center gap-3 mb-3">
               <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
-                <span className="text-xs font-bold text-primary-foreground">PI</span>
+                <span className="text-xs font-bold text-primary-foreground">PB</span>
               </div>
               <span className="text-sm font-semibold text-muted-foreground">PinnboxIO</span>
             </div>

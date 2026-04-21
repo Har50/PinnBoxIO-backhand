@@ -47,7 +47,7 @@ export function BottomNav() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-2">
-              <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-xs">PI</div>
+              <div className="w-7 h-7 rounded-lg bg-blue-500 flex items-center justify-center text-white font-bold text-xs">PB</div>
               <span className="font-semibold text-gray-900">PinnboxIO</span>
             </div>
           </div>
