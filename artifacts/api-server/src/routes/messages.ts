@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
+import { getGmailMessage, listGmailMessages } from "../services/gmail";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -76,6 +77,14 @@ router.get("/messages", async (req, res): Promise<void> => {
   }
 
   const { accountId, folder, limit = 50, offset = 0 } = query.data;
+  if (!accountId || accountId === -1) {
+    const gmailMessages = await listGmailMessages(folder, limit ?? 25);
+    if (gmailMessages) {
+      res.json(GetMessagesResponse.parse(gmailMessages));
+      return;
+    }
+  }
+
   const conditions = [];
   if (accountId) conditions.push(eq(messagesTable.accountId, accountId));
   if (folder) conditions.push(eq(messagesTable.folder, folder));
@@ -135,6 +144,16 @@ router.get("/messages/:id", async (req, res): Promise<void> => {
   const params = GetMessageParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  if (params.data.id < 0) {
+    const gmailMessage = await getGmailMessage(params.data.id);
+    if (!gmailMessage) {
+      res.status(404).json({ error: "Message not found" });
+      return;
+    }
+    res.json(GetMessageResponse.parse(gmailMessage));
     return;
   }
 

@@ -1,6 +1,7 @@
 import { Router, type IRouter } from "express";
 import { eq, count, and } from "drizzle-orm";
 import { db, accountsTable, messagesTable } from "@workspace/db";
+import { getGmailAccount } from "../services/gmail";
 import {
   CreateAccountBody,
   GetAccountParams,
@@ -13,6 +14,7 @@ const router: IRouter = Router();
 
 router.get("/accounts", async (req, res): Promise<void> => {
   const accounts = await db.select().from(accountsTable).orderBy(accountsTable.createdAt);
+  const gmailAccount = await getGmailAccount();
 
   // Get unread counts per account
   const unreadCounts = await db
@@ -29,7 +31,7 @@ router.get("/accounts", async (req, res): Promise<void> => {
     createdAt: a.createdAt.toISOString(),
   }));
 
-  res.json(GetAccountsResponse.parse(result));
+  res.json(GetAccountsResponse.parse(gmailAccount ? [gmailAccount, ...result] : result));
 });
 
 router.post("/accounts", async (req, res): Promise<void> => {
