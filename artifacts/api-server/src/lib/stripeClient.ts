@@ -16,29 +16,29 @@ async function getCredentials() {
 
   const connectorName = "stripe";
   const isProduction = process.env.REPLIT_DEPLOYMENT === "1";
-  const targetEnvironment = isProduction ? "production" : "development";
 
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set("include_secrets", "true");
-  url.searchParams.set("connector_names", connectorName);
-  url.searchParams.set("environment", targetEnvironment);
+  const tryEnvironment = async (env: string) => {
+    const url = new URL(`https://${hostname}/api/v2/connection`);
+    url.searchParams.set("include_secrets", "true");
+    url.searchParams.set("connector_names", connectorName);
+    url.searchParams.set("environment", env);
+    const response = await fetch(url.toString(), {
+      headers: { Accept: "application/json", "X-Replit-Token": xReplitToken! },
+    });
+    const data = await response.json();
+    const item = data.items?.[0];
+    return item?.settings?.publishable && item?.settings?.secret ? item : null;
+  };
 
-  const response = await fetch(url.toString(), {
-    headers: {
-      Accept: "application/json",
-      "X-Replit-Token": xReplitToken,
-    },
-  });
+  // Try production first when deployed, fall back to development
+  if (isProduction) {
+    connectionSettings = await tryEnvironment("production") ?? await tryEnvironment("development");
+  } else {
+    connectionSettings = await tryEnvironment("development");
+  }
 
-  const data = await response.json();
-  connectionSettings = data.items?.[0];
-
-  if (
-    !connectionSettings ||
-    !connectionSettings.settings.publishable ||
-    !connectionSettings.settings.secret
-  ) {
-    throw new Error(`Stripe ${targetEnvironment} connection not found`);
+  if (!connectionSettings) {
+    throw new Error("Stripe connection not found (tried production and development)");
   }
 
   return {
