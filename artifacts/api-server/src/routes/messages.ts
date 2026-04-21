@@ -2,6 +2,7 @@ import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
 import { getGmailMessage, listGmailMessages } from "../services/gmail";
+import { getOutlookMessage, listOutlookMessages } from "../services/outlook";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -77,10 +78,38 @@ router.get("/messages", async (req, res): Promise<void> => {
   }
 
   const { accountId, folder, limit = 50, offset = 0 } = query.data;
-  if (!accountId || accountId === -1) {
+  if (accountId === -1) {
     const gmailMessages = await listGmailMessages(folder, limit ?? 25);
     if (gmailMessages) {
       res.json(GetMessagesResponse.parse(gmailMessages));
+      return;
+    }
+  }
+
+  if (accountId === -2) {
+    const outlookMessages = await listOutlookMessages(folder, limit ?? 25);
+    if (outlookMessages) {
+      res.json(GetMessagesResponse.parse(outlookMessages));
+      return;
+    }
+  }
+
+  if (!accountId) {
+    const [gmailMessages, outlookMessages] = await Promise.all([
+      listGmailMessages(folder, limit ?? 25),
+      listOutlookMessages(folder, limit ?? 25),
+    ]);
+    if (gmailMessages || outlookMessages) {
+      const messages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? [])]
+        .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+        .slice(0, limit ?? 50);
+      res.json(
+        GetMessagesResponse.parse({
+          messages,
+          total: (gmailMessages?.total ?? 0) + (outlookMessages?.total ?? 0),
+          hasMore: Boolean(gmailMessages?.hasMore || outlookMessages?.hasMore),
+        })
+      );
       return;
     }
   }
@@ -148,12 +177,16 @@ router.get("/messages/:id", async (req, res): Promise<void> => {
   }
 
   if (params.data.id < 0) {
-    const gmailMessage = await getGmailMessage(params.data.id);
-    if (!gmailMessage) {
+    const [gmailMessage, outlookMessage] = await Promise.all([
+      getGmailMessage(params.data.id),
+      getOutlookMessage(params.data.id),
+    ]);
+    const message = gmailMessage ?? outlookMessage;
+    if (!message) {
       res.status(404).json({ error: "Message not found" });
       return;
     }
-    res.json(GetMessageResponse.parse(gmailMessage));
+    res.json(GetMessageResponse.parse(message));
     return;
   }
 

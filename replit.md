@@ -80,7 +80,7 @@ React + Vite web app. Routes: `/`, `/inbox`, `/contacts`, `/ai`, `/search`, `/ac
 
 - AI page (`/ai`): shows AI chat with SSE streaming.
 - Inbox page (`/inbox`): desktop uses three panes; mobile uses a drill-down flow from mailboxes to folder messages to message detail.
-- Gmail mail access is connected through the Google Mail connector; API server reads Gmail messages live for Inbox/Sent/Drafts/Trash/Spam and exposes Gmail as a virtual account.
+- Gmail and Outlook mail access are connected through user-authorized mail connections; API server reads messages live for Inbox/Sent/Drafts/Trash/Spam and exposes them as virtual accounts.
 
 ### `artifacts/mobile` (`@workspace/mobile`)
 

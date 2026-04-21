@@ -51,7 +51,7 @@ function virtualIdForGmailId(gmailId: string) {
   for (let i = 0; i < gmailId.length; i += 1) {
     hash = (hash * 31 + gmailId.charCodeAt(i)) | 0;
   }
-  const id = -Math.max(1, Math.abs(hash));
+  const id = -(1_000 + (Math.abs(hash) % 999_999_000));
   gmailIdsByVirtualId.set(id, gmailId);
   return id;
 }
