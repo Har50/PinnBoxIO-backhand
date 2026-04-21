@@ -329,7 +329,11 @@ function PaywallScreen({ colors }: { colors: any }) {
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
 
-  const currentPackage = offerings?.current?.availablePackages[0];
+  const currentPackage = offerings?.current?.availablePackages.find((pkg: any) => {
+    const packageIdentifier = pkg.identifier?.toLowerCase() ?? "";
+    const productIdentifier = pkg.product?.identifier?.toLowerCase() ?? "";
+    return !packageIdentifier.includes("storage") && !productIdentifier.includes("storage");
+  });
   const price = currentPackage?.product.priceString || "$7.99/mo";
 
   const handlePurchase = async () => {

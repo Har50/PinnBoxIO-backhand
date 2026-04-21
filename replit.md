@@ -9,7 +9,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Unified inbox** — Email across multiple accounts
 - **WhatsApp integration** — Connect via QR code, read & send messages
 - **LinkedIn integration** — OAuth sign-in, profile card, conversations
-- **Cloud Storage** — 2 GB free, upload/download/delete files, purchase 10/50/100 GB plans via Stripe
+- **Cloud Storage** — 2 GB free, upload/download/delete files, purchase 10/50/100 GB plans via RevenueCat on mobile
 - **AI Assistant** — Multi-model chat (OpenAI, Anthropic, Gemini)
 - **Contacts & Search** — Global search across messages and contacts
 
@@ -93,6 +93,7 @@ Expo React Native app. Tabs: Home, Inbox, AI, Contacts, Accounts.
 - AI tab: paywall (RevenueCat) for non-Pro, AI chat for Pro users
 - RevenueCat initialized in `_layout.tsx`, paywall in `app/(tabs)/ai.tsx`
 - Lib: `lib/revenuecat.tsx` — `SubscriptionProvider`, `useSubscription`
+- Storage tab uses RevenueCat packages for 10/50/100 GB mobile upgrades and activates the selected quota through the API after purchase.
 
 ### `lib/db` (`@workspace/db`)
 
@@ -120,7 +121,8 @@ Utility scripts. Run via `pnpm --filter @workspace/scripts run <script>`.
 - Project ID: `projce947fce`
 - Entitlement: `pro` at $7.99/month
 - iOS bundle ID: `com.commshub.mobile`
-- Env vars set: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `REVENUECAT_IOS_API_KEY`, `REVENUECAT_ANDROID_API_KEY`, etc.
+- Env vars set: `EXPO_PUBLIC_REVENUECAT_TEST_API_KEY`, `EXPO_PUBLIC_REVENUECAT_IOS_API_KEY`, `EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY`, etc.
+- RevenueCat storage packages: `storage_10gb_monthly`, `storage_50gb_monthly`, `storage_100gb_monthly`.
 
 ## AI Integration Notes
 

@@ -179,36 +179,31 @@ router.delete("/storage/files/:id", async (req: any, res) => {
 
 router.get("/storage/plans", async (_req, res) => {
   try {
-    const stripe = await getUncachableStripeClient();
-    const prices = await stripe.prices.list({
-      active: true,
-      expand: ["data.product"],
-      limit: 20,
-    });
-
-    const storagePrices = prices.data
-      .filter((p) => {
-        const prod = p.product as any;
-        return prod?.metadata?.type === "storage";
-      })
-      .map((p) => {
-        const prod = p.product as any;
-        return {
-          priceId: p.id,
-          productId: prod.id,
-          name: prod.name,
-          description: prod.description,
-          gb: parseInt(prod.metadata?.gb || "0"),
-          unitAmount: p.unit_amount,
-          currency: p.currency,
-        };
-      });
-
-    if (storagePrices.length > 0) {
-      return res.json({ plans: storagePrices });
-    }
-
     res.json({ plans: STORAGE_PLANS.map((p) => ({ ...p, priceId: null, currency: "usd", unitAmount: p.priceUsd })) });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/storage/revenuecat/activate", async (req: any, res) => {
+  try {
+    const { gb } = req.body;
+    const plan = STORAGE_PLANS.find((p) => p.gb === gb);
+    if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
+
+    const totalBytes = plan.gb * 1024 * 1024 * 1024;
+    const existing = await getOrCreateQuota(req.user.id);
+
+    const [quota] = await db
+      .update(storageQuotasTable)
+      .set({
+        totalBytes: Math.max(existing.totalBytes, totalBytes),
+        planName: plan.label,
+      })
+      .where(eq(storageQuotasTable.userId, req.user.id))
+      .returning();
+
+    res.json({ quota });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

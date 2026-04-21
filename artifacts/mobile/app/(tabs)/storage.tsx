@@ -1,4 +1,5 @@
 import { useColors } from "@/hooks/useColors";
+import { useSubscription } from "@/lib/revenuecat";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
 import * as DocumentPicker from "expo-document-picker";
@@ -96,6 +97,16 @@ interface Plan {
   currency: string;
 }
 
+type RevenueCatPackage = {
+  identifier?: string;
+  packageType?: string;
+  product: {
+    identifier?: string;
+    priceString?: string;
+    title?: string;
+  };
+};
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
@@ -120,6 +131,7 @@ function getMimeIcon(mimeType: string): string {
 export default function StorageScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { offerings, purchase, isPurchasing, isLoading: subscriptionLoading } = useSubscription();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [quota, setQuota] = useState<Quota | null>(null);
@@ -128,6 +140,8 @@ export default function StorageScreen() {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
+  const [purchaseError, setPurchaseError] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -226,17 +240,55 @@ export default function StorageScreen() {
     );
   }, [loadData]);
 
-  const handleUpgrade = useCallback(async (plan: Plan) => {
-    try {
-      const { url } = await apiPost<{ url: string }>("/storage/checkout", {
-        priceId: plan.priceId,
-        gb: plan.gb,
-      });
-      await Linking.openURL(url);
-    } catch (err: any) {
-      Alert.alert("Error", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
+  const getRevenueCatPackage = useCallback((plan: Plan): RevenueCatPackage | null => {
+    const packages = (offerings?.current?.availablePackages ?? []) as RevenueCatPackage[];
+    const gb = String(plan.gb);
+    return packages.find((pkg) => {
+      const packageIdentifier = pkg.identifier?.toLowerCase() ?? "";
+      const productIdentifier = pkg.product.identifier?.toLowerCase() ?? "";
+      const productTitle = pkg.product.title?.toLowerCase() ?? "";
+      return (
+        packageIdentifier.includes("storage") &&
+        (packageIdentifier.includes(gb) || productIdentifier.includes(gb) || productTitle.includes(`${gb} gb`))
+      );
+    }) ?? null;
+  }, [offerings]);
+
+  const getPlanPrice = useCallback((plan: Plan) => {
+    const revenueCatPackage = getRevenueCatPackage(plan);
+    return revenueCatPackage?.product.priceString || (plan.unitAmount ? `$${(plan.unitAmount / 100).toFixed(2)}/mo` : "Free");
+  }, [getRevenueCatPackage]);
+
+  const handleUpgrade = useCallback((plan: Plan) => {
+    setPurchaseError(null);
+    const revenueCatPackage = getRevenueCatPackage(plan);
+    if (!revenueCatPackage) {
+      setPurchaseError("Storage plans are still syncing. Please try again in a moment.");
+      return;
     }
-  }, []);
+    setSelectedPlan(plan);
+  }, [getRevenueCatPackage]);
+
+  const confirmUpgrade = useCallback(async () => {
+    if (!selectedPlan) return;
+    const revenueCatPackage = getRevenueCatPackage(selectedPlan);
+    if (!revenueCatPackage) return;
+
+    try {
+      setPurchaseError(null);
+      setSelectedPlan(null);
+      await purchase(revenueCatPackage);
+      await apiPost("/storage/revenuecat/activate", {
+        gb: selectedPlan.gb,
+      });
+      await loadData();
+      Alert.alert("Storage upgraded", `${selectedPlan.gb} GB storage is now active.`);
+    } catch (err: any) {
+      if (!err?.userCancelled) {
+        setPurchaseError(err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
+      }
+    }
+  }, [selectedPlan, getRevenueCatPackage, purchase, loadData]);
 
   const quotaPct = quota ? Math.min(100, (quota.usedBytes / quota.totalBytes) * 100) : 0;
   const isWarning = quotaPct > 80;
@@ -362,14 +414,22 @@ export default function StorageScreen() {
         <Text style={[styles.sectionTitle, { color: colors.foreground, paddingHorizontal: 16, marginTop: 24, marginBottom: 12 }]}>
           Upgrade Storage
         </Text>
+        {purchaseError && (
+          <Text style={[styles.purchaseError, { color: "#dc2626" }]}>{purchaseError}</Text>
+        )}
         <View style={styles.plansGrid}>
           {plans.map((plan) => (
             <Pressable
               key={plan.gb}
               onPress={() => handleUpgrade(plan)}
+              disabled={isPurchasing || subscriptionLoading || !getRevenueCatPackage(plan)}
               style={({ pressed }) => [
                 styles.planCard,
-                { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
+                {
+                  backgroundColor: colors.card,
+                  borderColor: colors.border,
+                  opacity: pressed ? 0.85 : isPurchasing || subscriptionLoading || !getRevenueCatPackage(plan) ? 0.55 : 1,
+                },
               ]}
             >
               <View style={[styles.planIconWrap, { backgroundColor: colors.primary + "15" }]}>
@@ -377,15 +437,45 @@ export default function StorageScreen() {
               </View>
               <Text style={[styles.planLabel, { color: colors.foreground }]}>{plan.gb} GB</Text>
               <Text style={[styles.planPrice, { color: colors.mutedForeground }]}>
-                {plan.unitAmount ? `$${(plan.unitAmount / 100).toFixed(2)}/mo` : "Free"}
+                {getPlanPrice(plan)}
               </Text>
               <View style={[styles.planBtn, { backgroundColor: colors.primary }]}>
-                <Text style={styles.planBtnText}>Upgrade</Text>
+                {isPurchasing && selectedPlan?.gb === plan.gb ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.planBtnText}>{getRevenueCatPackage(plan) ? "Upgrade" : "Syncing"}</Text>
+                )}
               </View>
             </Pressable>
           ))}
         </View>
       </ScrollView>
+
+      {selectedPlan && (
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modal, { backgroundColor: colors.card }]}>
+            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Confirm Storage Upgrade</Text>
+            <Text style={[styles.modalText, { color: colors.mutedForeground }]}>
+              Subscribe to {selectedPlan.gb} GB cloud storage for {getPlanPrice(selectedPlan)}? You can cancel anytime from your app store account settings.
+            </Text>
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalCancel, { borderColor: colors.border }]}
+                onPress={() => setSelectedPlan(null)}
+              >
+                <Text style={[styles.modalCancelText, { color: colors.foreground }]}>Cancel</Text>
+              </Pressable>
+              <Pressable
+                style={[styles.modalConfirm, { backgroundColor: colors.primary }]}
+                onPress={confirmUpgrade}
+                disabled={isPurchasing}
+              >
+                <Text style={styles.modalConfirmText}>{isPurchasing ? "Processing..." : "Subscribe"}</Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -435,6 +525,7 @@ const styles = StyleSheet.create({
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", paddingHorizontal: 16, marginBottom: 8 },
   sectionTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
   sectionCount: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  purchaseError: { fontSize: 13, fontFamily: "Inter_400Regular", paddingHorizontal: 16, marginBottom: 10 },
   fileList: {
     marginHorizontal: 16,
     borderRadius: 16,
@@ -486,4 +577,23 @@ const styles = StyleSheet.create({
   planPrice: { fontSize: 12, fontFamily: "Inter_400Regular" },
   planBtn: { marginTop: 6, paddingVertical: 8, paddingHorizontal: 16, borderRadius: 10, width: "100%", alignItems: "center" },
   planBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  modalOverlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.5)",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+  },
+  modal: { borderRadius: 20, padding: 24, width: "100%" },
+  modalTitle: { fontSize: 18, fontFamily: "Inter_700Bold", marginBottom: 8 },
+  modalText: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22, marginBottom: 20 },
+  modalButtons: { flexDirection: "row", gap: 12 },
+  modalCancel: { flex: 1, paddingVertical: 12, borderRadius: 10, borderWidth: 1, alignItems: "center" },
+  modalCancelText: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  modalConfirm: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: "center" },
+  modalConfirmText: { fontSize: 15, color: "#fff", fontFamily: "Inter_600SemiBold" },
 });

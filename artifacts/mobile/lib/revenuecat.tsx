@@ -1,8 +1,9 @@
-import React, { createContext, useContext } from "react";
+import React, { createContext, useContext, useEffect } from "react";
 import { Platform } from "react-native";
 import Purchases from "react-native-purchases";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
+import { useAuth } from "@/contexts/AuthContext";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -38,12 +39,15 @@ export function initializeRevenueCat() {
 }
 
 function useSubscriptionContext() {
+  const { user } = useAuth();
+
   const customerInfoQuery = useQuery({
-    queryKey: ["revenuecat", "customer-info"],
+    queryKey: ["revenuecat", "customer-info", user?.id],
     queryFn: async () => {
       const info = await Purchases.getCustomerInfo();
       return info;
     },
+    enabled: Boolean(user?.id),
     staleTime: 60 * 1000,
   });
 
@@ -55,6 +59,28 @@ function useSubscriptionContext() {
     },
     staleTime: 300 * 1000,
   });
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function identifyCustomer() {
+      if (!user?.id) return;
+      try {
+        await Purchases.logIn(user.id);
+        if (!cancelled) {
+          await Promise.all([customerInfoQuery.refetch(), offeringsQuery.refetch()]);
+        }
+      } catch (err: any) {
+        console.warn("RevenueCat login error:", err?.message);
+      }
+    }
+
+    identifyCustomer();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   const purchaseMutation = useMutation({
     mutationFn: async (packageToPurchase: any) => {
