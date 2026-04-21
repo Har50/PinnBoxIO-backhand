@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "./ui/dialog";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -21,7 +21,17 @@ const composeSchema = z.object({
 
 type ComposeValues = z.infer<typeof composeSchema>;
 
-export function ComposeModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
+type ComposeDraft = Partial<ComposeValues>;
+
+export function ComposeModal({
+  open,
+  onOpenChange,
+  initialDraft,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  initialDraft?: ComposeDraft;
+}) {
   const { data: accounts } = useGetAccounts();
   const createMessage = useCreateMessage();
   const { toast } = useToast();
@@ -35,6 +45,16 @@ export function ComposeModal({ open, onOpenChange }: { open: boolean; onOpenChan
       body: "",
     },
   });
+
+  useEffect(() => {
+    if (!open) return;
+    form.reset({
+      accountId: initialDraft?.accountId ?? "",
+      to: initialDraft?.to ?? "",
+      subject: initialDraft?.subject ?? "",
+      body: initialDraft?.body ?? "",
+    });
+  }, [form, initialDraft, open]);
 
   const onSubmit = (data: ComposeValues) => {
     createMessage.mutate({

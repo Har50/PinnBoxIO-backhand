@@ -81,6 +81,7 @@ React + Vite web app. Routes: `/`, `/inbox`, `/contacts`, `/ai`, `/search`, `/ac
 - AI page (`/ai`): shows AI chat with SSE streaming.
 - AI assistant uses recent database emails, live Gmail/Outlook samples, contacts, WhatsApp messages, and storage file metadata/text snippets as workspace context. Free users get one AI request per UTC day; Pro users get unlimited AI usage.
 - Inbox page (`/inbox`): desktop uses three panes; mobile uses a drill-down flow from mailboxes to folder messages to message detail.
+- Message detail views support reply/forward draft actions plus body zoom controls; the web shell includes a saved day/dark mode toggle.
 - Gmail and Outlook mail access are connected through user-authorized mail connections; API server reads messages live for Inbox/Sent/Drafts/Trash/Spam and exposes them as virtual accounts.
 
 ### `artifacts/mobile` (`@workspace/mobile`)
@@ -91,6 +92,7 @@ Expo React Native app. Tabs: Home, Inbox, AI, Contacts, Accounts.
 - RevenueCat initialized in `_layout.tsx`, paywall in `app/(tabs)/ai.tsx`
 - Lib: `lib/revenuecat.tsx` — `SubscriptionProvider`, `useSubscription`
 - Storage tab uses RevenueCat packages for 10/50/100 GB mobile upgrades and activates the selected quota through the API after purchase.
+- Mobile uses a saved day/dark theme setting through `ThemeProvider`, with a global toggle overlay and app-wide color tokens.
 
 ### `lib/db` (`@workspace/db`)
 

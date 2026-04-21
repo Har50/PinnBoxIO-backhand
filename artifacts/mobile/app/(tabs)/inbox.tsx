@@ -1,7 +1,7 @@
 import { useGetMessages, useGetMessage, useUpdateMessage } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, FlatList, Linking, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
@@ -100,6 +100,7 @@ function MessageDetail({
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const [bodyScale, setBodyScale] = useState(1);
 
   if (isLoading) {
     return (
@@ -123,6 +124,19 @@ function MessageDetail({
     updateMessage.mutate({ id: message.id, data: { isStarred: !message.isStarred } });
   }
 
+  function openMailAction(action: "reply" | "forward") {
+    if (!message) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const subjectPrefix = action === "reply" ? "Re:" : "Fwd:";
+    const subject = message.subject.startsWith(subjectPrefix) ? message.subject : `${subjectPrefix} ${message.subject}`;
+    const body =
+      action === "reply"
+        ? `\n\nOn ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}, ${message.fromName} wrote:\n${message.bodyText || ""}`
+        : `\n\nForwarded message\nFrom: ${message.fromName} <${message.fromEmail}>\nDate: ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}\nSubject: ${message.subject}\nTo: ${message.toList}\n\n${message.bodyText || ""}`;
+    const to = action === "reply" ? message.fromEmail : "";
+    Linking.openURL(`mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`);
+  }
+
   const receivedDate = new Date(message.receivedAt);
 
   return (
@@ -142,6 +156,23 @@ function MessageDetail({
             size={22}
             color={message.isStarred ? "#f59e0b" : colors.mutedForeground}
           />
+        </Pressable>
+      </View>
+
+      <View style={styles.actionRow}>
+        <Pressable onPress={() => openMailAction("reply")} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="corner-up-left" size={14} color={colors.primary} />
+          <Text style={[styles.actionText, { color: colors.primary }]}>Reply</Text>
+        </Pressable>
+        <Pressable onPress={() => openMailAction("forward")} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="corner-up-right" size={14} color={colors.primary} />
+          <Text style={[styles.actionText, { color: colors.primary }]}>Forward</Text>
+        </Pressable>
+        <Pressable onPress={() => setBodyScale((v) => Math.max(0.8, Number((v - 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="zoom-out" size={15} color={colors.foreground} />
+        </Pressable>
+        <Pressable onPress={() => setBodyScale((v) => Math.min(1.6, Number((v + 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Feather name="zoom-in" size={15} color={colors.foreground} />
         </Pressable>
       </View>
 
@@ -184,7 +215,7 @@ function MessageDetail({
       </View>
 
       <View style={[styles.bodyContainer, { borderTopColor: colors.border }]}>
-        <Text style={[styles.bodyText, { color: colors.foreground }]}>
+        <Text style={[styles.bodyText, { color: colors.foreground, fontSize: 15 * bodyScale, lineHeight: 24 * bodyScale }]}>
           {message.bodyText || "No message content."}
         </Text>
       </View>
@@ -371,6 +402,25 @@ const styles = StyleSheet.create({
   backButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   backText: { fontSize: 16, fontFamily: "Inter_500Medium" },
   starButton: { padding: 8 },
+  actionRow: { flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" },
+  actionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+  },
+  actionText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  iconActionButton: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   detailSubject: { fontSize: 22, fontFamily: "Inter_700Bold", lineHeight: 30, marginBottom: 16 },
   senderBlock: {
     flexDirection: "row",

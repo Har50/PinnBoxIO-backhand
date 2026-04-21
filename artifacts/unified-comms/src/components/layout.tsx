@@ -1,9 +1,9 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut, HardDrive } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
 import { useAuth } from "@workspace/replit-auth-web";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
@@ -14,6 +14,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [isPayOpen, setIsPayOpen] = useState(false);
   const [importantExpanded, setImportantExpanded] = useState(true);
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window === "undefined") return "light";
+    return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
+  });
 
   const { data: allContacts } = useGetContacts({});
   const { data: stats } = useGetOverviewStats();
@@ -27,6 +31,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
     : [];
 
   const totalUnread = stats?.totalUnread ?? 0;
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", theme === "dark");
+    window.localStorage.setItem("pinnboxio_theme", theme);
+  }, [theme]);
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -98,6 +107,24 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <CreditCard className="w-4 h-4" />
             Pay
           </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="lg"
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            className="hidden md:flex w-full justify-start gap-2 font-medium"
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            {theme === "dark" ? "Day mode" : "Dark mode"}
+          </Button>
+          <button
+            type="button"
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            title={theme === "dark" ? "Day mode" : "Dark mode"}
+            className="md:hidden w-8 h-8 mx-auto rounded-full border border-sidebar-border text-sidebar-foreground/80 flex items-center justify-center hover:bg-sidebar-accent transition-colors"
+          >
+            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-1.5 md:px-3 flex flex-col gap-0.5">

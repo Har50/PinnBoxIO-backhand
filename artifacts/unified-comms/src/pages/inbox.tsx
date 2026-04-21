@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Star, Inbox as InboxIcon, Tag, Clock, File, Search, RefreshCw, ChevronLeft } from "lucide-react";
+import { Mail, Star, Inbox as InboxIcon, Tag, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import { useDebounce } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { ComposeModal } from "@/components/compose-modal";
 
 type MobileView = "mailboxes" | "messages" | "detail";
 
@@ -21,6 +22,9 @@ export default function Inbox() {
   const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [mobileView, setMobileView] = useState<MobileView>("mailboxes");
+  const [bodyZoom, setBodyZoom] = useState(100);
+  const [composeDraft, setComposeDraft] = useState<{ accountId?: string; to?: string; subject?: string; body?: string } | undefined>();
+  const [isComposeOpen, setIsComposeOpen] = useState(false);
   
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -65,9 +69,31 @@ export default function Inbox() {
 
   const handleMessageSelect = (messageId: number) => {
     setSelectedMessageId(messageId);
+    setBodyZoom(100);
     if (isMobile) {
       setMobileView("detail");
     }
+  };
+
+  const openComposeAction = (type: "reply" | "forward") => {
+    if (!activeMessage) return;
+    const received = format(new Date(activeMessage.receivedAt), "MMM d, yyyy 'at' h:mm a");
+    const subjectPrefix = type === "reply" ? "Re:" : "Fwd:";
+    const subject = activeMessage.subject.startsWith(subjectPrefix)
+      ? activeMessage.subject
+      : `${subjectPrefix} ${activeMessage.subject}`;
+    const body =
+      type === "reply"
+        ? `\n\nOn ${received}, ${activeMessage.fromName} wrote:\n${activeMessage.bodyText || ""}`
+        : `\n\nForwarded message\nFrom: ${activeMessage.fromName} <${activeMessage.fromEmail}>\nDate: ${received}\nSubject: ${activeMessage.subject}\nTo: ${activeMessage.toList}\n\n${activeMessage.bodyText || ""}`;
+
+    setComposeDraft({
+      accountId: String(activeMessage.accountId),
+      to: type === "reply" ? activeMessage.fromEmail : "",
+      subject,
+      body,
+    });
+    setIsComposeOpen(true);
   };
 
   const folders = ["Inbox", "Sent", "Drafts", "Archive", "Trash", "Spam"];
@@ -265,6 +291,14 @@ export default function Inbox() {
         <div className="flex flex-col h-full overflow-hidden">
           <div className="h-14 px-4 border-b flex items-center justify-between shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
             <div className="flex gap-1">
+              <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("reply")}>
+                <Reply className="h-4 w-4" />
+                <span className="hidden sm:inline">Reply</span>
+              </Button>
+              <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("forward")}>
+                <Forward className="h-4 w-4" />
+                <span className="hidden sm:inline">Forward</span>
+              </Button>
               <Button variant="ghost" size="icon" onClick={(e) => handleToggleStar(activeMessage.id, activeMessage.isStarred, e)}>
                 <Star className={`h-4 w-4 ${activeMessage.isStarred ? 'fill-amber-500 text-amber-500' : 'text-muted-foreground'}`} />
               </Button>
@@ -272,9 +306,26 @@ export default function Inbox() {
                 <InboxIcon className="h-4 w-4 text-muted-foreground" />
               </Button>
             </div>
-            <div className="text-xs text-muted-foreground flex items-center gap-1">
-              <Clock className="w-3.5 h-3.5" />
-              {format(new Date(activeMessage.receivedAt), "MMM d, yyyy 'at' h:mm a")}
+            <div className="flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-1 rounded-md border bg-background">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom((z) => Math.max(80, z - 10))}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>
+                  {bodyZoom}%
+                </button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom((z) => Math.min(160, z + 10))}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(100)}>
+                  <RotateCcw className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <div className="text-xs text-muted-foreground flex items-center gap-1">
+                <Clock className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">{format(new Date(activeMessage.receivedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+                <span className="sm:hidden">{format(new Date(activeMessage.receivedAt), "MMM d")}</span>
+              </div>
             </div>
           </div>
 
@@ -308,7 +359,19 @@ export default function Inbox() {
 
               <Separator className="my-6 opacity-50" />
 
-              <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary">
+              <div className="md:hidden mb-4 flex items-center gap-1 rounded-md border bg-background w-fit">
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom((z) => Math.max(80, z - 10))}>
+                  <ZoomOut className="h-4 w-4" />
+                </Button>
+                <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>
+                  {bodyZoom}%
+                </button>
+                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom((z) => Math.min(160, z + 10))}>
+                  <ZoomIn className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary" style={{ fontSize: `${bodyZoom}%` }}>
                 {activeMessage.bodyHtml ? (
                   <div dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
                 ) : (
@@ -350,6 +413,7 @@ export default function Inbox() {
         {mobileView === "mailboxes" && mailboxPanel}
         {mobileView === "messages" && messageListPanel}
         {mobileView === "detail" && messageDetailPanel}
+        <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
       </div>
     );
   }
@@ -373,6 +437,7 @@ export default function Inbox() {
           {messageDetailPanel}
         </ResizablePanel>
       </ResizablePanelGroup>
+      <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
     </div>
   );
 }

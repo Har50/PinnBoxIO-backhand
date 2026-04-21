@@ -5,9 +5,11 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, StyleSheet, Text, View, useColorScheme } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
+import { useThemeMode } from "@/contexts/ThemeContext";
 
 const WA_GREEN = "#25D366";
 const LI_BLUE = "#0A66C2";
@@ -53,8 +55,8 @@ function NativeTabLayout() {
 
 function ClassicTabLayout() {
   const colors = useColors();
-  const colorScheme = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const { mode } = useThemeMode();
+  const isDark = mode === "dark";
   const isIOS = Platform.OS === "ios";
   const isWeb = Platform.OS === "web";
 
@@ -211,9 +213,55 @@ function ClassicTabLayout() {
   );
 }
 
-export default function TabLayout() {
-  if (isLiquidGlassAvailable()) {
-    return <NativeTabLayout />;
-  }
-  return <ClassicTabLayout />;
+function ThemeToggleOverlay() {
+  const colors = useColors();
+  const { mode, toggleMode } = useThemeMode();
+  const insets = useSafeAreaInsets();
+  const top = Platform.OS === "web" ? 78 : insets.top + 12;
+
+  return (
+    <Pressable
+      onPress={toggleMode}
+      style={[
+        styles.themeToggle,
+        {
+          top,
+          backgroundColor: colors.card,
+          borderColor: colors.border,
+        },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={mode === "dark" ? "Switch to day mode" : "Switch to dark mode"}
+    >
+      <Feather name={mode === "dark" ? "sun" : "moon"} size={16} color={colors.foreground} />
+    </Pressable>
+  );
 }
+
+export default function TabLayout() {
+  return (
+    <View style={{ flex: 1 }}>
+      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+      <ThemeToggleOverlay />
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  themeToggle: {
+    position: "absolute",
+    right: 16,
+    zIndex: 100,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    shadowColor: "#000",
+    shadowOpacity: 0.12,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 4,
+  },
+});

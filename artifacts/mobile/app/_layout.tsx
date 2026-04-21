@@ -16,6 +16,7 @@ import { ActivityIndicator, Platform, Text, View, Alert as RNAlert } from "react
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { ThemeProvider } from "@/contexts/ThemeContext";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
@@ -118,13 +119,15 @@ export default function RootLayout() {
       <ErrorBoundary>
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
-            <SubscriptionProvider>
-            <GestureHandlerRootView style={{ flex: 1 }}>
-              <KeyboardProvider>
-                  <RootLayoutNav />
-              </KeyboardProvider>
-            </GestureHandlerRootView>
-            </SubscriptionProvider>
+            <ThemeProvider>
+              <SubscriptionProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <KeyboardProvider>
+                    <RootLayoutNav />
+                  </KeyboardProvider>
+                </GestureHandlerRootView>
+              </SubscriptionProvider>
+            </ThemeProvider>
           </AuthProvider>
         </QueryClientProvider>
       </ErrorBoundary>
