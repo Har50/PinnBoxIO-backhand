@@ -45,11 +45,6 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "extra": {
-      "eas": {
-        "projectId": "c17cf529-42be-4549-848f-bdd57d81dfa0"
-      }
-    },
     "marketingUrl": "https://pinnboxio.net",
     "privacyPolicyUrl": "https://pinnboxio.net/privacy"
   }
