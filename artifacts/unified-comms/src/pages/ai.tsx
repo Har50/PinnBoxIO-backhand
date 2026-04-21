@@ -126,6 +126,11 @@ function AiChat() {
         body: JSON.stringify({ content: userMsg, provider }),
       });
 
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
+      }
+
       if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -161,7 +166,7 @@ function AiChat() {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
-          content: "Sorry, something went wrong. Please try again.",
+          content: err instanceof Error ? err.message : "Sorry, something went wrong. Please try again.",
           streaming: false,
         };
         return updated;
@@ -283,8 +288,8 @@ function AiChat() {
                 {[
                   "Summarize my unread emails",
                   "Who messaged me recently?",
-                  "Draft a reply to my latest email",
-                  "Find emails from a contact",
+                  "Write a recovery email to a customer",
+                  "Draft a tailored reply to my latest email",
                 ].map((suggestion) => (
                   <button
                     key={suggestion}

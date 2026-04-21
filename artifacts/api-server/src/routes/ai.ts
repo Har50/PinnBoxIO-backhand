@@ -5,16 +5,85 @@ import {
   aiMessagesTable,
   messagesTable,
   contactsTable,
+  storageFilesTable,
+  usersTable,
 } from "@workspace/db/schema";
-import { eq, desc } from "drizzle-orm";
+import { and, count, desc, eq, gte } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
 import { whatsappService } from "../services/whatsapp.js";
+import { listGmailMessages } from "../services/gmail";
+import { listOutlookMessages } from "../services/outlook";
+import { objectStorageClient } from "../lib/objectStorage";
 
 const router: IRouter = Router();
 
 type Provider = "openai" | "claude" | "gemini";
+
+const FREE_AI_REQUESTS_PER_DAY = 1;
+
+function isTextLikeFile(name: string, mimeType: string) {
+  const lowerName = name.toLowerCase();
+  const lowerMime = mimeType.toLowerCase();
+  return (
+    lowerMime.startsWith("text/") ||
+    lowerMime.includes("json") ||
+    lowerMime.includes("csv") ||
+    lowerName.endsWith(".txt") ||
+    lowerName.endsWith(".md") ||
+    lowerName.endsWith(".csv") ||
+    lowerName.endsWith(".json")
+  );
+}
+
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+async function getTextFileSnippet(storageKey: string, maxChars = 1200) {
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucketId) return null;
+
+  try {
+    const [buffer] = await objectStorageClient.bucket(bucketId).file(storageKey).download({ start: 0, end: 8191 });
+    return buffer.toString("utf8").replace(/\s+/g, " ").trim().slice(0, maxChars) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getUserAiAccess(userId: string) {
+  const [user] = await db.select({ isPro: usersTable.isPro }).from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.isPro) {
+    return { allowed: true, isPro: true, usedToday: 0, limit: null as number | null };
+  }
+
+  const startOfDay = new Date();
+  startOfDay.setUTCHours(0, 0, 0, 0);
+
+  const [usage] = await db
+    .select({ cnt: count() })
+    .from(aiMessagesTable)
+    .innerJoin(aiConversationsTable, eq(aiMessagesTable.conversationId, aiConversationsTable.id))
+    .where(
+      and(
+        eq(aiConversationsTable.userId, userId),
+        eq(aiMessagesTable.role, "user"),
+        gte(aiMessagesTable.createdAt, startOfDay),
+      ),
+    );
+
+  const usedToday = Number(usage?.cnt ?? 0);
+  return {
+    allowed: usedToday < FREE_AI_REQUESTS_PER_DAY,
+    isPro: false,
+    usedToday,
+    limit: FREE_AI_REQUESTS_PER_DAY,
+  };
+}
 
 async function getUserContext(userId: string): Promise<string> {
   const recentMessages = await db
@@ -28,12 +97,42 @@ async function getUserContext(userId: string): Promise<string> {
     })
     .from(messagesTable)
     .orderBy(desc(messagesTable.receivedAt))
-    .limit(25);
+    .limit(50);
 
   const contacts = await db
-    .select({ name: contactsTable.name, email: contactsTable.email, company: contactsTable.company })
+    .select({ name: contactsTable.name, email: contactsTable.email, phone: contactsTable.phone, company: contactsTable.company, notes: contactsTable.notes })
     .from(contactsTable)
+    .limit(50);
+
+  const storedFiles = await db
+    .select({
+      name: storageFilesTable.name,
+      mimeType: storageFilesTable.mimeType,
+      sizeBytes: storageFilesTable.sizeBytes,
+      storageKey: storageFilesTable.storageKey,
+      folder: storageFilesTable.folder,
+      createdAt: storageFilesTable.createdAt,
+    })
+    .from(storageFilesTable)
+    .where(eq(storageFilesTable.userId, userId))
+    .orderBy(desc(storageFilesTable.updatedAt))
     .limit(30);
+
+  const textFileSnippets = await Promise.all(
+    storedFiles
+      .filter((file) => file.sizeBytes <= 1024 * 1024 && isTextLikeFile(file.name, file.mimeType))
+      .slice(0, 5)
+      .map(async (file) => ({
+        name: file.name,
+        folder: file.folder,
+        snippet: await getTextFileSnippet(file.storageKey),
+      })),
+  );
+
+  const [gmailInbox, outlookInbox] = await Promise.all([
+    listGmailMessages("Inbox", 10).catch(() => null),
+    listOutlookMessages("Inbox", 10).catch(() => null),
+  ]);
 
   const waChats = whatsappService.getChats();
   const waMessages: Array<{ chatId: string; chatName: string; text: string; fromMe: boolean; timestamp: number }> = [];
@@ -55,15 +154,36 @@ async function getUserContext(userId: string): Promise<string> {
   waMessages.sort((a, b) => b.timestamp - a.timestamp);
 
   let context = "You are a smart communications assistant for PinnboxIO.\n";
-  context += "You help users manage their email, WhatsApp, and phone communications.\n";
+  context += "You help users manage their email, WhatsApp, phone communications, contacts, and cloud storage files.\n";
   context += "You have full memory of all past messages in this conversation.\n\n";
+  context += "Core behavior:\n";
+  context += "- Use the workspace context below before answering. Prefer specific facts from emails, contacts, WhatsApp, and stored file records.\n";
+  context += "- When asked to write an email, reply, follow-up, recovery email, outreach email, apology, invoice reminder, or tailored response, produce a ready-to-send draft with To, Subject, and Body.\n";
+  context += "- Match the requested tone. If no tone is given, use concise, professional, human language.\n";
+  context += "- Never claim you sent an email. You draft only, unless a future explicit send action is added.\n";
+  context += "- If needed details are missing, write the best draft and list the missing details briefly.\n\n";
 
   if (recentMessages.length > 0) {
     context += "=== Recent Email Messages ===\n";
     for (const m of recentMessages) {
       const date = m.receivedAt ? new Date(m.receivedAt).toLocaleDateString() : "";
       context += `[${date}] ${m.folder.toUpperCase()} - From: ${m.fromName} <${m.fromEmail}> | Subject: ${m.subject}`;
-      if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 150)}`;
+      if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 300)}`;
+      context += "\n";
+    }
+    context += "\n";
+  }
+
+  const liveMessages = [...(gmailInbox?.messages ?? []), ...(outlookInbox?.messages ?? [])]
+    .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
+    .slice(0, 20);
+
+  if (liveMessages.length > 0) {
+    context += "=== Live Connected Gmail/Outlook Inbox Samples ===\n";
+    for (const m of liveMessages) {
+      const date = m.receivedAt ? new Date(m.receivedAt).toLocaleDateString() : "";
+      context += `[${date}] ${m.accountName} - From: ${m.fromName} <${m.fromEmail}> | Subject: ${m.subject}`;
+      if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 300)}`;
       context += "\n";
     }
     context += "\n";
@@ -83,14 +203,34 @@ async function getUserContext(userId: string): Promise<string> {
     context += "=== Contacts ===\n";
     for (const c of contacts) {
       context += `${c.name} <${c.email}>`;
+      if (c.phone) context += ` | Phone: ${c.phone}`;
       if (c.company) context += ` (${c.company})`;
+      if (c.notes) context += ` | Notes: ${c.notes.slice(0, 180)}`;
       context += "\n";
     }
     context += "\n";
   }
 
+  if (storedFiles.length > 0) {
+    context += "=== Stored Cloud Files ===\n";
+    for (const file of storedFiles) {
+      const date = file.createdAt ? new Date(file.createdAt).toLocaleDateString() : "";
+      context += `[${date}] ${file.folder}/${file.name} | ${file.mimeType} | ${formatBytes(file.sizeBytes)}\n`;
+    }
+    context += "\n";
+  }
+
+  const snippets = textFileSnippets.filter((file) => file.snippet);
+  if (snippets.length > 0) {
+    context += "=== Searchable Text File Snippets ===\n";
+    for (const file of snippets) {
+      context += `${file.folder}/${file.name}: ${file.snippet}\n`;
+    }
+    context += "\n";
+  }
+
   context +=
-    "You can help with: summarizing emails, drafting replies, finding contacts, managing priorities, searching WhatsApp conversations, and anything related to communications.";
+    "You can help with: summarizing emails, drafting replies, writing tailored new emails, finding contacts, managing priorities, searching WhatsApp conversations, referencing stored files, and anything related to communications.";
 
   return context;
 }
@@ -178,6 +318,17 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
     if (!conversation || conversation.userId !== req.user.id) {
       return res.status(404).json({ error: "Not found" });
+    }
+
+    const access = await getUserAiAccess(req.user.id);
+    if (!access.allowed) {
+      res.status(402).json({
+        error: "Daily free AI limit reached. Upgrade to Pro for unlimited AI with email, contact, WhatsApp, and storage context.",
+        code: "AI_DAILY_LIMIT_REACHED",
+        limit: access.limit,
+        usedToday: access.usedToday,
+      });
+      return;
     }
 
     await db.insert(aiMessagesTable).values({ conversationId: id, role: "user", content });

@@ -79,6 +79,7 @@ Express 5 API server.
 React + Vite web app. Routes: `/`, `/inbox`, `/contacts`, `/ai`, `/search`, `/accounts`, `/whatsapp`.
 
 - AI page (`/ai`): shows AI chat with SSE streaming.
+- AI assistant uses recent database emails, live Gmail/Outlook samples, contacts, WhatsApp messages, and storage file metadata/text snippets as workspace context. Free users get one AI request per UTC day; Pro users get unlimited AI usage.
 - Inbox page (`/inbox`): desktop uses three panes; mobile uses a drill-down flow from mailboxes to folder messages to message detail.
 - Gmail and Outlook mail access are connected through user-authorized mail connections; API server reads messages live for Inbox/Sent/Drafts/Trash/Spam and exposes them as virtual accounts.
 

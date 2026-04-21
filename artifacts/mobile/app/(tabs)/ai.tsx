@@ -48,6 +48,7 @@ export default function AiScreen() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [provider, setProvider] = useState<Provider>("openai");
+  const [showPaywall, setShowPaywall] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
   const baseUrl = getApiBaseUrl ? getApiBaseUrl() : "";
 
@@ -100,6 +101,11 @@ export default function AiScreen() {
         body: JSON.stringify({ content: userMsg, provider }),
       });
 
+      if (!res.ok) {
+        const error = await res.json().catch(() => null);
+        throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
+      }
+
       if (!res.body) throw new Error("No response body");
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
@@ -134,7 +140,7 @@ export default function AiScreen() {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
-          content: "Sorry, something went wrong. Please try again.",
+          content: err instanceof Error ? err.message : "Sorry, something went wrong. Please try again.",
         };
         return updated;
       });
@@ -229,8 +235,8 @@ export default function AiScreen() {
     );
   }
 
-  if (!isSubscribed) {
-    return <PaywallScreen colors={colors} />;
+  if (!isSubscribed && showPaywall) {
+    return <PaywallScreen colors={colors} onClose={() => setShowPaywall(false)} />;
   }
 
   return (
@@ -258,9 +264,16 @@ export default function AiScreen() {
             ))}
           </View>
         </View>
-        <TouchableOpacity style={styles.newBtn} onPress={startConversation}>
-          <Text style={styles.newBtnText}>New</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: "row", gap: 8 }}>
+          {!isSubscribed && (
+            <TouchableOpacity style={styles.newBtn} onPress={() => setShowPaywall(true)}>
+              <Text style={styles.newBtnText}>Pro</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.newBtn} onPress={startConversation}>
+            <Text style={styles.newBtnText}>New</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <KeyboardAvoidingView
@@ -278,7 +291,7 @@ export default function AiScreen() {
             <View style={styles.emptyState}>
               <Text style={styles.emptyTitle}>Hello! I'm your AI assistant.</Text>
               <Text style={styles.emptyText}>
-                Ask me to summarize your emails, draft a reply, find a contact, or anything related to your communications.
+                Ask me to summarize emails, search contacts and stored files, or write a tailored email draft from your instructions.
               </Text>
             </View>
           ) : (
@@ -324,7 +337,7 @@ export default function AiScreen() {
   );
 }
 
-function PaywallScreen({ colors }: { colors: any }) {
+function PaywallScreen({ colors, onClose }: { colors: any; onClose?: () => void }) {
   const { offerings, purchase, isPurchasing, isLoading, restore, isRestoring } = useSubscription();
   const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -457,6 +470,11 @@ function PaywallScreen({ colors }: { colors: any }) {
         <TouchableOpacity style={styles.restoreBtn} onPress={() => restore()} disabled={isRestoring}>
           <Text style={styles.restoreText}>{isRestoring ? "Restoring..." : "Restore purchases"}</Text>
         </TouchableOpacity>
+        {onClose && (
+          <TouchableOpacity style={styles.restoreBtn} onPress={onClose}>
+            <Text style={styles.restoreText}>Continue with 1 free AI request today</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
 
       {showConfirm && (
