@@ -33,24 +33,28 @@ async function getToken(): Promise<string | null> {
 
 async function apiGet<T>(path: string): Promise<T> {
   const token = await getToken();
+  if (!token) throw new Error("AUTH_REQUIRED");
   const res = await fetch(`${API_BASE}/api${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: { Authorization: `Bearer ${token}` },
   });
+  if (res.status === 401) throw new Error("AUTH_REQUIRED");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const token = await getToken();
+  if (!token) throw new Error("AUTH_REQUIRED");
   const res = await fetch(`${API_BASE}/api${path}`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(body),
   });
   if (!res.ok) {
+    if (res.status === 401) throw new Error("AUTH_REQUIRED");
     const b = await res.json().catch(() => ({}));
     throw new Error(b?.error ?? `HTTP ${res.status}`);
   }
@@ -59,10 +63,12 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
 
 async function apiDelete<T>(path: string): Promise<T> {
   const token = await getToken();
+  if (!token) throw new Error("AUTH_REQUIRED");
   const res = await fetch(`${API_BASE}/api${path}`, {
     method: "DELETE",
-    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    headers: { Authorization: `Bearer ${token}` },
   });
+  if (res.status === 401) throw new Error("AUTH_REQUIRED");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return res.json();
 }
@@ -134,7 +140,9 @@ export default function StorageScreen() {
       setFiles(filesRes.files);
       setPlans(plansRes.plans);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      if (err?.message !== "AUTH_REQUIRED") {
+        Alert.alert("Error", err.message);
+      }
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -181,7 +189,7 @@ export default function StorageScreen() {
       Alert.alert("Uploaded", `"${asset.name}" uploaded successfully.`);
       await loadData();
     } catch (err: any) {
-      Alert.alert("Upload Failed", err.message);
+      Alert.alert("Upload Failed", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
     } finally {
       setUploading(false);
     }
@@ -192,7 +200,7 @@ export default function StorageScreen() {
       const { downloadUrl } = await apiGet<{ downloadUrl: string; fileName: string }>(`/storage/files/${file.id}/download-url`);
       await Linking.openURL(downloadUrl);
     } catch (err: any) {
-      Alert.alert("Download Failed", err.message);
+      Alert.alert("Download Failed", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
     }
   }, []);
 
@@ -210,7 +218,7 @@ export default function StorageScreen() {
               await apiDelete(`/storage/files/${file.id}`);
               await loadData();
             } catch (err: any) {
-              Alert.alert("Error", err.message);
+              Alert.alert("Error", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
             }
           },
         },
@@ -226,7 +234,7 @@ export default function StorageScreen() {
       });
       await Linking.openURL(url);
     } catch (err: any) {
-      Alert.alert("Error", err.message);
+      Alert.alert("Error", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
     }
   }, []);
 
