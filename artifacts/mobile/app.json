@@ -46,6 +46,11 @@
       "reactCompiler": true
     },
     "marketingUrl": "https://pinnboxio.net",
-    "privacyPolicyUrl": "https://pinnboxio.net/privacy"
+    "privacyPolicyUrl": "https://pinnboxio.net/privacy",
+    "extra": {
+      "eas": {
+        "projectId": "fca24fe7-c2c3-40e4-a330-c783871ef968"
+      }
+    }
   }
 }
