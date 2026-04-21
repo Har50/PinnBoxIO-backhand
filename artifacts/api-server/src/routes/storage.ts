@@ -3,8 +3,6 @@ import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
 import { eq, and, sql } from "drizzle-orm";
 import { objectStorageClient } from "../lib/objectStorage";
-import { getUncachableStripeClient } from "../lib/stripeClient";
-import { stripeStorage } from "../lib/stripeStorage";
 
 const router: IRouter = Router();
 
@@ -210,61 +208,7 @@ router.post("/storage/revenuecat/activate", async (req: any, res) => {
 });
 
 router.post("/storage/checkout", async (req: any, res) => {
-  try {
-    const { priceId, gb } = req.body;
-    if (!priceId && !gb) {
-      return res.status(400).json({ error: "priceId or gb is required" });
-    }
-
-    const stripe = await getUncachableStripeClient();
-    const user = await stripeStorage.getUser(req.user.id);
-
-    let customerId = user?.stripeCustomerId;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: user?.email || undefined,
-        metadata: { userId: req.user.id },
-      });
-      await stripeStorage.updateUserStripeInfo(req.user.id, { stripeCustomerId: customer.id });
-      customerId = customer.id;
-    }
-
-    let targetPriceId = priceId;
-
-    if (!targetPriceId && gb) {
-      const plan = STORAGE_PLANS.find((p) => p.gb === gb);
-      if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
-
-      const product = await stripe.products.create({
-        name: `PinnboxIO Storage — ${plan.label}`,
-        description: `${plan.label} of cloud storage for PinnboxIO`,
-        metadata: { type: "storage", gb: String(plan.gb) },
-      });
-      const price = await stripe.prices.create({
-        product: product.id,
-        unit_amount: plan.priceUsd,
-        currency: "usd",
-        recurring: { interval: "month" },
-      });
-      targetPriceId = price.id;
-    }
-
-    const host = req.get("host");
-    const proto = req.protocol;
-    const session = await stripe.checkout.sessions.create({
-      customer: customerId,
-      payment_method_types: ["card"],
-      line_items: [{ price: targetPriceId, quantity: 1 }],
-      mode: "subscription",
-      success_url: `${proto}://${host}/storage?upgraded=success`,
-      cancel_url: `${proto}://${host}/storage?upgraded=cancel`,
-      metadata: { userId: req.user.id, feature: "storage", gb: gb ? String(gb) : "" },
-    });
-
-    res.json({ url: session.url });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
+  res.status(410).json({ error: "Web storage checkout is unavailable. Storage upgrades are managed through the mobile app." });
 });
 
 export default router;

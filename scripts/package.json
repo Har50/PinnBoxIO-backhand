@@ -5,13 +5,10 @@
   "type": "module",
   "scripts": {
     "hello": "tsx ./src/hello.ts",
-    "seed-stripe": "tsx ./src/seed-stripe.ts",
-    "setup-stripe-schema": "tsx ./src/setup-stripe-schema.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
-    "@replit/revenuecat-sdk": "^4.0.0",
-    "stripe": "^20.0.0"
+    "@replit/revenuecat-sdk": "^4.0.0"
   },
   "devDependencies": {
     "@types/node": "catalog:",

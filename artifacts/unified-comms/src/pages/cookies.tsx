@@ -43,7 +43,6 @@ export default function CookiePolicy() {
                   </div>
                   {[
                     { name: "connect.sid", purpose: "Session authentication — keeps you logged in", duration: "Session / 30 days" },
-                    { name: "stripe_session", purpose: "Stripe payment flow state", duration: "Session" },
                     { name: "csrf_token", purpose: "Cross-site request forgery protection", duration: "Session" },
                   ].map((row, i) => (
                     <div key={i} className="px-4 py-3 grid grid-cols-3 gap-4 border-t border-border">
@@ -70,9 +69,7 @@ export default function CookiePolicy() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">Third-Party Cookies</h2>
               <p className="text-muted-foreground leading-relaxed">
-                When you go through the Stripe payment flow, Stripe may set its own cookies on their hosted pages. These are governed by{" "}
-                <a href="https://stripe.com/cookies-policy/legal" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Stripe's Cookie Policy</a>.
-                Similarly, when connecting LinkedIn or other third-party services via OAuth, those services may use cookies on their own pages.
+                When connecting LinkedIn or other third-party services via OAuth, those services may use cookies on their own pages.
               </p>
             </section>
 

@@ -48,7 +48,7 @@ export default function PrivacyPolicy() {
                 <li>To authenticate you and keep your account secure.</li>
                 <li>To sync and display your messages from connected accounts.</li>
                 <li>To store and serve files you upload to PinnboxIO Storage.</li>
-                <li>To process subscription payments via Stripe.</li>
+                <li>To process mobile subscription payments through RevenueCat and the applicable app store.</li>
                 <li>To diagnose technical problems and improve reliability.</li>
               </ul>
               <p className="mt-3 text-muted-foreground">We do not sell, trade, or rent your personal information to third parties.</p>
@@ -64,7 +64,7 @@ export default function PrivacyPolicy() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">Third-Party Services</h2>
               <p className="text-muted-foreground leading-relaxed">
-                PinnboxIO integrates with third-party services (WhatsApp, LinkedIn, Stripe) on your behalf. Your use of those platforms is governed by their own privacy policies. We only access the data needed to provide the requested features.
+                PinnboxIO integrates with third-party services (WhatsApp and LinkedIn) on your behalf. Your use of those platforms is governed by their own privacy policies. We only access the data needed to provide the requested features.
               </p>
             </section>
 

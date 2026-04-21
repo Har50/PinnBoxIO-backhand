@@ -76,7 +76,7 @@ export default function TermsOfService() {
                 <li>Authorize us to charge your payment method for recurring subscription fees.</li>
               </ul>
               <p className="text-muted-foreground leading-relaxed mt-3">
-                All payments are processed securely by Stripe. We do not store your full payment card details. Prices are displayed in USD and may be subject to applicable taxes.
+                Mobile subscription payments are processed securely by RevenueCat and the applicable app store. We do not store your full payment card details. Prices are displayed in USD and may be subject to applicable taxes.
               </p>
             </section>
 

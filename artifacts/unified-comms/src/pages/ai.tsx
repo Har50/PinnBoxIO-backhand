@@ -2,9 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Badge } from "@/components/ui/badge";
 import { Sparkles, Send, Plus, Trash2, Loader2 } from "lucide-react";
-import { useGetStripeSubscription, useGetStripeProducts } from "@/hooks/useStripe";
 import { cn } from "@/lib/utils";
 
 type Provider = "openai" | "claude" | "gemini";
@@ -39,21 +37,6 @@ async function apiFetch(path: string, options?: RequestInit) {
 }
 
 export default function AiPage() {
-  const { data: subData, isLoading: subLoading } = useGetStripeSubscription();
-  const isPro = subData?.isPro;
-
-  if (subLoading) {
-    return (
-      <div className="flex h-full items-center justify-center">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
-  }
-
-  if (!isPro) {
-    return <PricingPage />;
-  }
-
   return <AiChat />;
 }
 
@@ -360,127 +343,3 @@ function AiChat() {
   );
 }
 
-function PricingPage() {
-  const { data: productsData, isLoading } = useGetStripeProducts();
-  const [loading, setLoading] = useState<string | null>(null);
-
-  const products = productsData?.data || [];
-  const proProduct = products[0];
-  const prices = proProduct?.prices || [];
-  const monthlyPrice = prices.find((p: any) => p.recurring?.interval === "month");
-  const yearlyPrice = prices.find((p: any) => p.recurring?.interval === "year");
-
-  const handleCheckout = async (priceId: string) => {
-    setLoading(priceId);
-    try {
-      const res = await apiFetch("/stripe/checkout", {
-        method: "POST",
-        body: JSON.stringify({ priceId }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data.url) window.location.href = data.url;
-      }
-    } finally {
-      setLoading(null);
-    }
-  };
-
-  const features = [
-    { icon: "🤖", title: "AI Communications Assistant", desc: "Summarize emails, draft replies, get smart insights" },
-    { icon: "⚡", title: "Priority Inbox", desc: "AI surfaces your most important messages automatically" },
-    { icon: "📊", title: "Advanced Analytics", desc: "Deep insights into communication patterns" },
-    { icon: "🔗", title: "Unlimited Accounts", desc: "Connect as many accounts as you need" },
-    { icon: "🔒", title: "Priority Support", desc: "Get help faster with dedicated support" },
-    { icon: "🌐", title: "All Platforms", desc: "Web, iOS, and Android included" },
-  ];
-
-  return (
-    <div className="flex-1 overflow-y-auto">
-      <div className="max-w-4xl mx-auto py-16 px-6">
-        <div className="text-center mb-12">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium mb-6">
-            <Sparkles className="w-4 h-4" />
-            PinnboxIO Pro
-          </div>
-          <h1 className="text-4xl font-bold text-foreground mb-4">
-            Unlock AI-powered communications
-          </h1>
-          <p className="text-lg text-muted-foreground max-w-xl mx-auto">
-            Get your AI assistant and premium features to manage all your communications smarter — on web and mobile.
-          </p>
-        </div>
-
-        <div className="grid md:grid-cols-2 gap-6 mb-12">
-          {[
-            monthlyPrice && {
-              priceId: monthlyPrice.id,
-              label: "Monthly",
-              price: `$${(monthlyPrice.unitAmount / 100).toFixed(2)}`,
-              period: "/month",
-              desc: "Billed monthly",
-              featured: false,
-            },
-            yearlyPrice && {
-              priceId: yearlyPrice.id,
-              label: "Annual",
-              price: `$${(yearlyPrice.unitAmount / 100).toFixed(2)}`,
-              period: "/year",
-              desc: "Save 25% vs monthly",
-              featured: true,
-            },
-          ]
-            .filter(Boolean)
-            .map((plan: any) => (
-              <div
-                key={plan.priceId}
-                className={cn(
-                  "rounded-2xl border p-8 flex flex-col",
-                  plan.featured ? "border-primary shadow-lg shadow-primary/10 bg-primary/5" : "bg-card",
-                )}
-              >
-                {plan.featured && (
-                  <Badge className="self-start mb-4">Best value</Badge>
-                )}
-                <p className="text-sm font-medium text-muted-foreground mb-1">{plan.label}</p>
-                <div className="flex items-baseline gap-1 mb-2">
-                  <span className="text-4xl font-bold text-foreground">{plan.price}</span>
-                  <span className="text-muted-foreground">{plan.period}</span>
-                </div>
-                <p className="text-sm text-muted-foreground mb-6">{plan.desc}</p>
-                <Button
-                  onClick={() => handleCheckout(plan.priceId)}
-                  disabled={loading === plan.priceId || isLoading}
-                  className="w-full"
-                  variant={plan.featured ? "default" : "outline"}
-                >
-                  {loading === plan.priceId ? (
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                  ) : null}
-                  Get started
-                </Button>
-              </div>
-            ))}
-
-          {products.length === 0 && !isLoading && (
-            <div className="md:col-span-2 rounded-2xl border bg-card p-8 text-center">
-              <p className="text-muted-foreground">Pricing will be available soon.</p>
-            </div>
-          )}
-        </div>
-
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {features.map((f) => (
-            <div key={f.title} className="flex gap-3 p-4 rounded-xl border bg-card">
-              <span className="text-2xl">{f.icon}</span>
-              <div>
-                <h3 className="font-semibold text-sm text-foreground mb-1">{f.title}</h3>
-                <p className="text-xs text-muted-foreground leading-relaxed">{f.desc}</p>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
