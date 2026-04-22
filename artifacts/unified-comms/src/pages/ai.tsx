@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Sparkles, Send, Plus, Trash2, Loader2 } from "lucide-react";
+import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Provider = "openai" | "claude" | "gemini";
@@ -48,6 +48,7 @@ function AiChat() {
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [provider, setProvider] = useState<Provider>("openai");
+  const [showMobileChats, setShowMobileChats] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -64,6 +65,12 @@ function AiChat() {
   }, [fetchConversations]);
 
   const newConversation = async () => {
+    if (activeConvId && messages.length === 0) {
+      setShowMobileChats(false);
+      textareaRef.current?.focus();
+      return;
+    }
+
     const res = await apiFetch("/ai/conversations", {
       method: "POST",
       body: JSON.stringify({ title: "New conversation" }),
@@ -73,11 +80,13 @@ function AiChat() {
       setConversations((prev) => [conv, ...prev]);
       setActiveConvId(conv.id);
       setMessages([]);
+      setShowMobileChats(false);
     }
   };
 
   const loadConversation = async (id: number) => {
     setActiveConvId(id);
+    setShowMobileChats(false);
     const res = await apiFetch(`/ai/conversations/${id}`);
     if (res.ok) {
       const data = await res.json();
@@ -199,9 +208,24 @@ function AiChat() {
     }
   };
 
+  const formatConversationTitle = (conv: Conversation) => {
+    const title = conv.title?.trim();
+    if (title && !/^new (chat|conversation)$/i.test(title)) return title;
+    return `Chat ${new Date(conv.createdAt).toLocaleDateString(undefined, {
+      month: "short",
+      day: "numeric",
+    })}`;
+  };
+
+  const activeConversation = conversations.find((conv) => conv.id === activeConvId);
+
   return (
-    <div className="flex h-full">
-      <div className="w-64 border-r bg-sidebar flex flex-col">
+    <div className="flex h-full min-w-0 overflow-hidden">
+      <div className={cn(
+        "border-r bg-sidebar flex-col min-w-0",
+        showMobileChats ? "flex w-full" : "hidden",
+        "md:flex md:w-64 md:shrink-0",
+      )}>
         <div className="p-4 border-b">
           <Button onClick={newConversation} className="w-full gap-2" size="sm">
             <Plus className="w-4 h-4" />
@@ -221,11 +245,11 @@ function AiChat() {
                     : "hover:bg-accent text-foreground",
                 )}
               >
-                <span className="truncate flex-1">{conv.title}</span>
+                <span className="truncate flex-1">{formatConversationTitle(conv)}</span>
                 <button
                   onClick={(e) => deleteConversation(conv.id, e)}
                   className={cn(
-                    "ml-2 opacity-0 group-hover:opacity-100 transition-opacity",
+                    "ml-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity",
                     activeConvId === conv.id ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-destructive",
                   )}
                 >
@@ -242,17 +266,28 @@ function AiChat() {
         </ScrollArea>
       </div>
 
-      <div className="flex-1 flex flex-col">
-        <div className="px-6 py-4 border-b flex items-center gap-3 flex-wrap">
+      <div className={cn("flex-1 flex-col min-w-0", showMobileChats ? "hidden md:flex" : "flex")}>
+        <div className="px-3 sm:px-6 py-3 sm:py-4 border-b flex items-center gap-3 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            className="md:hidden gap-2"
+            onClick={() => setShowMobileChats(true)}
+          >
+            <MessageSquare className="w-4 h-4" />
+            Chats
+          </Button>
           <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center shrink-0">
             <Sparkles className="w-4 h-4 text-primary" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="font-semibold text-foreground">AI Assistant</h1>
-            <p className="text-xs text-muted-foreground">Context-aware help for your inbox</p>
+            <p className="text-xs text-muted-foreground truncate">
+              {activeConversation ? formatConversationTitle(activeConversation) : "Context-aware help for your inbox"}
+            </p>
           </div>
-          <div className="ml-auto flex items-center gap-2 flex-wrap">
-            <div className="flex rounded-lg border overflow-hidden text-xs">
+          <div className="ml-auto flex items-center gap-2 min-w-0">
+            <div className="flex rounded-lg border overflow-x-auto text-xs max-w-[52vw] sm:max-w-none">
               {PROVIDERS.map((p) => (
                 <button
                   key={p.id}
@@ -272,7 +307,7 @@ function AiChat() {
           </div>
         </div>
 
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 flex flex-col gap-4">
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 sm:p-6 flex flex-col gap-4">
           {messages.length === 0 && (
             <div className="flex-1 flex flex-col items-center justify-center text-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
@@ -284,7 +319,7 @@ function AiChat() {
                   I can summarize your emails, draft replies, find contacts, and help you manage all your communications smarter.
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 max-w-md w-full mt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-md w-full mt-2">
                 {[
                   "Summarize my unread emails",
                   "Who messaged me recently?",
@@ -310,7 +345,7 @@ function AiChat() {
             <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start")}>
               <div
                 className={cn(
-                  "max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
+                  "max-w-[92%] sm:max-w-[75%] rounded-2xl px-4 py-3 text-sm leading-relaxed",
                   msg.role === "user"
                     ? "bg-primary text-primary-foreground rounded-br-sm"
                     : "bg-card border text-foreground rounded-bl-sm",
@@ -322,7 +357,7 @@ function AiChat() {
           ))}
         </div>
 
-        <div className="p-4 border-t">
+        <div className="p-3 sm:p-4 border-t">
           <div className="flex gap-2 items-end">
             <Textarea
               ref={textareaRef}
