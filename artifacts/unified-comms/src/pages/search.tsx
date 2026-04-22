@@ -2,12 +2,14 @@ import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
-import { Search as SearchIcon, Mail, Users, FileText, MessageCircle, ExternalLink } from "lucide-react";
+import { Search as SearchIcon, Mail, Users, FileText, MessageCircle, ExternalLink, Zap, ZapOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 interface SearchResults {
   query: string;
@@ -17,26 +19,40 @@ interface SearchResults {
   totalMessages: number;
   totalContacts: number;
   totalWhatsapp: number;
+  searchAccess?: { isPro: boolean; usedToday: number; limit: number | null };
 }
+
+interface SearchLimit { usedToday: number; limit: number; }
 
 function useUnifiedSearch(q: string) {
   const [data, setData] = useState<SearchResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [limitReached, setLimitReached] = useState<SearchLimit | null>(null);
   const enabled = q.length > 1;
 
   useEffect(() => {
-    if (!enabled) { setData(null); return; }
+    if (!enabled) { setData(null); setLimitReached(null); return; }
     let cancelled = false;
     setIsLoading(true);
-    fetch(`/api/search?q=${encodeURIComponent(q)}&type=all`, { credentials: "include" })
-      .then((r) => r.json())
-      .then((d) => { if (!cancelled) setData(d); })
+    fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}&type=all`, { credentials: "include" })
+      .then(async (r) => {
+        if (r.status === 402) {
+          const body = await r.json();
+          if (!cancelled && body.code === "SEARCH_DAILY_LIMIT_REACHED") {
+            setLimitReached({ usedToday: body.usedToday ?? 3, limit: body.limit ?? 3 });
+            setData(null);
+          }
+          return;
+        }
+        const d = await r.json();
+        if (!cancelled) { setLimitReached(null); setData(d); }
+      })
       .catch(() => {})
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
   }, [q, enabled]);
 
-  return { data, isLoading };
+  return { data, isLoading, limitReached };
 }
 
 export default function SearchPage() {
@@ -52,7 +68,7 @@ export default function SearchPage() {
     setQuery(q);
   }, [rawSearch]);
 
-  const { data: results, isLoading } = useUnifiedSearch(debouncedQuery);
+  const { data: results, isLoading, limitReached } = useUnifiedSearch(debouncedQuery);
   const hasResults = results && (results.messages.length > 0 || results.contacts.length > 0 || results.whatsappMessages.length > 0);
   const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(debouncedQuery)}`;
 
@@ -78,9 +94,12 @@ export default function SearchPage() {
 
       <div className="flex-1 overflow-y-auto pb-12">
         {!debouncedQuery || debouncedQuery.length < 2 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
-            <SearchIcon className="h-16 w-16 mb-4 opacity-20" />
+          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground gap-3">
+            <SearchIcon className="h-16 w-16 opacity-20" />
             <p>Enter a search term to begin</p>
+            <span className="flex items-center gap-1.5 text-xs bg-muted px-3 py-1.5 rounded-full border border-border">
+              <Zap className="h-3 w-3" /> 3 free searches/day · Pro = unlimited
+            </span>
           </div>
         ) : isLoading ? (
           <div className="space-y-8">
@@ -92,6 +111,26 @@ export default function SearchPage() {
               <Skeleton className="h-6 w-32" />
               {Array.from({ length: 2 }).map((_, i) => <Skeleton key={`c-${i}`} className="h-16 w-full" />)}
             </div>
+          </div>
+        ) : limitReached ? (
+          <div className="flex flex-col items-center justify-center min-h-64 text-muted-foreground text-center px-4 gap-4">
+            <div className="w-14 h-14 rounded-2xl bg-amber-100 dark:bg-amber-900/30 flex items-center justify-center">
+              <ZapOff className="h-7 w-7 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="font-semibold text-foreground text-base">Daily search limit reached</p>
+              <p className="text-sm mt-1 max-w-sm text-muted-foreground">
+                You've used all {limitReached.limit} free searches today. Resets at midnight UTC.
+              </p>
+            </div>
+            <Button className="gap-2 bg-amber-500 hover:bg-amber-600 text-white" asChild>
+              <a href="https://pinnboxio.net" target="_blank" rel="noreferrer">
+                Upgrade to Pro — Unlimited Search
+              </a>
+            </Button>
+            <a href={googleSearchUrl} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground flex items-center gap-1.5 hover:text-primary transition">
+              <ExternalLink className="h-3 w-3" /> Search Google instead
+            </a>
           </div>
         ) : !hasResults ? (
           <div className="flex flex-col items-center justify-center min-h-64 text-muted-foreground text-center px-4">

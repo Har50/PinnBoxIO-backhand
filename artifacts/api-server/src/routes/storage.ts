@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and, sql, ne } from "drizzle-orm";
 import { objectStorageClient } from "../lib/objectStorage";
 
 const router: IRouter = Router();
@@ -56,6 +56,11 @@ async function getOrCreateQuota(userId: string) {
   return created;
 }
 
+function normalisePath(raw: string): string {
+  const p = ("/" + raw).replace(/\/+/g, "/").replace(/\/$/, "") || "/";
+  return p;
+}
+
 router.get("/storage/quota", async (req: any, res) => {
   try {
     const quota = await getOrCreateQuota(req.user.id);
@@ -65,13 +70,124 @@ router.get("/storage/quota", async (req: any, res) => {
   }
 });
 
+/** List all virtual folders for the user (derived from distinct folder paths on files). */
+router.get("/storage/folders", async (req: any, res) => {
+  try {
+    const parentFolder = normalisePath((req.query.folder as string) || "/");
+
+    const rows = await db
+      .selectDistinct({ folder: storageFilesTable.folder })
+      .from(storageFilesTable)
+      .where(eq(storageFilesTable.userId, req.user.id));
+
+    const allFolders = new Set(rows.map((r) => r.folder));
+
+    // Derive immediate children of parentFolder
+    const children = new Set<string>();
+    for (const f of allFolders) {
+      if (f === parentFolder) continue;
+      // Check if f starts with parentFolder
+      const prefix = parentFolder === "/" ? "/" : parentFolder + "/";
+      if (!f.startsWith(prefix)) continue;
+      const rest = f.slice(prefix.length);
+      const child = prefix + rest.split("/")[0];
+      children.add(child);
+    }
+
+    const folders = Array.from(children).sort().map((path) => {
+      const name = path.split("/").filter(Boolean).pop() ?? path;
+      return { path, name };
+    });
+
+    res.json({ folders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Create a virtual folder by uploading a zero-byte sentinel file. */
+router.post("/storage/folders", async (req: any, res) => {
+  try {
+    const { name, parentFolder = "/" } = req.body;
+    if (!name || typeof name !== "string" || !name.trim()) {
+      return res.status(400).json({ error: "name is required" });
+    }
+
+    const cleanName = name.trim().replace(/[/\\:*?"<>|]/g, "").slice(0, 128);
+    if (!cleanName) return res.status(400).json({ error: "Invalid folder name" });
+
+    const parent = normalisePath(parentFolder);
+    const folderPath = parent === "/" ? `/${cleanName}` : `${parent}/${cleanName}`;
+
+    // Check folder doesn't already exist
+    const existing = await db
+      .select({ id: storageFilesTable.id })
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folderPath)))
+      .limit(1);
+    if (existing.length > 0) {
+      return res.json({ folder: { path: folderPath, name: cleanName } });
+    }
+
+    // Insert a zero-byte .pinnbox-folder sentinel so the folder is discoverable
+    const storageKey = `user/${req.user.id}/folders${folderPath}/.pinnbox-folder`;
+    const [file] = await db
+      .insert(storageFilesTable)
+      .values({
+        userId: req.user.id,
+        name: ".pinnbox-folder",
+        mimeType: "application/x-pinnbox-folder",
+        sizeBytes: 0,
+        storageKey,
+        folder: folderPath,
+      })
+      .returning();
+
+    res.json({ folder: { path: folderPath, name: cleanName }, file });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Move a file to a different folder. */
+router.patch("/storage/files/:id/move", async (req: any, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const { folder } = req.body;
+    if (!folder) return res.status(400).json({ error: "folder is required" });
+
+    const [file] = await db
+      .select()
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.user.id)));
+
+    if (!file) return res.status(404).json({ error: "File not found" });
+
+    const [updated] = await db
+      .update(storageFilesTable)
+      .set({ folder: normalisePath(folder) })
+      .where(eq(storageFilesTable.id, fileId))
+      .returning();
+
+    res.json({ file: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.get("/storage/files", async (req: any, res) => {
   try {
-    const folder = (req.query.folder as string) || "/";
+    const folder = normalisePath((req.query.folder as string) || "/");
     const files = await db
       .select()
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folder)));
+      .where(
+        and(
+          eq(storageFilesTable.userId, req.user.id),
+          eq(storageFilesTable.folder, folder),
+          ne(storageFilesTable.name, ".pinnbox-folder"),
+        )
+      );
     res.json({ files });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -108,7 +224,7 @@ router.post("/storage/files", async (req: any, res) => {
 
     const [file] = await db
       .insert(storageFilesTable)
-      .values({ userId: req.user.id, name, mimeType: mimeType || "application/octet-stream", sizeBytes, storageKey, folder })
+      .values({ userId: req.user.id, name, mimeType: mimeType || "application/octet-stream", sizeBytes, storageKey, folder: normalisePath(folder) })
       .returning();
 
     await db
@@ -170,6 +286,48 @@ router.delete("/storage/files/:id", async (req: any, res) => {
       .where(eq(storageQuotasTable.userId, req.user.id));
 
     res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Delete all files in a folder (and the folder itself). */
+router.delete("/storage/folders", async (req: any, res) => {
+  try {
+    const folder = normalisePath((req.query.folder as string) || "");
+    if (!folder || folder === "/") {
+      return res.status(400).json({ error: "Cannot delete root folder" });
+    }
+
+    const filesInFolder = await db
+      .select()
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folder)));
+
+    let freedBytes = 0;
+    for (const file of filesInFolder) {
+      try {
+        const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+        if (bucketId) {
+          const bucket = objectStorageClient.bucket(bucketId);
+          await bucket.file(file.storageKey).delete({ ignoreNotFound: true });
+        }
+      } catch {}
+      freedBytes += file.sizeBytes;
+    }
+
+    await db.delete(storageFilesTable).where(
+      and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folder))
+    );
+
+    if (freedBytes > 0) {
+      await db
+        .update(storageQuotasTable)
+        .set({ usedBytes: sql`GREATEST(0, used_bytes - ${freedBytes})` })
+        .where(eq(storageQuotasTable.userId, req.user.id));
+    }
+
+    res.json({ success: true, deletedFiles: filesInFolder.length });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

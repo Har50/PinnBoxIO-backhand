@@ -31,11 +31,18 @@ interface SearchResults {
   totalMessages: number;
   totalContacts: number;
   totalWhatsapp: number;
+  searchAccess?: { isPro: boolean; usedToday: number; limit: number | null };
+}
+
+interface SearchLimitInfo {
+  usedToday: number;
+  limit: number;
 }
 
 function useUnifiedSearch(q: string) {
   const [data, setData] = useState<SearchResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [limitReached, setLimitReached] = useState<SearchLimitInfo | null>(null);
   const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "";
@@ -43,7 +50,7 @@ function useUnifiedSearch(q: string) {
 
   useEffect(() => {
     if (timerRef.current) clearTimeout(timerRef.current);
-    if (q.length < 2) { setData(null); return; }
+    if (q.length < 2) { setData(null); setLimitReached(null); return; }
     timerRef.current = setTimeout(async () => {
       setIsLoading(true);
       try {
@@ -52,14 +59,23 @@ function useUnifiedSearch(q: string) {
           credentials: "include",
           headers: token ? { Authorization: `Bearer ${token}` } : {},
         });
-        if (res.ok) setData(await res.json());
+        if (res.status === 402) {
+          const body = await res.json();
+          if (body.code === "SEARCH_DAILY_LIMIT_REACHED") {
+            setLimitReached({ usedToday: body.usedToday ?? 3, limit: body.limit ?? 3 });
+            setData(null);
+          }
+        } else if (res.ok) {
+          setLimitReached(null);
+          setData(await res.json());
+        }
       } catch {}
       setIsLoading(false);
     }, 350);
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, [q, baseUrl]);
 
-  return { data, isLoading };
+  return { data, isLoading, limitReached };
 }
 
 function SectionHeader({ icon, label, color }: { icon: string; label: string; color: string }) {
@@ -78,7 +94,7 @@ export default function SearchScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [query, setQuery] = useState("");
-  const { data, isLoading } = useUnifiedSearch(query);
+  const { data, isLoading, limitReached } = useUnifiedSearch(query);
 
   const enabled = query.trim().length >= 2;
   const hasResults = data && (data.messages.length > 0 || data.contacts.length > 0 || data.whatsappMessages.length > 0);
@@ -115,12 +131,38 @@ export default function SearchScreen() {
           <Feather name="search" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Search everything</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Enter at least 2 characters to search database records, emails, messages, WhatsApp, and contacts
+            Enter at least 2 characters to search emails, messages, WhatsApp, and contacts
           </Text>
+          <View style={[styles.limitBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="zap" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.limitBadgeText, { color: colors.mutedForeground }]}>3 free searches/day · Pro = unlimited</Text>
+          </View>
         </View>
       ) : isLoading ? (
         <View style={styles.loadingCenter}>
           <ActivityIndicator color={colors.primary} size="large" />
+        </View>
+      ) : limitReached ? (
+        <View style={styles.emptyState}>
+          <View style={[styles.limitIcon, { backgroundColor: "#f59e0b20" }]}>
+            <Feather name="zap-off" size={28} color="#f59e0b" />
+          </View>
+          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Daily search limit reached</Text>
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            You've used all {limitReached.limit} free searches today. Upgrade to Pro for unlimited search.
+          </Text>
+          <TouchableOpacity
+            onPress={() => Linking.openURL("https://pinnboxio.net")}
+            style={[styles.googleButton, { backgroundColor: "#f59e0b" }]}
+            activeOpacity={0.85}
+          >
+            <Feather name="star" size={15} color="#fff" />
+            <Text style={[styles.googleButtonText, { color: "#fff" }]}>Upgrade to Pro</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={openGoogleSearch} style={styles.googleAltButton} activeOpacity={0.8}>
+            <Feather name="external-link" size={13} color={colors.mutedForeground} />
+            <Text style={[styles.googleAltText, { color: colors.mutedForeground }]}>Search Google instead</Text>
+          </TouchableOpacity>
         </View>
       ) : !hasResults ? (
         <View style={styles.emptyState}>
@@ -251,6 +293,11 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   googleButtonText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  googleAltButton: { marginTop: 4, flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 6 },
+  googleAltText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  limitBadge: { flexDirection: "row", alignItems: "center", gap: 5, marginTop: 8, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, borderWidth: 1 },
+  limitBadgeText: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  limitIcon: { width: 56, height: 56, borderRadius: 16, alignItems: "center", justifyContent: "center", marginBottom: 4 },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   card: {
     borderRadius: 12,

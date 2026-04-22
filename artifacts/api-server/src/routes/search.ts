@@ -1,11 +1,46 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, count, max, desc } from "drizzle-orm";
-import { db, accountsTable, messagesTable, contactsTable, attachmentsTable } from "@workspace/db";
+import { db, accountsTable, messagesTable, contactsTable, attachmentsTable, usersTable } from "@workspace/db";
 import { whatsappService } from "../services/whatsapp.js";
 import { listGmailMessages } from "../services/gmail";
 import { listOutlookMessages } from "../services/outlook";
 
 const router: IRouter = Router();
+
+const FREE_SEARCH_PER_DAY = 3;
+
+// In-memory daily counter: Map<"userId:YYYY-MM-DD", number>
+const searchUsage = new Map<string, number>();
+
+function todayKey(userId: string): string {
+  const d = new Date();
+  return `${userId}:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+async function getSearchAccess(userId: string | undefined): Promise<{ allowed: boolean; isPro: boolean; usedToday: number; limit: number | null }> {
+  if (!userId) {
+    return { allowed: true, isPro: false, usedToday: 0, limit: null };
+  }
+
+  const [user] = await db.select({ isPro: usersTable.isPro }).from(usersTable).where(eq(usersTable.id, userId));
+  if (user?.isPro) {
+    return { allowed: true, isPro: true, usedToday: 0, limit: null };
+  }
+
+  const key = todayKey(userId);
+  const used = searchUsage.get(key) ?? 0;
+  return {
+    allowed: used < FREE_SEARCH_PER_DAY,
+    isPro: false,
+    usedToday: used,
+    limit: FREE_SEARCH_PER_DAY,
+  };
+}
+
+function incrementSearch(userId: string) {
+  const key = todayKey(userId);
+  searchUsage.set(key, (searchUsage.get(key) ?? 0) + 1);
+}
 
 type SearchableMessage = {
   subject?: string | null;
@@ -28,13 +63,30 @@ function matchesMessage(message: SearchableMessage, q: string) {
   return haystack.includes(q.toLowerCase());
 }
 
-router.get("/search", async (req, res): Promise<void> => {
+router.get("/search", async (req: any, res): Promise<void> => {
   const q = (req.query.q as string || "").trim();
   const type = req.query.type as string | undefined;
 
   if (!q) {
     res.status(400).json({ error: "q is required" });
     return;
+  }
+
+  const userId: string | undefined = req.user?.id;
+
+  const access = await getSearchAccess(userId);
+  if (!access.allowed) {
+    res.status(402).json({
+      error: "Daily search limit reached. Upgrade to Pro for unlimited search.",
+      code: "SEARCH_DAILY_LIMIT_REACHED",
+      usedToday: access.usedToday,
+      limit: access.limit,
+    });
+    return;
+  }
+
+  if (userId) {
+    incrementSearch(userId);
   }
 
   let messages: unknown[] = [];
@@ -177,6 +229,11 @@ router.get("/search", async (req, res): Promise<void> => {
     totalMessages: messages.length,
     totalContacts: contacts.length,
     totalWhatsapp: whatsappMessages.length,
+    searchAccess: {
+      isPro: access.isPro,
+      usedToday: access.usedToday + 1,
+      limit: access.limit,
+    },
   });
 });
 
