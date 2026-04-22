@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2 } from "lucide-react";
+import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Provider = "openai" | "claude" | "gemini";
@@ -18,6 +18,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
+  limitReached?: boolean;
 }
 
 interface Conversation {
@@ -137,7 +138,11 @@ function AiChat() {
 
       if (!res.ok) {
         const error = await res.json().catch(() => null);
-        throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
+        const limitError = new Error(error?.error || "Sorry, something went wrong. Please try again.");
+        if (error?.code === "AI_DAILY_LIMIT_REACHED") {
+          (limitError as Error & { code?: string }).code = error.code;
+        }
+        throw limitError;
       }
 
       if (!res.body) throw new Error("No response body");
@@ -171,12 +176,14 @@ function AiChat() {
         }
       }
     } catch (err) {
+      const isLimitReached = (err as Error & { code?: string })?.code === "AI_DAILY_LIMIT_REACHED";
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
           content: err instanceof Error ? err.message : "Sorry, something went wrong. Please try again.",
           streaming: false,
+          limitReached: isLimitReached,
         };
         return updated;
       });
@@ -351,7 +358,17 @@ function AiChat() {
                     : "bg-card border text-foreground rounded-bl-sm",
                 )}
               >
-                {msg.content || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}
+                <div>{msg.content || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
+                {msg.limitReached && (
+                  <Button
+                    size="sm"
+                    className="mt-3 gap-2"
+                    onClick={() => window.location.assign(`${import.meta.env.BASE_URL}storage`)}
+                  >
+                    <Crown className="w-4 h-4" />
+                    Upgrade to Pro
+                  </Button>
+                )}
               </div>
             </div>
           ))}

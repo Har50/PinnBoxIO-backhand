@@ -2,11 +2,12 @@ import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
-import { Search as SearchIcon, Mail, Users, FileText, MessageCircle } from "lucide-react";
+import { Search as SearchIcon, Mail, Users, FileText, MessageCircle, ExternalLink } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
+import { Button } from "@/components/ui/button";
 
 interface SearchResults {
   query: string;
@@ -53,13 +54,14 @@ export default function SearchPage() {
 
   const { data: results, isLoading } = useUnifiedSearch(debouncedQuery);
   const hasResults = results && (results.messages.length > 0 || results.contacts.length > 0 || results.whatsappMessages.length > 0);
+  const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(debouncedQuery)}`;
 
   return (
-    <div className="p-8 max-w-5xl mx-auto space-y-8 flex flex-col h-full overflow-hidden">
+    <div className="p-4 sm:p-8 max-w-5xl mx-auto space-y-8 flex flex-col h-full overflow-hidden">
       <div className="space-y-4 shrink-0">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-foreground">Global Search</h1>
-          <p className="text-muted-foreground mt-1">Find messages, contacts, and WhatsApp conversations.</p>
+          <h1 className="text-3xl font-bold tracking-tight text-foreground">Search</h1>
+          <p className="text-muted-foreground mt-1">Find database records, emails, messages, contacts, and WhatsApp conversations.</p>
         </div>
 
         <div className="relative max-w-2xl">
@@ -92,9 +94,18 @@ export default function SearchPage() {
             </div>
           </div>
         ) : !hasResults ? (
-          <div className="flex flex-col items-center justify-center h-64 text-muted-foreground">
+          <div className="flex flex-col items-center justify-center min-h-64 text-muted-foreground text-center px-4">
             <FileText className="h-12 w-12 mb-4 opacity-30" />
-            <p>No results found for "{debouncedQuery}"</p>
+            <p className="font-medium text-foreground">No local results found for "{debouncedQuery}"</p>
+            <p className="text-sm mt-2 max-w-md">
+              I searched stored messages, live connected emails, contacts, and WhatsApp messages.
+            </p>
+            <Button asChild className="mt-5 gap-2">
+              <a href={googleSearchUrl} target="_blank" rel="noreferrer">
+                Search Google instead
+                <ExternalLink className="h-4 w-4" />
+              </a>
+            </Button>
           </div>
         ) : (
           <div className="space-y-10">

@@ -9,6 +9,7 @@ import {
   TouchableOpacity,
   View,
   Platform,
+  Linking,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
@@ -80,6 +81,9 @@ export default function SearchScreen() {
 
   const enabled = query.trim().length >= 2;
   const hasResults = data && (data.messages.length > 0 || data.contacts.length > 0 || data.whatsappMessages.length > 0);
+  const openGoogleSearch = () => {
+    Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(query.trim())}`);
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -90,7 +94,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search messages, WhatsApp, contacts..."
+            placeholder="Search emails, messages, WhatsApp, contacts..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
             returnKeyType="search"
@@ -110,7 +114,7 @@ export default function SearchScreen() {
           <Feather name="search" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Search everything</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Enter at least 2 characters to search emails, WhatsApp, and contacts
+            Enter at least 2 characters to search database records, emails, messages, WhatsApp, and contacts
           </Text>
         </View>
       ) : isLoading ? (
@@ -122,8 +126,16 @@ export default function SearchScreen() {
           <Feather name="file-text" size={40} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No results</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Nothing found for "{query}"
+            Nothing local found for "{query}". I checked stored messages, live connected emails, contacts, and WhatsApp.
           </Text>
+          <TouchableOpacity
+            onPress={openGoogleSearch}
+            style={[styles.googleButton, { backgroundColor: colors.primary }]}
+            activeOpacity={0.85}
+          >
+            <Feather name="external-link" size={15} color={colors.primaryForeground} />
+            <Text style={[styles.googleButtonText, { color: colors.primaryForeground }]}>Search Google instead</Text>
+          </TouchableOpacity>
         </View>
       ) : (
         <ScrollView
@@ -228,6 +240,16 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 20 },
+  googleButton: {
+    marginTop: 12,
+    borderRadius: 999,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  googleButtonText: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   card: {
     borderRadius: 12,

@@ -2,8 +2,31 @@ import { Router, type IRouter } from "express";
 import { eq, ilike, or, count, max, desc } from "drizzle-orm";
 import { db, accountsTable, messagesTable, contactsTable, attachmentsTable } from "@workspace/db";
 import { whatsappService } from "../services/whatsapp.js";
+import { listGmailMessages } from "../services/gmail";
+import { listOutlookMessages } from "../services/outlook";
 
 const router: IRouter = Router();
+
+type SearchableMessage = {
+  subject?: string | null;
+  fromName?: string | null;
+  fromEmail?: string | null;
+  toList?: string | null;
+  ccList?: string | null;
+  bodyText?: string | null;
+};
+
+function matchesMessage(message: SearchableMessage, q: string) {
+  const haystack = [
+    message.subject,
+    message.fromName,
+    message.fromEmail,
+    message.toList,
+    message.ccList,
+    message.bodyText,
+  ].join(" ").toLowerCase();
+  return haystack.includes(q.toLowerCase());
+}
 
 router.get("/search", async (req, res): Promise<void> => {
   const q = (req.query.q as string || "").trim();
@@ -71,6 +94,18 @@ router.get("/search", async (req, res): Promise<void> => {
         };
       })
     );
+
+    const [gmailMessages, outlookMessages] = await Promise.all([
+      listGmailMessages(null, 25),
+      listOutlookMessages(null, 25),
+    ]);
+
+    const liveMessages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? [])]
+      .filter((message) => matchesMessage(message, q))
+      .filter((message) => !messages.some((existing: any) => existing.id === message.id))
+      .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime());
+
+    messages = [...messages, ...liveMessages].slice(0, 50);
   }
 
   if (!type || type === "contacts" || type === "all") {

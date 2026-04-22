@@ -12,6 +12,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **Cloud Storage** — 2 GB free, upload/download/delete files, purchase 10/50/100 GB plans via RevenueCat on mobile
 - **AI Assistant** — Multi-model chat (OpenAI, Anthropic, Gemini)
 - **Contacts & Search** — Global search across messages and contacts
+- **Contacts & Search** — Search across database records, contacts, stored/live email messages, and WhatsApp with a Google fallback when there are no local matches
 
 ## Stack
 
@@ -80,6 +81,8 @@ React + Vite web app. Routes: `/`, `/inbox`, `/contacts`, `/ai`, `/search`, `/ac
 
 - AI page (`/ai`): shows AI chat with SSE streaming.
 - AI assistant uses recent database emails, live Gmail/Outlook samples, contacts, WhatsApp messages, and storage file metadata/text snippets as workspace context. Free users get one AI request per UTC day; Pro users get unlimited AI usage.
+- Search page (`/search`): labeled "Search", queries local database messages/contacts, live connected email samples where permissions allow, and WhatsApp messages, then offers a Google search link if no local matches are found.
+- AI daily limit handling: the assistant recognizes `AI_DAILY_LIMIT_REACHED`; mobile opens the RevenueCat Pro paywall automatically and shows an Upgrade to Pro button in the limit message. Web shows an Upgrade to Pro CTA from the AI limit message.
 - Inbox page (`/inbox`): desktop uses three panes; mobile uses a drill-down flow from mailboxes to folder messages to message detail.
 - Message detail views support reply/forward draft actions plus body zoom controls; the web shell includes a saved day/dark mode toggle.
 - Gmail and Outlook mail access are connected through user-authorized mail connections; API server reads messages live for Inbox/Sent/Drafts/Trash/Spam and exposes them as virtual accounts.

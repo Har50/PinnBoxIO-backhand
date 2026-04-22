@@ -17,6 +17,7 @@ import { getApiBaseUrl } from "@workspace/api-client-react";
 interface Message {
   role: "user" | "assistant";
   content: string;
+  limitReached?: boolean;
 }
 
 interface Conversation {
@@ -103,7 +104,11 @@ export default function AiScreen() {
 
       if (!res.ok) {
         const error = await res.json().catch(() => null);
-        throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
+        const limitError = new Error(error?.error || "Sorry, something went wrong. Please try again.");
+        if (error?.code === "AI_DAILY_LIMIT_REACHED") {
+          (limitError as Error & { code?: string }).code = error.code;
+        }
+        throw limitError;
       }
 
       if (!res.body) throw new Error("No response body");
@@ -136,11 +141,16 @@ export default function AiScreen() {
         }
       }
     } catch (err) {
+      const isLimitReached = (err as Error & { code?: string })?.code === "AI_DAILY_LIMIT_REACHED";
+      if (isLimitReached && !isSubscribed) {
+        setShowPaywall(true);
+      }
       setMessages((prev) => {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
           content: err instanceof Error ? err.message : "Sorry, something went wrong. Please try again.",
+          limitReached: isLimitReached,
         };
         return updated;
       });
@@ -192,6 +202,15 @@ export default function AiScreen() {
     assistantBubble: { alignSelf: "flex-start", backgroundColor: colors.card, borderBottomLeftRadius: 4 },
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
+    upgradeBtn: {
+      marginTop: 12,
+      backgroundColor: colors.primary,
+      borderRadius: 12,
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      alignItems: "center",
+    },
+    upgradeBtnText: { color: "#fff", fontSize: 14, fontFamily: "Inter_700Bold" },
     inputRow: {
       flexDirection: "row",
       alignItems: "flex-end",
@@ -303,6 +322,11 @@ export default function AiScreen() {
                 <Text style={msg.role === "user" ? styles.userText : styles.assistantText}>
                   {msg.content || (streaming && i === messages.length - 1 ? "..." : "")}
                 </Text>
+                {msg.limitReached && !isSubscribed && (
+                  <TouchableOpacity style={styles.upgradeBtn} onPress={() => setShowPaywall(true)} activeOpacity={0.85}>
+                    <Text style={styles.upgradeBtnText}>Upgrade to Pro</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             ))
           )}
