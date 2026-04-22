@@ -27,6 +27,7 @@ function getMessageText(msg: any): string {
 router.get("/whatsapp/status", async (_req: Request, res: Response) => {
   const status = whatsappService.getStatus();
   const qrRaw = whatsappService.getQR();
+  const pairingCode = whatsappService.getPairingCode();
 
   let qrDataUrl: string | null = null;
   if (qrRaw) {
@@ -35,7 +36,7 @@ router.get("/whatsapp/status", async (_req: Request, res: Response) => {
     } catch {}
   }
 
-  res.json({ status, qr: qrDataUrl });
+  res.json({ status, qr: qrDataUrl, pairingCode });
 });
 
 router.post("/whatsapp/connect", async (_req: Request, res: Response) => {
@@ -46,6 +47,30 @@ router.post("/whatsapp/connect", async (_req: Request, res: Response) => {
   }
   whatsappService.connect().catch(() => {});
   res.json({ ok: true, status: "connecting" });
+});
+
+/** Request a pairing code instead of scanning a QR code.
+ *  Body: { phone: "14155552671" } — digits only, include country code (no +)
+ */
+router.post("/whatsapp/pairing-code", async (req: Request, res: Response) => {
+  const { phone } = req.body as { phone?: string };
+  if (!phone) {
+    res.status(400).json({ error: "phone is required" });
+    return;
+  }
+
+  const status = whatsappService.getStatus();
+  if (status === "connected") {
+    res.status(409).json({ error: "Already connected" });
+    return;
+  }
+
+  try {
+    await whatsappService.requestPairing(phone);
+    res.json({ ok: true, message: "Pairing code request initiated. Poll /whatsapp/status for the code." });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 router.post("/whatsapp/logout", async (_req: Request, res: Response) => {
@@ -63,7 +88,7 @@ router.get("/whatsapp/events", (req: Request, res: Response) => {
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
-  send({ type: "status", data: { status: whatsappService.getStatus(), qr: null } });
+  send({ type: "status", data: { status: whatsappService.getStatus(), qr: null, pairingCode: whatsappService.getPairingCode() } });
 
   const handler = (event: any) => send(event);
   whatsappService.on("event", handler);

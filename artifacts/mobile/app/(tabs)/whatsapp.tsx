@@ -6,6 +6,8 @@ import {
   ActivityIndicator,
   FlatList,
   Image,
+  Keyboard,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -44,7 +46,6 @@ async function apiGet<T>(path: string): Promise<T> {
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
   const token = await getToken();
-
   const res = await fetch(`${API_BASE}/api${path}`, {
     method: "POST",
     headers: {
@@ -57,7 +58,8 @@ async function apiPost<T>(path: string, body: unknown): Promise<T> {
   return res.json();
 }
 
-type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
+type WAStatus = "disconnected" | "connecting" | "qr" | "pairing" | "connected";
+type ConnectMode = "qr" | "phone";
 
 type Chat = {
   id: string;
@@ -139,7 +141,6 @@ function ConversationView({ chat, onBack }: { chat: Chat; onBack: () => void }) 
   }, [chat.id]);
 
   useEffect(() => { loadMessages(); }, [loadMessages]);
-
   useEffect(() => {
     const t = setInterval(loadMessages, 5000);
     return () => clearInterval(t);
@@ -159,7 +160,7 @@ function ConversationView({ chat, onBack }: { chat: Chat; onBack: () => void }) 
   };
 
   return (
-    <View style={[styles.fill, { backgroundColor: colors.background }]}>
+    <KeyboardAvoidingView style={[styles.fill, { backgroundColor: colors.background }]} behavior={Platform.OS === "ios" ? "padding" : undefined}>
       <View style={[styles.convHeader, { paddingTop: insets.top, backgroundColor: WA_DARK }]}>
         <Pressable onPress={onBack} style={styles.backBtn} hitSlop={12}>
           {Platform.OS === "ios"
@@ -232,6 +233,196 @@ function ConversationView({ chat, onBack }: { chat: Chat; onBack: () => void }) 
               : <Feather name="send" size={18} color="#fff" />}
         </Pressable>
       </View>
+    </KeyboardAvoidingView>
+  );
+}
+
+function ConnectScreen({
+  status, qr, pairingCode,
+  onConnect, onPairingRequest,
+}: {
+  status: WAStatus;
+  qr: string | null;
+  pairingCode: string | null;
+  onConnect: () => void;
+  onPairingRequest: (phone: string) => Promise<void>;
+}) {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const [mode, setMode] = useState<ConnectMode>("qr");
+  const [phone, setPhone] = useState("");
+  const [requesting, setRequesting] = useState(false);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+
+  const handlePairingRequest = async () => {
+    const clean = phone.replace(/\D/g, "");
+    if (clean.length < 7) {
+      setPhoneError("Enter a valid phone number with country code, e.g. 14155552671");
+      return;
+    }
+    setPhoneError(null);
+    setRequesting(true);
+    try {
+      await onPairingRequest(clean);
+    } catch (e: any) {
+      setPhoneError(e.message ?? "Failed to request code");
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const isBusy = status === "connecting" || status === "pairing" || requesting;
+  const showQRContent = mode === "qr";
+
+  return (
+    <View style={[styles.fill, { backgroundColor: colors.background }]}>
+      <View style={[styles.header, { paddingTop: insets.top, backgroundColor: WA_DARK }]}>
+        <Text style={styles.headerTitle}>WhatsApp</Text>
+      </View>
+
+      <ScrollView contentContainerStyle={{ flexGrow: 1, alignItems: "center", justifyContent: "center", padding: 24 }}>
+        {/* Icon */}
+        <View style={[styles.connectIcon, { backgroundColor: WA_GREEN + "20" }]}>
+          <Feather name="message-circle" size={28} color={WA_GREEN} />
+        </View>
+        <Text style={[styles.connectTitle, { color: colors.foreground }]}>Connect WhatsApp</Text>
+        <Text style={[styles.connectSubtitle, { color: colors.mutedForeground }]}>
+          Link your WhatsApp account to send and receive messages.
+        </Text>
+
+        {/* Tab switcher — only show when disconnected & idle */}
+        {(status === "disconnected") && (
+          <View style={[styles.tabRow, { backgroundColor: colors.muted }]}>
+            {(["qr", "phone"] as ConnectMode[]).map((m) => (
+              <Pressable
+                key={m}
+                onPress={() => { setMode(m); setPhoneError(null); }}
+                style={[
+                  styles.tab,
+                  mode === m && { backgroundColor: colors.background, shadowColor: "#000", shadowOpacity: 0.08, shadowRadius: 4, elevation: 2 },
+                ]}
+              >
+                <Feather
+                  name={m === "qr" ? "camera" : "smartphone"}
+                  size={14}
+                  color={mode === m ? WA_GREEN : colors.mutedForeground}
+                />
+                <Text style={[styles.tabText, { color: mode === m ? WA_GREEN : colors.mutedForeground }]}>
+                  {m === "qr" ? "Scan QR Code" : "Phone Number"}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+        )}
+
+        {/* QR Mode */}
+        {(showQRContent || status === "qr") && status === "disconnected" && (
+          <>
+            <Text style={[styles.modeHint, { color: colors.mutedForeground }]}>
+              Open WhatsApp → Settings → Linked Devices → Link a Device, then scan the QR code.
+            </Text>
+            <Pressable
+              onPress={onConnect}
+              style={({ pressed }) => [styles.connectBtn, { backgroundColor: WA_GREEN, opacity: pressed ? 0.85 : 1 }]}
+            >
+              <Text style={styles.connectBtnText}>Get QR Code</Text>
+            </Pressable>
+          </>
+        )}
+
+        {/* Phone Number Mode */}
+        {mode === "phone" && status === "disconnected" && (
+          <>
+            <Text style={[styles.modeHint, { color: colors.mutedForeground }]}>
+              Enter your WhatsApp phone number with country code (no +). We'll give you an 8-digit code to enter in WhatsApp.
+            </Text>
+            <View style={[styles.phoneRow, { borderColor: phoneError ? "#ef4444" : colors.border, backgroundColor: colors.muted }]}>
+              <Feather name="phone" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.phoneInput, { color: colors.foreground }]}
+                placeholder="14155552671"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="phone-pad"
+                value={phone}
+                onChangeText={(t) => { setPhone(t); setPhoneError(null); }}
+                returnKeyType="done"
+                onSubmitEditing={handlePairingRequest}
+              />
+            </View>
+            {phoneError && (
+              <Text style={styles.errorText}>{phoneError}</Text>
+            )}
+            <Pressable
+              onPress={handlePairingRequest}
+              disabled={isBusy || !phone.trim()}
+              style={({ pressed }) => [
+                styles.connectBtn,
+                { backgroundColor: WA_GREEN, opacity: (pressed || isBusy || !phone.trim()) ? 0.6 : 1 },
+              ]}
+            >
+              {isBusy
+                ? <ActivityIndicator color="#fff" size="small" />
+                : <Text style={styles.connectBtnText}>Request Code</Text>}
+            </Pressable>
+          </>
+        )}
+
+        {/* Connecting / generating QR spinner */}
+        {(status === "connecting") && (
+          <>
+            <Text style={[styles.connectSubtitle, { color: colors.mutedForeground, marginTop: 16 }]}>
+              Starting connection…
+            </Text>
+            <ActivityIndicator color={WA_DARK} style={{ marginTop: 12 }} />
+          </>
+        )}
+
+        {/* QR code shown */}
+        {status === "qr" && qr && (
+          <>
+            <Text style={[styles.modeHint, { color: colors.mutedForeground, marginTop: 8 }]}>
+              Open WhatsApp → Settings → Linked Devices → Link a Device
+            </Text>
+            <Image
+              source={{ uri: qr }}
+              style={styles.qrImage}
+            />
+            <Text style={[styles.qrHint, { color: colors.mutedForeground }]}>QR code refreshes automatically</Text>
+          </>
+        )}
+
+        {status === "qr" && !qr && (
+          <ActivityIndicator color={WA_DARK} style={{ marginTop: 16 }} />
+        )}
+
+        {/* Pairing code shown */}
+        {(status === "pairing") && (
+          <>
+            {pairingCode ? (
+              <>
+                <Text style={[styles.modeHint, { color: colors.mutedForeground, marginTop: 8 }]}>
+                  Open WhatsApp → Settings → Linked Devices → Link with Phone Number, then enter this code:
+                </Text>
+                <View style={[styles.codeBox, { borderColor: WA_GREEN, backgroundColor: WA_GREEN + "12" }]}>
+                  <Text style={[styles.codeText, { color: WA_DARK }]}>
+                    {pairingCode.length === 8
+                      ? `${pairingCode.slice(0, 4)}-${pairingCode.slice(4)}`
+                      : pairingCode}
+                  </Text>
+                </View>
+                <Text style={[styles.qrHint, { color: colors.mutedForeground }]}>Code expires — enter it quickly</Text>
+              </>
+            ) : (
+              <>
+                <Text style={[styles.connectSubtitle, { color: colors.mutedForeground, marginTop: 16 }]}>
+                  Requesting pairing code…
+                </Text>
+                <ActivityIndicator color={WA_DARK} style={{ marginTop: 12 }} />
+              </>
+            )}
+          </>
+        )}
+      </ScrollView>
     </View>
   );
 }
@@ -241,15 +432,17 @@ export default function WhatsAppScreen() {
   const insets = useSafeAreaInsets();
   const [status, setStatus] = useState<WAStatus>("disconnected");
   const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [loadingChats, setLoadingChats] = useState(false);
 
   const pollStatus = useCallback(async () => {
     try {
-      const data = await apiGet<{ status: WAStatus; qr: string | null }>("/whatsapp/status");
+      const data = await apiGet<{ status: WAStatus; qr: string | null; pairingCode: string | null }>("/whatsapp/status");
       setStatus(data.status);
       setQr(data.qr);
+      setPairingCode(data.pairingCode);
       if (data.status === "connected") loadChats();
     } catch {}
   }, []);
@@ -271,6 +464,11 @@ export default function WhatsAppScreen() {
     } catch {}
   }, []);
 
+  const requestPairingCode = useCallback(async (phone: string) => {
+    const res = await apiPost<{ ok: boolean }>("/whatsapp/pairing-code", { phone });
+    setStatus("pairing");
+  }, []);
+
   useEffect(() => {
     pollStatus();
     const interval = setInterval(pollStatus, status !== "connected" ? 3000 : 30000);
@@ -283,53 +481,13 @@ export default function WhatsAppScreen() {
 
   if (status !== "connected") {
     return (
-      <View style={[styles.fill, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { paddingTop: insets.top, backgroundColor: WA_DARK }]}>
-          <Text style={styles.headerTitle}>WhatsApp</Text>
-        </View>
-        <View style={[styles.fill, { alignItems: "center", justifyContent: "center", padding: 32 }]}>
-          <View style={[styles.connectIcon, { backgroundColor: WA_GREEN + "20", width: 64, height: 64, borderRadius: 32, marginBottom: 16 }]}>
-            <Feather name="message-circle" size={28} color={WA_GREEN} />
-          </View>
-          <Text style={[styles.connectTitle, { color: colors.foreground }]}>Connect WhatsApp</Text>
-
-          {status === "disconnected" && (
-            <>
-              <Text style={[styles.connectSubtitle, { color: colors.mutedForeground }]}>
-                Scan a QR code with your phone to sync your real messages.
-              </Text>
-              <Pressable
-                onPress={connect}
-                style={({ pressed }) => [styles.connectBtn, { backgroundColor: WA_GREEN, opacity: pressed ? 0.85 : 1 }]}
-              >
-                <Text style={styles.connectBtnText}>Connect WhatsApp</Text>
-              </Pressable>
-            </>
-          )}
-
-          {(status === "connecting" || (status === "qr" && !qr)) && (
-            <>
-              <Text style={[styles.connectSubtitle, { color: colors.mutedForeground }]}>
-                {status === "connecting" ? "Starting connection…" : "Generating QR code…"}
-              </Text>
-              <ActivityIndicator color={WA_DARK} style={{ marginTop: 16 }} />
-            </>
-          )}
-
-          {status === "qr" && qr && (
-            <>
-              <Text style={[styles.connectSubtitle, { color: colors.mutedForeground, textAlign: "center" }]}>
-                Open WhatsApp → Settings → Linked Devices → Link a Device
-              </Text>
-              <Image
-                source={{ uri: qr }}
-                style={{ width: 220, height: 220, marginTop: 16, borderRadius: 12 }}
-              />
-              <Text style={[styles.qrHint, { color: colors.mutedForeground }]}>QR code refreshes automatically</Text>
-            </>
-          )}
-        </View>
-      </View>
+      <ConnectScreen
+        status={status}
+        qr={qr}
+        pairingCode={pairingCode}
+        onConnect={connect}
+        onPairingRequest={requestPairingCode}
+      />
     );
   }
 
@@ -384,36 +542,11 @@ const styles = StyleSheet.create({
     gap: 8,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  onlineDotSmall: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: WA_GREEN,
-  },
-  connectedText: {
-    fontSize: 12,
-    fontFamily: "Inter_500Medium",
-  },
-  chatRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-  avatarText: {
-    color: "#fff",
-    fontFamily: "Inter_600SemiBold",
-    fontSize: 15,
-  },
+  onlineDotSmall: { width: 8, height: 8, borderRadius: 4, backgroundColor: WA_GREEN },
+  connectedText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  chatRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 10, gap: 12 },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  avatarText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 15 },
   chatContent: { flex: 1 },
   chatTopRow: { flexDirection: "row", justifyContent: "space-between", marginBottom: 2 },
   chatName: { flex: 1, fontSize: 15, fontFamily: "Inter_600SemiBold", marginRight: 8 },
@@ -435,10 +568,21 @@ const styles = StyleSheet.create({
   inputBar: { flexDirection: "row", alignItems: "flex-end", paddingHorizontal: 12, paddingTop: 8, gap: 8, borderTopWidth: StyleSheet.hairlineWidth },
   input: { flex: 1, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 8, fontSize: 15, maxHeight: 100 },
   sendBtn: { width: 38, height: 38, borderRadius: 19, alignItems: "center", justifyContent: "center" },
-  connectIcon: { alignItems: "center", justifyContent: "center" },
-  connectTitle: { fontSize: 20, fontFamily: "Inter_700Bold", marginBottom: 8 },
+  // Connect screen
+  connectIcon: { width: 64, height: 64, borderRadius: 32, alignItems: "center", justifyContent: "center", marginBottom: 16 },
+  connectTitle: { fontSize: 22, fontFamily: "Inter_700Bold", marginBottom: 6 },
   connectSubtitle: { fontSize: 14, textAlign: "center", lineHeight: 20, marginBottom: 16 },
-  connectBtn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: 8 },
+  tabRow: { flexDirection: "row", borderRadius: 10, padding: 4, gap: 4, marginBottom: 20, alignSelf: "stretch", marginHorizontal: 0 },
+  tab: { flex: 1, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 6, paddingVertical: 10, borderRadius: 8 },
+  tabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  modeHint: { fontSize: 13, textAlign: "center", lineHeight: 19, marginBottom: 16 },
+  connectBtn: { paddingVertical: 14, paddingHorizontal: 32, borderRadius: 12, marginTop: 4, alignItems: "center", minWidth: 200 },
   connectBtnText: { color: "#fff", fontFamily: "Inter_600SemiBold", fontSize: 16 },
+  phoneRow: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10, alignSelf: "stretch", marginBottom: 4 },
+  phoneInput: { flex: 1, fontSize: 16, fontFamily: "Inter_400Regular" },
+  errorText: { color: "#ef4444", fontSize: 12, marginBottom: 8, textAlign: "center" },
+  qrImage: { width: 220, height: 220, marginTop: 8, borderRadius: 12 },
   qrHint: { fontSize: 12, marginTop: 8 },
+  codeBox: { borderWidth: 2, borderRadius: 14, paddingVertical: 20, paddingHorizontal: 32, marginTop: 16, marginBottom: 8, alignItems: "center" },
+  codeText: { fontSize: 36, fontFamily: "Inter_700Bold", letterSpacing: 6 },
 });

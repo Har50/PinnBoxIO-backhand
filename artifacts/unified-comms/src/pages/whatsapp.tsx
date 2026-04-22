@@ -1,15 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   MessageCircle, Phone, Video, MoreVertical, Search,
-  Send, Smile, Paperclip, ChevronLeft, Wifi, RefreshCw, LogOut, Loader2,
+  Send, Smile, Paperclip, ChevronLeft, LogOut, Loader2,
+  QrCode, Smartphone, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatDistanceToNow } from "date-fns";
 
 const WA_GREEN = "#25D366";
 const WA_DARK = "#128C7E";
 
-type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
+type WAStatus = "disconnected" | "connecting" | "qr" | "pairing" | "connected";
+type ConnectMode = "qr" | "phone";
 
 type Chat = {
   id: string;
@@ -54,9 +55,201 @@ function formatTime(ts: number | null): string {
   return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
 }
 
+function ConnectPanel({
+  status, qr, pairingCode,
+  onConnect, onPairing, onRefresh,
+}: {
+  status: WAStatus;
+  qr: string | null;
+  pairingCode: string | null;
+  onConnect: () => void;
+  onPairing: (phone: string) => Promise<void>;
+  onRefresh: () => void;
+}) {
+  const [mode, setMode] = useState<ConnectMode>("qr");
+  const [phone, setPhone] = useState("");
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [requesting, setRequesting] = useState(false);
+
+  const handlePairing = async () => {
+    const clean = phone.replace(/\D/g, "");
+    if (clean.length < 7) {
+      setPhoneError("Enter a valid phone number with country code, e.g. 14155552671");
+      return;
+    }
+    setPhoneError(null);
+    setRequesting(true);
+    try {
+      await onPairing(clean);
+    } catch (e: any) {
+      setPhoneError(e.message ?? "Failed to request code");
+    } finally {
+      setRequesting(false);
+    }
+  };
+
+  const isBusy = status === "connecting" || status === "pairing" || requesting;
+  const isIdle = status === "disconnected";
+
+  const formattedCode = pairingCode
+    ? (pairingCode.length === 8 ? `${pairingCode.slice(0, 4)}-${pairingCode.slice(4)}` : pairingCode)
+    : null;
+
+  return (
+    <div className="flex h-full items-center justify-center" style={{ backgroundColor: "#f0f2f5" }}>
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full mx-4 text-center">
+        {/* Icon */}
+        <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: WA_GREEN + "20" }}>
+          <MessageCircle size={30} style={{ color: WA_GREEN }} />
+        </div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-1">Connect WhatsApp</h2>
+        <p className="text-sm text-gray-500 mb-5">Link your account to send and receive messages.</p>
+
+        {/* Tab switcher */}
+        {isIdle && (
+          <div className="flex rounded-lg bg-gray-100 p-1 mb-5 gap-1">
+            {(["qr", "phone"] as ConnectMode[]).map((m) => (
+              <button
+                key={m}
+                onClick={() => { setMode(m); setPhoneError(null); }}
+                className={cn(
+                  "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all",
+                  mode === m ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+                )}
+              >
+                {m === "qr" ? <QrCode size={14} /> : <Smartphone size={14} />}
+                {m === "qr" ? "Scan QR" : "Phone Number"}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* QR mode (idle) */}
+        {isIdle && mode === "qr" && (
+          <>
+            <p className="text-xs text-gray-400 mb-4">
+              Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong> and scan the QR code.
+            </p>
+            <button
+              onClick={onConnect}
+              className="w-full py-2.5 rounded-lg text-white font-medium text-sm hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: WA_GREEN }}
+            >
+              Get QR Code
+            </button>
+          </>
+        )}
+
+        {/* Phone mode (idle) */}
+        {isIdle && mode === "phone" && (
+          <>
+            <p className="text-xs text-gray-400 mb-3">
+              Enter your WhatsApp number with country code (no +). You'll get an 8-digit code to enter in WhatsApp.
+            </p>
+            <div className={cn(
+              "flex items-center gap-2 border rounded-lg px-3 py-2.5 mb-1 bg-gray-50 text-left",
+              phoneError ? "border-red-400" : "border-gray-200"
+            )}>
+              <Smartphone size={15} className="text-gray-400 shrink-0" />
+              <input
+                type="tel"
+                placeholder="14155552671"
+                className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder-gray-400"
+                value={phone}
+                onChange={(e) => { setPhone(e.target.value); setPhoneError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && handlePairing()}
+              />
+            </div>
+            {phoneError && (
+              <p className="flex items-center gap-1 text-xs text-red-500 mb-2 text-left">
+                <AlertCircle size={12} /> {phoneError}
+              </p>
+            )}
+            <button
+              onClick={handlePairing}
+              disabled={isBusy || !phone.trim()}
+              className="w-full py-2.5 rounded-lg text-white font-medium text-sm disabled:opacity-50 flex items-center justify-center gap-2 hover:opacity-90 transition-opacity mt-2"
+              style={{ backgroundColor: WA_GREEN }}
+            >
+              {requesting ? <><Loader2 size={16} className="animate-spin" /> Requesting…</> : "Request Code"}
+            </button>
+          </>
+        )}
+
+        {/* Connecting spinner */}
+        {status === "connecting" && (
+          <div className="flex flex-col items-center gap-3 mt-2">
+            <Loader2 className="animate-spin text-gray-400" size={28} />
+            <p className="text-sm text-gray-500">Starting connection…</p>
+          </div>
+        )}
+
+        {/* QR code */}
+        {status === "qr" && (
+          <>
+            {qr ? (
+              <>
+                <p className="text-xs text-gray-500 mb-3">
+                  Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong>
+                </p>
+                <div className="flex justify-center mb-3">
+                  <img src={qr} alt="WhatsApp QR Code" className="w-52 h-52 rounded-xl border border-gray-100" />
+                </div>
+                <p className="text-xs text-gray-400 mb-3">QR code refreshes automatically</p>
+                <button
+                  onClick={onRefresh}
+                  className="flex items-center gap-1.5 mx-auto text-sm text-gray-400 hover:text-gray-600"
+                >
+                  <RefreshCw size={13} /> Refresh
+                </button>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 mt-2">
+                <Loader2 className="animate-spin text-gray-400" size={28} />
+                <p className="text-sm text-gray-500">Generating QR code…</p>
+              </div>
+            )}
+          </>
+        )}
+
+        {/* Pairing code */}
+        {status === "pairing" && (
+          <>
+            {formattedCode ? (
+              <>
+                <p className="text-xs text-gray-500 mb-4">
+                  Open WhatsApp → <strong>Settings → Linked Devices → Link with Phone Number</strong> and enter this code:
+                </p>
+                <div
+                  className="rounded-xl border-2 py-5 px-6 mb-3 mx-auto inline-block"
+                  style={{ borderColor: WA_GREEN, backgroundColor: WA_GREEN + "12" }}
+                >
+                  <span
+                    className="text-4xl font-bold tracking-[0.25em]"
+                    style={{ color: WA_DARK, fontFamily: "monospace" }}
+                  >
+                    {formattedCode}
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">Code expires — enter it quickly in WhatsApp</p>
+              </>
+            ) : (
+              <div className="flex flex-col items-center gap-3 mt-2">
+                <Loader2 className="animate-spin text-gray-400" size={28} />
+                <p className="text-sm text-gray-500">Requesting pairing code…</p>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function WhatsApp() {
   const [status, setStatus] = useState<WAStatus>("disconnected");
   const [qr, setQr] = useState<string | null>(null);
+  const [pairingCode, setPairingCode] = useState<string | null>(null);
   const [chats, setChats] = useState<Chat[]>([]);
   const [selectedChat, setSelectedChat] = useState<Chat | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -90,12 +283,11 @@ export default function WhatsApp() {
 
   const pollStatus = useCallback(async () => {
     try {
-      const data = await apiGet<{ status: WAStatus; qr: string | null }>("/whatsapp/status");
+      const data = await apiGet<{ status: WAStatus; qr: string | null; pairingCode: string | null }>("/whatsapp/status");
       setStatus(data.status);
       setQr(data.qr);
-      if (data.status === "connected") {
-        loadChats();
-      }
+      setPairingCode(data.pairingCode);
+      if (data.status === "connected") loadChats();
     } catch {}
   }, [loadChats]);
 
@@ -107,11 +299,17 @@ export default function WhatsApp() {
     } catch {}
   }, [pollStatus]);
 
+  const requestPairing = useCallback(async (phone: string) => {
+    await apiPost("/whatsapp/pairing-code", { phone });
+    setStatus("pairing");
+  }, []);
+
   const logout = useCallback(async () => {
     try {
       await apiPost("/whatsapp/logout", {});
       setStatus("disconnected");
       setQr(null);
+      setPairingCode(null);
       setChats([]);
       setSelectedChat(null);
       setMessages([]);
@@ -135,10 +333,14 @@ export default function WhatsApp() {
         if (event.type === "status") {
           setStatus(event.data.status);
           if (event.data.qr) setQr(event.data.qr);
+          if (event.data.pairingCode) setPairingCode(event.data.pairingCode);
           if (event.data.status === "connected") {
             setQr(null);
+            setPairingCode(null);
             loadChats();
           }
+        } else if (event.type === "pairing_code") {
+          setPairingCode(event.data.code);
         } else if (event.type === "qr") {
           pollStatus();
         } else if (event.type === "chats") {
@@ -181,94 +383,34 @@ export default function WhatsApp() {
 
   if (status !== "connected") {
     return (
-      <div className="flex h-full items-center justify-center" style={{ backgroundColor: "#f0f2f5" }}>
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full mx-4 text-center">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4"
-            style={{ backgroundColor: WA_GREEN + "20" }}
-          >
-            <MessageCircle size={30} style={{ color: WA_GREEN }} />
-          </div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-1">Connect WhatsApp</h2>
-
-          {status === "disconnected" && (
-            <>
-              <p className="text-sm text-gray-500 mb-6">
-                Scan your WhatsApp QR code to sync your real messages.
-              </p>
-              <button
-                onClick={connect}
-                className="w-full py-2.5 rounded-lg text-white font-medium text-sm transition-opacity hover:opacity-90"
-                style={{ backgroundColor: WA_GREEN }}
-              >
-                Connect WhatsApp
-              </button>
-            </>
-          )}
-
-          {status === "connecting" && (
-            <>
-              <p className="text-sm text-gray-500 mb-6">Starting connection...</p>
-              <div className="flex justify-center">
-                <Loader2 className="animate-spin text-gray-400" size={28} />
-              </div>
-            </>
-          )}
-
-          {status === "qr" && qr && (
-            <>
-              <p className="text-sm text-gray-500 mb-4">
-                Open WhatsApp on your phone, go to <strong>Settings → Linked Devices → Link a Device</strong>, and scan this code.
-              </p>
-              <div className="flex justify-center mb-4">
-                <img src={qr} alt="WhatsApp QR Code" className="w-56 h-56 rounded-lg" />
-              </div>
-              <p className="text-xs text-gray-400 mb-3">QR code refreshes automatically</p>
-              <button
-                onClick={pollStatus}
-                className="flex items-center gap-2 mx-auto text-sm text-gray-500 hover:text-gray-700"
-              >
-                <RefreshCw size={14} /> Refresh
-              </button>
-            </>
-          )}
-
-          {status === "qr" && !qr && (
-            <div className="flex justify-center mt-4">
-              <Loader2 className="animate-spin text-gray-400" size={28} />
-            </div>
-          )}
-        </div>
-      </div>
+      <ConnectPanel
+        status={status}
+        qr={qr}
+        pairingCode={pairingCode}
+        onConnect={connect}
+        onPairing={requestPairing}
+        onRefresh={pollStatus}
+      />
     );
   }
 
   return (
     <div className="flex h-full overflow-hidden" style={{ background: "#f0f2f5" }}>
       {/* Sidebar */}
-      <div
-        className={cn(
-          "flex flex-col border-r border-gray-200 bg-white",
-          selectedChat ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full md:w-80 lg:w-96"
-        )}
-      >
+      <div className={cn(
+        "flex flex-col border-r border-gray-200 bg-white",
+        selectedChat ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full md:w-80 lg:w-96"
+      )}>
         <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: WA_DARK }}>
           <div className="flex items-center gap-2">
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white"
-              style={{ backgroundColor: WA_GREEN }}
-            >
+            <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ backgroundColor: WA_GREEN }}>
               Me
             </div>
             <span className="text-white font-semibold">WhatsApp</span>
           </div>
           <div className="flex items-center gap-3">
             {loadingChats && <Loader2 size={16} className="text-white/70 animate-spin" />}
-            <button
-              onClick={logout}
-              className="text-white/70 hover:text-white transition-colors"
-              title="Disconnect"
-            >
+            <button onClick={logout} className="text-white/70 hover:text-white transition-colors" title="Disconnect">
               <LogOut size={18} />
             </button>
           </div>
@@ -308,10 +450,7 @@ export default function WhatsApp() {
                 selectedChat?.id === chat.id && "bg-gray-100"
               )}
             >
-              <div
-                className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0"
-                style={{ backgroundColor: WA_DARK }}
-              >
+              <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0" style={{ backgroundColor: WA_DARK }}>
                 {chat.name.substring(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
@@ -324,10 +463,7 @@ export default function WhatsApp() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs text-gray-500 truncate">{chat.lastMessage ?? ""}</span>
                   {chat.unreadCount > 0 && (
-                    <span
-                      className="ml-2 text-xs text-white font-medium rounded-full px-1.5 py-0.5 min-w-[20px] text-center shrink-0"
-                      style={{ backgroundColor: WA_GREEN }}
-                    >
+                    <span className="ml-2 text-xs text-white font-medium rounded-full px-1.5 py-0.5 min-w-[20px] text-center shrink-0" style={{ backgroundColor: WA_GREEN }}>
                       {chat.unreadCount}
                     </span>
                   )}
@@ -345,10 +481,7 @@ export default function WhatsApp() {
             <button className="md:hidden text-white mr-1" onClick={() => setSelectedChat(null)}>
               <ChevronLeft size={22} />
             </button>
-            <div
-              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
-              style={{ backgroundColor: WA_GREEN }}
-            >
+            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0" style={{ backgroundColor: WA_GREEN }}>
               {selectedChat.name.substring(0, 2).toUpperCase()}
             </div>
             <div className="flex-1">
@@ -376,7 +509,9 @@ export default function WhatsApp() {
                   className={cn("max-w-[65%] rounded-lg px-3 py-2 shadow-sm", msg.fromMe ? "rounded-tr-sm" : "rounded-tl-sm bg-white")}
                   style={msg.fromMe ? { backgroundColor: "#dcf8c6" } : {}}
                 >
-                  <p className="text-sm text-gray-800 leading-relaxed">{msg.text || <span className="italic text-gray-400">[media]</span>}</p>
+                  <p className="text-sm text-gray-800 leading-relaxed">
+                    {msg.text || <span className="italic text-gray-400">[media]</span>}
+                  </p>
                   <div className="flex items-center justify-end gap-1 mt-1">
                     <span className="text-[11px] text-gray-400">
                       {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
