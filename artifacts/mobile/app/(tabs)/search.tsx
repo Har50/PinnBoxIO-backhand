@@ -14,7 +14,6 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
-import { getApiBaseUrl } from "@workspace/api-client-react";
 
 async function getAuthToken(): Promise<string | null> {
   if (Platform.OS === "web") {
@@ -37,7 +36,9 @@ interface SearchResults {
 function useUnifiedSearch(q: string) {
   const [data, setData] = useState<SearchResults | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const baseUrl = getApiBaseUrl ? getApiBaseUrl() : "";
+  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "";
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
