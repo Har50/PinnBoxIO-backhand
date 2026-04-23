@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
+import { getAuth } from "@clerk/express";
 import healthRouter from "./health";
-import authRouter from "./auth";
 import accountsRouter from "./accounts";
 import messagesRouter from "./messages";
 import contactsRouter from "./contacts";
@@ -14,14 +14,16 @@ import storageRouter from "./storage";
 const router: IRouter = Router();
 
 router.use(healthRouter);
-router.use(authRouter);
 router.use(linkedinPublicRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
-  if (!req.isAuthenticated()) {
+  const auth = getAuth(req);
+  const userId = auth?.userId;
+  if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
+  (req as any).userId = userId;
   next();
 }
 

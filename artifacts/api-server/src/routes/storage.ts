@@ -63,7 +63,7 @@ function normalisePath(raw: string): string {
 
 router.get("/storage/quota", async (req: any, res) => {
   try {
-    const quota = await getOrCreateQuota(req.user.id);
+    const quota = await getOrCreateQuota(req.userId);
     res.json({ quota });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -78,7 +78,7 @@ router.get("/storage/folders", async (req: any, res) => {
     const rows = await db
       .selectDistinct({ folder: storageFilesTable.folder })
       .from(storageFilesTable)
-      .where(eq(storageFilesTable.userId, req.user.id));
+      .where(eq(storageFilesTable.userId, req.userId));
 
     const allFolders = new Set(rows.map((r) => r.folder));
 
@@ -123,18 +123,18 @@ router.post("/storage/folders", async (req: any, res) => {
     const existing = await db
       .select({ id: storageFilesTable.id })
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folderPath)))
+      .where(and(eq(storageFilesTable.userId, req.userId), eq(storageFilesTable.folder, folderPath)))
       .limit(1);
     if (existing.length > 0) {
       return res.json({ folder: { path: folderPath, name: cleanName } });
     }
 
     // Insert a zero-byte .pinnbox-folder sentinel so the folder is discoverable
-    const storageKey = `user/${req.user.id}/folders${folderPath}/.pinnbox-folder`;
+    const storageKey = `user/${req.userId}/folders${folderPath}/.pinnbox-folder`;
     const [file] = await db
       .insert(storageFilesTable)
       .values({
-        userId: req.user.id,
+        userId: req.userId,
         name: ".pinnbox-folder",
         mimeType: "application/x-pinnbox-folder",
         sizeBytes: 0,
@@ -159,7 +159,7 @@ router.patch("/storage/files/:id/move", async (req: any, res) => {
     const [file] = await db
       .select()
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.user.id)));
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.userId)));
 
     if (!file) return res.status(404).json({ error: "File not found" });
 
@@ -183,7 +183,7 @@ router.get("/storage/files", async (req: any, res) => {
       .from(storageFilesTable)
       .where(
         and(
-          eq(storageFilesTable.userId, req.user.id),
+          eq(storageFilesTable.userId, req.userId),
           eq(storageFilesTable.folder, folder),
           ne(storageFilesTable.name, ".pinnbox-folder"),
         )
@@ -201,12 +201,12 @@ router.post("/storage/upload-url", async (req: any, res) => {
       return res.status(400).json({ error: "fileName and sizeBytes are required" });
     }
 
-    const quota = await getOrCreateQuota(req.user.id);
+    const quota = await getOrCreateQuota(req.userId);
     if (quota.usedBytes + sizeBytes > quota.totalBytes) {
       return res.status(400).json({ error: "Storage quota exceeded. Please upgrade your plan." });
     }
 
-    const storageKey = `user/${req.user.id}/${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+    const storageKey = `user/${req.userId}/${Date.now()}_${fileName.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
     const uploadUrl = await signedUrl(storageKey, "PUT", 15 * 60);
 
     res.json({ uploadUrl, storageKey });
@@ -224,13 +224,13 @@ router.post("/storage/files", async (req: any, res) => {
 
     const [file] = await db
       .insert(storageFilesTable)
-      .values({ userId: req.user.id, name, mimeType: mimeType || "application/octet-stream", sizeBytes, storageKey, folder: normalisePath(folder) })
+      .values({ userId: req.userId, name, mimeType: mimeType || "application/octet-stream", sizeBytes, storageKey, folder: normalisePath(folder) })
       .returning();
 
     await db
       .update(storageQuotasTable)
       .set({ usedBytes: sql`used_bytes + ${sizeBytes}` })
-      .where(eq(storageQuotasTable.userId, req.user.id));
+      .where(eq(storageQuotasTable.userId, req.userId));
 
     res.json({ file });
   } catch (err: any) {
@@ -244,7 +244,7 @@ router.get("/storage/files/:id/download-url", async (req: any, res) => {
     const [file] = await db
       .select()
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.user.id)));
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.userId)));
 
     if (!file) return res.status(404).json({ error: "File not found" });
 
@@ -267,7 +267,7 @@ router.delete("/storage/files/:id", async (req: any, res) => {
     const [file] = await db
       .select()
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.user.id)));
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.userId)));
 
     if (!file) return res.status(404).json({ error: "File not found" });
 
@@ -283,7 +283,7 @@ router.delete("/storage/files/:id", async (req: any, res) => {
     await db
       .update(storageQuotasTable)
       .set({ usedBytes: sql`GREATEST(0, used_bytes - ${file.sizeBytes})` })
-      .where(eq(storageQuotasTable.userId, req.user.id));
+      .where(eq(storageQuotasTable.userId, req.userId));
 
     res.json({ success: true });
   } catch (err: any) {
@@ -302,7 +302,7 @@ router.delete("/storage/folders", async (req: any, res) => {
     const filesInFolder = await db
       .select()
       .from(storageFilesTable)
-      .where(and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folder)));
+      .where(and(eq(storageFilesTable.userId, req.userId), eq(storageFilesTable.folder, folder)));
 
     let freedBytes = 0;
     for (const file of filesInFolder) {
@@ -317,14 +317,14 @@ router.delete("/storage/folders", async (req: any, res) => {
     }
 
     await db.delete(storageFilesTable).where(
-      and(eq(storageFilesTable.userId, req.user.id), eq(storageFilesTable.folder, folder))
+      and(eq(storageFilesTable.userId, req.userId), eq(storageFilesTable.folder, folder))
     );
 
     if (freedBytes > 0) {
       await db
         .update(storageQuotasTable)
         .set({ usedBytes: sql`GREATEST(0, used_bytes - ${freedBytes})` })
-        .where(eq(storageQuotasTable.userId, req.user.id));
+        .where(eq(storageQuotasTable.userId, req.userId));
     }
 
     res.json({ success: true, deletedFiles: filesInFolder.length });
@@ -348,7 +348,7 @@ router.post("/storage/revenuecat/activate", async (req: any, res) => {
     if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
 
     const totalBytes = plan.gb * 1024 * 1024 * 1024;
-    const existing = await getOrCreateQuota(req.user.id);
+    const existing = await getOrCreateQuota(req.userId);
 
     const [quota] = await db
       .update(storageQuotasTable)
@@ -356,7 +356,7 @@ router.post("/storage/revenuecat/activate", async (req: any, res) => {
         totalBytes: Math.max(existing.totalBytes, totalBytes),
         planName: plan.label,
       })
-      .where(eq(storageQuotasTable.userId, req.user.id))
+      .where(eq(storageQuotasTable.userId, req.userId))
       .returning();
 
     res.json({ quota });

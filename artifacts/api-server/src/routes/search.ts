@@ -72,7 +72,7 @@ router.get("/search", async (req: any, res): Promise<void> => {
     return;
   }
 
-  const userId: string | undefined = req.user?.id;
+  const userId: string | undefined = (req as any).userId;
 
   const access = await getSearchAccess(userId);
   if (!access.allowed) {

@@ -5,7 +5,7 @@ import { ComposeModal } from "./compose-modal";
 import { PayModal } from "./pay-modal";
 import { useEffect, useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
-import { useAuth } from "@workspace/replit-auth-web";
+import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 
@@ -21,7 +21,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const { data: allContacts } = useGetContacts({});
   const { data: stats } = useGetOverviewStats();
-  const { user, logout } = useAuth();
+  const { user } = useUser();
+  const { signOut } = useClerk();
 
   const importantPeople = allContacts
     ? [...allContacts]
@@ -55,6 +56,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
   function handlePersonClick(contact: { email: string; name: string }) {
     navigate(`/search?q=${encodeURIComponent(contact.email)}`);
   }
+
+  const userEmail = user?.primaryEmailAddress?.emailAddress ?? "";
+  const userFirstName = user?.firstName ?? "";
+  const userLastName = user?.lastName ?? "";
+  const userImage = user?.imageUrl ?? "";
+  const userDisplayName = userFirstName && userLastName
+    ? `${userFirstName} ${userLastName}`
+    : userEmail || "My Workspace";
 
   return (
     <div className="flex h-screen overflow-hidden bg-background">
@@ -261,14 +270,14 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Mobile: avatar only with sign-out on tap */}
           <div className="md:hidden flex justify-center">
             <button
-              onClick={logout}
+              onClick={() => signOut()}
               title="Sign out"
               className="relative group"
             >
               <Avatar className="w-8 h-8 border border-sidebar-border">
-                <AvatarImage src={user?.profileImageUrl || ""} />
+                <AvatarImage src={userImage} />
                 <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
-                  {user?.firstName?.[0]}{user?.lastName?.[0]}
+                  {userFirstName?.[0]}{userLastName?.[0]}
                 </AvatarFallback>
               </Avatar>
               <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-sidebar-border hidden group-hover:flex items-center justify-center">
@@ -280,23 +289,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Desktop: full user row */}
           <div className="hidden md:flex items-center gap-3 px-2 py-2 rounded-md hover:bg-sidebar-accent/40 transition-colors group">
             <Avatar className="w-8 h-8 border border-sidebar-border flex-shrink-0">
-              <AvatarImage src={user?.profileImageUrl || ""} />
+              <AvatarImage src={userImage} />
               <AvatarFallback className="text-xs font-semibold bg-primary/20 text-primary">
-                {user?.firstName?.[0]}{user?.lastName?.[0]}
+                {userFirstName?.[0]}{userLastName?.[0]}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
               <div className="text-sm font-medium truncate">
-                {user?.firstName && user?.lastName
-                  ? `${user.firstName} ${user.lastName}`
-                  : user?.email ?? "My Workspace"}
+                {userDisplayName}
               </div>
               <div className="text-xs text-sidebar-foreground/60 truncate">
-                {user?.email ?? ""}
+                {userEmail}
               </div>
             </div>
             <button
-              onClick={logout}
+              onClick={() => signOut()}
               title="Sign out"
               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground"
             >

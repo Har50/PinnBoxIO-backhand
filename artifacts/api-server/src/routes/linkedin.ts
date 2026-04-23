@@ -1,4 +1,5 @@
 import { Router, type Request, type Response } from "express";
+import { getAuth } from "@clerk/express";
 import { linkedInService } from "../services/linkedin";
 import { logger } from "../lib/logger";
 
@@ -12,19 +13,19 @@ function getBaseUrl(req: Request): string {
 }
 
 function getUserId(req: Request): string {
-  return (req.user as any)?.id ?? (req.user as any)?.userId ?? "unknown";
+  return (req as any).userId ?? "unknown";
 }
 
 linkedinPublicRouter.get("/linkedin/connect", (req: Request, res: Response) => {
-  if (!req.isAuthenticated()) {
+  const auth = getAuth(req);
+  if (!auth?.userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  const userId = getUserId(req);
+  const userId = auth.userId;
   const baseUrl = getBaseUrl(req);
   if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_CLIENT_SECRET) {
-    const frontendUrl = baseUrl;
-    res.redirect(`${frontendUrl}/linkedin?error=not_configured`);
+    res.redirect(`${baseUrl}/linkedin?error=not_configured`);
     return;
   }
   try {
@@ -46,7 +47,7 @@ linkedinPublicRouter.get("/linkedin/callback", async (req: Request, res: Respons
     return;
   }
 
-  const userId = stateUserId ?? getUserId(req);
+  const userId = stateUserId ?? getAuth(req)?.userId ?? "unknown";
 
   try {
     await linkedInService.handleCallback(code, userId, baseUrl);

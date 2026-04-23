@@ -26,6 +26,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **API codegen**: Orval (from OpenAPI spec)
 - **Build**: esbuild (CJS bundle)
 - **AI**: OpenAI, Anthropic (Claude), Google Gemini via Replit AI proxy (`@workspace/integrations-openai-ai-server`, `@workspace/integrations-anthropic-ai`, `@workspace/integrations-gemini-ai`)
+- **Auth**: Clerk (white-label, no Replit branding). Web uses `@clerk/react` + Clerk proxy middleware on Express. Mobile uses `@clerk/expo`.
 - **Payments (web)**: Disabled for publishing; web payment routes/packages were removed.
 - **Payments (mobile)**: RevenueCat via Replit integration (`conn_revenuecat_01KNV6BP3EBM58RFPCRXS6PX0K`)
 
@@ -43,7 +44,7 @@ artifacts-monorepo/
 │   ├── api-zod/            # Generated Zod schemas from OpenAPI
 │   ├── db/                 # Drizzle ORM schema + DB connection
 │   ├── integrations-openai-ai-server/  # OpenAI client (Replit proxy)
-│   └── replit-auth-web/    # Replit Auth web client
+│   └── replit-auth-web/    # Legacy (no longer used — replaced by Clerk)
 ├── scripts/
 │   └── src/                # Utility scripts
 ├── pnpm-workspace.yaml

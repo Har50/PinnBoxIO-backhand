@@ -240,7 +240,7 @@ router.get("/ai/conversations", async (req: any, res) => {
     const conversations = await db
       .select()
       .from(aiConversationsTable)
-      .where(eq(aiConversationsTable.userId, req.user.id))
+      .where(eq(aiConversationsTable.userId, req.userId))
       .orderBy(desc(aiConversationsTable.createdAt));
     res.json(conversations);
   } catch (err: any) {
@@ -253,7 +253,7 @@ router.post("/ai/conversations", async (req: any, res) => {
     const { title } = req.body;
     const [conversation] = await db
       .insert(aiConversationsTable)
-      .values({ userId: req.user.id, title: title || "New conversation" })
+      .values({ userId: req.userId, title: title || "New conversation" })
       .returning();
     res.status(201).json(conversation);
   } catch (err: any) {
@@ -269,7 +269,7 @@ router.get("/ai/conversations/:id", async (req: any, res) => {
       .from(aiConversationsTable)
       .where(eq(aiConversationsTable.id, id));
 
-    if (!conversation || conversation.userId !== req.user.id) {
+    if (!conversation || conversation.userId !== req.userId) {
       return res.status(404).json({ error: "Not found" });
     }
 
@@ -293,7 +293,7 @@ router.delete("/ai/conversations/:id", async (req: any, res) => {
       .from(aiConversationsTable)
       .where(eq(aiConversationsTable.id, id));
 
-    if (!conversation || conversation.userId !== req.user.id) {
+    if (!conversation || conversation.userId !== req.userId) {
       return res.status(404).json({ error: "Not found" });
     }
 
@@ -316,11 +316,11 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       .from(aiConversationsTable)
       .where(eq(aiConversationsTable.id, id));
 
-    if (!conversation || conversation.userId !== req.user.id) {
+    if (!conversation || conversation.userId !== req.userId) {
       return res.status(404).json({ error: "Not found" });
     }
 
-    const access = await getUserAiAccess(req.user.id);
+    const access = await getUserAiAccess(req.userId);
     if (!access.allowed) {
       res.status(402).json({
         error: "Daily free AI limit reached. Upgrade to Pro for unlimited AI with email, contact, WhatsApp, and storage context.",
@@ -339,7 +339,7 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       .where(eq(aiMessagesTable.conversationId, id))
       .orderBy(aiMessagesTable.createdAt);
 
-    const systemContext = await getUserContext(req.user.id);
+    const systemContext = await getUserContext(req.userId);
 
     res.setHeader("Content-Type", "text/event-stream");
     res.setHeader("Cache-Control", "no-cache");
