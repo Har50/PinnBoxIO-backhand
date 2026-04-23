@@ -43,7 +43,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/inbox", label: "Inbox", icon: Mail, badge: totalUnread },
     { href: "/ai", label: "AI Assistant", icon: Sparkles },
     { href: "/contacts", label: "Contacts", icon: Users },
-    { href: "/storage", label: "Storage", icon: HardDrive },
+    { href: "/storage", label: "My Drive", icon: HardDrive },
   ];
 
   const bottomNavItems = [
