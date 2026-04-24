@@ -2,6 +2,8 @@ import { Router, type IRouter } from "express";
 import { eq, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, contactsTable } from "@workspace/db";
 import { GetOverviewStatsResponse } from "@workspace/api-zod";
+import { getGmailAccount, getGmailUnreadCount, getGmailStarredCount } from "../services/gmail";
+import { getOutlookAccount, getOutlookUnreadCount, getOutlookStarredCount } from "../services/outlook";
 
 const router: IRouter = Router();
 
@@ -17,10 +19,19 @@ router.get("/stats/overview", async (_req, res): Promise<void> => {
     .where(eq(messagesTable.isStarred, true));
   const [totalContactsRow] = await db.select({ cnt: count() }).from(contactsTable);
 
-  const accounts = await db.select().from(accountsTable);
+  const dbAccounts = await db.select().from(accountsTable);
 
-  const breakdown = await Promise.all(
-    accounts.map(async (account) => {
+  const [gmailAccount, outlookAccount, gmailUnread, outlookUnread, gmailStarred, outlookStarred] = await Promise.all([
+    getGmailAccount(),
+    getOutlookAccount(),
+    getGmailUnreadCount(),
+    getOutlookUnreadCount(),
+    getGmailStarredCount(),
+    getOutlookStarredCount(),
+  ]);
+
+  const dbBreakdown = await Promise.all(
+    dbAccounts.map(async (account) => {
       const [totalRow] = await db
         .select({ cnt: count() })
         .from(messagesTable)
@@ -42,12 +53,40 @@ router.get("/stats/overview", async (_req, res): Promise<void> => {
     })
   );
 
+  const liveBreakdown = [];
+  if (gmailAccount) {
+    liveBreakdown.push({
+      accountId: gmailAccount.id,
+      email: gmailAccount.email ?? "Gmail",
+      name: "Gmail",
+      color: "#ea4335",
+      unread: gmailUnread,
+      total: gmailUnread,
+    });
+  }
+  if (outlookAccount) {
+    liveBreakdown.push({
+      accountId: outlookAccount.id,
+      email: outlookAccount.email ?? "Outlook",
+      name: "Outlook",
+      color: "#0078d4",
+      unread: outlookUnread,
+      total: outlookUnread,
+    });
+  }
+
+  const breakdown = [...liveBreakdown, ...dbBreakdown];
+
+  const totalUnread = Number(totalUnreadRow?.cnt ?? 0) + gmailUnread + outlookUnread;
+  const totalStarred = Number(totalStarredRow?.cnt ?? 0) + gmailStarred + outlookStarred;
+  const totalAccounts = dbAccounts.length + (gmailAccount ? 1 : 0) + (outlookAccount ? 1 : 0);
+
   res.json(
     GetOverviewStatsResponse.parse({
-      totalAccounts: accounts.length,
+      totalAccounts,
       totalMessages: Number(totalMsgRow?.cnt ?? 0),
-      totalUnread: Number(totalUnreadRow?.cnt ?? 0),
-      totalStarred: Number(totalStarredRow?.cnt ?? 0),
+      totalUnread,
+      totalStarred,
       totalContacts: Number(totalContactsRow?.cnt ?? 0),
       accountBreakdown: breakdown,
     })

@@ -12,6 +12,8 @@ import {
   GetContactResponse,
   UpdateContactResponse,
 } from "@workspace/api-zod";
+import { listGmailMessageSenders } from "../services/gmail";
+import { listOutlookMessageSenders } from "../services/outlook";
 
 const router: IRouter = Router();
 
@@ -71,6 +73,48 @@ router.get("/contacts", async (req, res): Promise<void> => {
   });
 
   res.json(GetContactsResponse.parse(result));
+});
+
+router.post("/contacts/sync", async (req, res): Promise<void> => {
+  const existingContacts = await db.select({ email: contactsTable.email }).from(contactsTable);
+  const existingEmails = new Set(existingContacts.map((c) => c.email.toLowerCase()));
+
+  const dbSenders = await db
+    .select({ fromEmail: messagesTable.fromEmail, fromName: messagesTable.fromName })
+    .from(messagesTable)
+    .groupBy(messagesTable.fromEmail, messagesTable.fromName);
+
+  const [gmailSenders, outlookSenders] = await Promise.all([
+    listGmailMessageSenders(25),
+    listOutlookMessageSenders(25),
+  ]);
+
+  const allSenders: Array<{ name: string; email: string }> = [
+    ...dbSenders.map((s) => ({ name: s.fromName ?? s.fromEmail, email: s.fromEmail })),
+    ...gmailSenders,
+    ...outlookSenders,
+  ];
+
+  const seen = new Set<string>();
+  const toInsert: Array<{ name: string; email: string }> = [];
+  for (const sender of allSenders) {
+    const key = sender.email.toLowerCase();
+    if (!existingEmails.has(key) && !seen.has(key) && sender.email && sender.email !== "unknown@example.com") {
+      seen.add(key);
+      toInsert.push(sender);
+    }
+  }
+
+  let added = 0;
+  for (const s of toInsert) {
+    try {
+      await db.insert(contactsTable).values({ name: s.name, email: s.email }).onConflictDoNothing();
+      added++;
+    } catch {
+    }
+  }
+
+  res.json({ added, total: toInsert.length });
 });
 
 router.post("/contacts", async (req, res): Promise<void> => {

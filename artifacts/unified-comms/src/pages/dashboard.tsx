@@ -2,15 +2,20 @@ import { useGetOverviewStats, useGetRecentMessages, useGetContacts } from "@work
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Mail, InboxIcon, Star, Users, MessageSquare, Phone, Clock, Building2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Mail, InboxIcon, Star, Users, MessageSquare, Phone, Clock, Building2, RefreshCw } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 export default function Dashboard() {
-  const { data: stats, isLoading: statsLoading } = useGetOverviewStats();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetOverviewStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentMessages({ limit: 5 });
-  const { data: allContacts, isLoading: contactsLoading } = useGetContacts({});
+  const { data: allContacts, isLoading: contactsLoading, refetch: refetchContacts } = useGetContacts({});
+  const [syncing, setSyncing] = useState(false);
+  const [syncResult, setSyncResult] = useState<string | null>(null);
 
   const importantPeople = allContacts
     ? [...allContacts]
@@ -18,6 +23,21 @@ export default function Dashboard() {
         .filter((c) => c.messageCount > 0)
         .slice(0, 6)
     : [];
+
+  async function handleSyncContacts() {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const res = await fetch(`${BASE}/api/contacts/sync`, { method: "POST" });
+      const data = await res.json();
+      setSyncResult(`Added ${data.added} new contact${data.added !== 1 ? "s" : ""}`);
+      await Promise.all([refetchContacts(), refetchStats()]);
+    } catch {
+      setSyncResult("Sync failed — try again");
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
@@ -46,14 +66,14 @@ export default function Dashboard() {
             </Card>
             <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Starred</CardTitle>
+                <CardTitle className="text-sm font-medium text-muted-foreground">Important</CardTitle>
                 <div className="p-2 bg-amber-500/10 rounded-full">
                   <Star className="w-4 h-4 text-amber-500" />
                 </div>
               </CardHeader>
               <CardContent>
                 <div className="text-3xl font-bold">{stats?.totalStarred || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Important messages</p>
+                <p className="text-xs text-muted-foreground mt-1">Starred / flagged messages</p>
               </CardContent>
             </Card>
             <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
@@ -91,9 +111,24 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold tracking-tight">Important People</h2>
             <p className="text-sm text-muted-foreground mt-0.5">Your most active contacts by message volume</p>
           </div>
-          <Link href="/contacts" className="text-sm text-primary hover:underline font-medium">
-            View all contacts
-          </Link>
+          <div className="flex items-center gap-3">
+            {syncResult && (
+              <span className="text-xs text-muted-foreground">{syncResult}</span>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncContacts}
+              disabled={syncing}
+              className="flex items-center gap-2 text-xs"
+            >
+              <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
+              {syncing ? "Syncing…" : "Sync Contacts"}
+            </Button>
+            <Link href="/contacts" className="text-sm text-primary hover:underline font-medium">
+              View all
+            </Link>
+          </div>
         </div>
 
         {contactsLoading ? (
@@ -106,7 +141,7 @@ export default function Dashboard() {
           <Card className="shadow-sm border-border">
             <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-3">
               <Users className="w-10 h-10 opacity-20" />
-              <p className="text-sm">No contacts with messages yet. Add contacts to see them here.</p>
+              <p className="text-sm">No contacts with messages yet. Click "Sync Contacts" to import from your emails.</p>
             </div>
           </Card>
         ) : (

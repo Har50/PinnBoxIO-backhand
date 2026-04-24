@@ -224,6 +224,53 @@ export async function listGmailMessages(folder?: string | null, limit = 25) {
   };
 }
 
+export async function getGmailUnreadCount(): Promise<number> {
+  try {
+    const response = await gmailProxy("/gmail/v1/users/me/labels/INBOX");
+    if (!response.ok) return 0;
+    const data = (await response.json()) as { messagesUnread?: number };
+    return data.messagesUnread ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getGmailStarredCount(): Promise<number> {
+  try {
+    const response = await gmailProxy("/gmail/v1/users/me/labels/STARRED");
+    if (!response.ok) return 0;
+    const data = (await response.json()) as { messagesTotal?: number };
+    return data.messagesTotal ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function listGmailMessageSenders(limit = 50): Promise<Array<{ name: string; email: string }>> {
+  try {
+    const profile = await getGmailProfile();
+    if (!profile) return [];
+    const params = new URLSearchParams();
+    params.set("maxResults", String(Math.min(limit, 25)));
+    const listResponse = await gmailProxy(`/gmail/v1/users/me/messages?${params.toString()}`);
+    if (!listResponse.ok) return [];
+    const list = (await listResponse.json()) as GmailListResponse;
+    const senders = await Promise.all(
+      (list.messages ?? []).map(async (item) => {
+        const msgResponse = await gmailProxy(`/gmail/v1/users/me/messages/${item.id}?format=metadata&metadataHeaders=From`);
+        if (!msgResponse.ok) return null;
+        const message = (await msgResponse.json()) as GmailMessage;
+        const fromHeader = (message.payload?.headers ?? []).find((h) => h.name.toLowerCase() === "from");
+        if (!fromHeader?.value) return null;
+        return parseAddress(fromHeader.value);
+      })
+    );
+    return senders.filter((s): s is NonNullable<typeof s> => Boolean(s?.email));
+  } catch {
+    return [];
+  }
+}
+
 export async function getGmailMessage(virtualId: number) {
   const gmailId = gmailIdsByVirtualId.get(virtualId);
   if (!gmailId) return null;

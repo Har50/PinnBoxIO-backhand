@@ -158,6 +158,59 @@ export async function getOutlookAccount() {
   };
 }
 
+export async function getOutlookUnreadCount(): Promise<number> {
+  try {
+    const response = await outlookProxy("/v1.0/me/mailFolders/inbox?$select=unreadItemCount");
+    if (!response.ok) return 0;
+    const data = (await response.json()) as { unreadItemCount?: number };
+    return data.unreadItemCount ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function getOutlookStarredCount(): Promise<number> {
+  try {
+    const params = new URLSearchParams({
+      "$filter": "flag/flagStatus eq 'flagged'",
+      "$count": "true",
+      "$select": "id",
+      "$top": "0",
+    });
+    const response = await outlookProxy(`/v1.0/me/messages?${params.toString()}`);
+    if (!response.ok) return 0;
+    const data = (await response.json()) as { "@odata.count"?: number };
+    return data["@odata.count"] ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+export async function listOutlookMessageSenders(limit = 50): Promise<Array<{ name: string; email: string }>> {
+  try {
+    const profile = await getOutlookProfile();
+    if (!profile) return [];
+    const safeLimit = Math.min(Math.max(limit, 1), 25);
+    const params = new URLSearchParams({
+      "$top": String(safeLimit),
+      "$orderby": "receivedDateTime desc",
+      "$select": "from,sender",
+    });
+    const response = await outlookProxy(`/v1.0/me/mailFolders/inbox/messages?${params.toString()}`);
+    if (!response.ok) return [];
+    const list = (await response.json()) as OutlookListResponse;
+    return (list.value ?? [])
+      .map((msg) => {
+        const addr = msg.from?.emailAddress ?? msg.sender?.emailAddress;
+        if (!addr?.address) return null;
+        return { name: addr.name || addr.address, email: addr.address };
+      })
+      .filter((s): s is NonNullable<typeof s> => Boolean(s?.email));
+  } catch {
+    return [];
+  }
+}
+
 export async function listOutlookMessages(folder?: string | null, limit = 25) {
   const profile = await getOutlookProfile();
   if (!profile) return null;
