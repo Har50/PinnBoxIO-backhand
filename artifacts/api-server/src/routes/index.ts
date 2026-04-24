@@ -10,11 +10,13 @@ import aiRouter from "./ai";
 import whatsappRouter from "./whatsapp";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 import storageRouter from "./storage";
+import authOAuthRouter from "./auth-oauth";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
+router.use(authOAuthRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);

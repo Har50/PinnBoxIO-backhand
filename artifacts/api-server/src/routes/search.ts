@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, count, max, desc } from "drizzle-orm";
+import { eq, ilike, or, count, max, desc, and } from "drizzle-orm";
 import { db, accountsTable, messagesTable, contactsTable, attachmentsTable, usersTable } from "@workspace/db";
 import { whatsappService } from "../services/whatsapp.js";
 import { listGmailMessages } from "../services/gmail";
@@ -97,7 +97,7 @@ router.get("/search", async (req: any, res): Promise<void> => {
     const msgs = await db
       .select({ msg: messagesTable, account: accountsTable })
       .from(messagesTable)
-      .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
+      .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId ?? "")))
       .where(
         or(
           ilike(messagesTable.subject, `%${q}%`),
@@ -148,8 +148,8 @@ router.get("/search", async (req: any, res): Promise<void> => {
     );
 
     const [gmailMessages, outlookMessages] = await Promise.all([
-      listGmailMessages(null, 25),
-      listOutlookMessages(null, 25),
+      listGmailMessages(userId, null, 25),
+      listOutlookMessages(userId, null, 25),
     ]);
 
     const liveMessages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? [])]
@@ -165,11 +165,14 @@ router.get("/search", async (req: any, res): Promise<void> => {
       .select()
       .from(contactsTable)
       .where(
-        or(
-          ilike(contactsTable.name, `%${q}%`),
-          ilike(contactsTable.email, `%${q}%`),
-          ilike(contactsTable.company, `%${q}%`),
-          ilike(contactsTable.notes, `%${q}%`)
+        and(
+          eq(contactsTable.userId, userId ?? ""),
+          or(
+            ilike(contactsTable.name, `%${q}%`),
+            ilike(contactsTable.email, `%${q}%`),
+            ilike(contactsTable.company, `%${q}%`),
+            ilike(contactsTable.notes, `%${q}%`)
+          )
         )
       )
       .limit(20);
@@ -177,6 +180,7 @@ router.get("/search", async (req: any, res): Promise<void> => {
     const messageCounts = await db
       .select({ fromEmail: messagesTable.fromEmail, cnt: count(), lastAt: max(messagesTable.receivedAt) })
       .from(messagesTable)
+      .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId ?? "")))
       .groupBy(messagesTable.fromEmail);
 
     const countMap = new Map(messageCounts.map((r) => [r.fromEmail, { cnt: Number(r.cnt), lastAt: r.lastAt }]));

@@ -1,9 +1,8 @@
-import { ReplitConnectors } from "@replit/connectors-sdk";
+import { getValidOutlookToken, getOAuthToken } from "./tokenManager";
 
 const OUTLOOK_ACCOUNT_ID = -2;
 const OUTLOOK_COLOR = "#0078d4";
 
-const connectors = new ReplitConnectors();
 const outlookIdsByVirtualId = new Map<number, string>();
 
 type OutlookProfile = {
@@ -29,12 +28,8 @@ type OutlookMessage = {
     contentType?: string;
     content?: string;
   };
-  from?: {
-    emailAddress?: OutlookEmailAddress;
-  };
-  sender?: {
-    emailAddress?: OutlookEmailAddress;
-  };
+  from?: { emailAddress?: OutlookEmailAddress };
+  sender?: { emailAddress?: OutlookEmailAddress };
   toRecipients?: OutlookRecipient[];
   ccRecipients?: OutlookRecipient[];
   receivedDateTime?: string;
@@ -42,9 +37,7 @@ type OutlookMessage = {
   isRead?: boolean;
   isDraft?: boolean;
   hasAttachments?: boolean;
-  flag?: {
-    flagStatus?: string;
-  };
+  flag?: { flagStatus?: string };
   parentFolderId?: string;
 };
 
@@ -52,6 +45,11 @@ type OutlookListResponse = {
   value?: OutlookMessage[];
   "@odata.count"?: number;
   "@odata.nextLink"?: string;
+};
+
+type OutlookMailFolderResponse = {
+  unreadItemCount?: number;
+  totalItemCount?: number;
 };
 
 const folderPathMap: Record<string, string> = {
@@ -73,17 +71,20 @@ function virtualIdForOutlookId(outlookId: string) {
   return id;
 }
 
-async function outlookProxy(path: string, init?: { method?: string }) {
-  return connectors.proxy("outlook", path, {
-    method: init?.method ?? "GET",
+async function outlookFetch(accessToken: string, path: string) {
+  return fetch(`https://graph.microsoft.com${path}`, {
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
   });
 }
 
 function recipientList(recipients?: OutlookRecipient[]) {
   return (recipients ?? [])
-    .map((recipient) => {
-      const address = recipient.emailAddress?.address ?? "";
-      const name = recipient.emailAddress?.name ?? "";
+    .map((r) => {
+      const address = r.emailAddress?.address ?? "";
+      const name = r.emailAddress?.name ?? "";
       return name && address ? `${name} <${address}>` : address || name;
     })
     .filter(Boolean)
@@ -130,9 +131,16 @@ function toMessageResponse(message: OutlookMessage, profile: OutlookProfile | nu
   };
 }
 
-export async function getOutlookProfile(): Promise<OutlookProfile | null> {
+export async function isOutlookConnected(userId: string): Promise<boolean> {
+  const token = await getOAuthToken(userId, "outlook");
+  return Boolean(token);
+}
+
+export async function getOutlookProfile(userId: string): Promise<OutlookProfile | null> {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return null;
   try {
-    const response = await outlookProxy("/v1.0/me?$select=displayName,mail,userPrincipalName");
+    const response = await outlookFetch(accessToken, "/v1.0/me?$select=displayName,mail,userPrincipalName");
     if (!response.ok) return null;
     return (await response.json()) as OutlookProfile;
   } catch {
@@ -140,11 +148,10 @@ export async function getOutlookProfile(): Promise<OutlookProfile | null> {
   }
 }
 
-export async function getOutlookAccount() {
-  const profile = await getOutlookProfile();
+export async function getOutlookAccount(userId: string) {
+  const profile = await getOutlookProfile(userId);
   const email = profile?.mail ?? profile?.userPrincipalName;
   if (!email) return null;
-
   return {
     id: OUTLOOK_ACCOUNT_ID,
     email,
@@ -158,18 +165,22 @@ export async function getOutlookAccount() {
   };
 }
 
-export async function getOutlookUnreadCount(): Promise<number> {
+export async function getOutlookUnreadCount(userId: string): Promise<number> {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return 0;
   try {
-    const response = await outlookProxy("/v1.0/me/mailFolders/inbox?$select=unreadItemCount");
+    const response = await outlookFetch(accessToken, "/v1.0/me/mailFolders/inbox?$select=unreadItemCount");
     if (!response.ok) return 0;
-    const data = (await response.json()) as { unreadItemCount?: number };
+    const data = (await response.json()) as OutlookMailFolderResponse;
     return data.unreadItemCount ?? 0;
   } catch {
     return 0;
   }
 }
 
-export async function getOutlookStarredCount(): Promise<number> {
+export async function getOutlookStarredCount(userId: string): Promise<number> {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return 0;
   try {
     const params = new URLSearchParams({
       "$filter": "flag/flagStatus eq 'flagged'",
@@ -177,7 +188,7 @@ export async function getOutlookStarredCount(): Promise<number> {
       "$select": "id",
       "$top": "0",
     });
-    const response = await outlookProxy(`/v1.0/me/messages?${params.toString()}`);
+    const response = await outlookFetch(accessToken, `/v1.0/me/messages?${params.toString()}`);
     if (!response.ok) return 0;
     const data = (await response.json()) as { "@odata.count"?: number };
     return data["@odata.count"] ?? 0;
@@ -186,35 +197,11 @@ export async function getOutlookStarredCount(): Promise<number> {
   }
 }
 
-export async function listOutlookMessageSenders(limit = 50): Promise<Array<{ name: string; email: string }>> {
-  try {
-    const profile = await getOutlookProfile();
-    if (!profile) return [];
-    const safeLimit = Math.min(Math.max(limit, 1), 25);
-    const params = new URLSearchParams({
-      "$top": String(safeLimit),
-      "$orderby": "receivedDateTime desc",
-      "$select": "from,sender",
-    });
-    const response = await outlookProxy(`/v1.0/me/mailFolders/inbox/messages?${params.toString()}`);
-    if (!response.ok) return [];
-    const list = (await response.json()) as OutlookListResponse;
-    return (list.value ?? [])
-      .map((msg) => {
-        const addr = msg.from?.emailAddress ?? msg.sender?.emailAddress;
-        if (!addr?.address) return null;
-        return { name: addr.name || addr.address, email: addr.address };
-      })
-      .filter((s): s is NonNullable<typeof s> => Boolean(s?.email));
-  } catch {
-    return [];
-  }
-}
+export async function listOutlookMessages(userId: string, folder?: string | null, limit = 25) {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return null;
 
-export async function listOutlookMessages(folder?: string | null, limit = 25) {
-  const profile = await getOutlookProfile();
-  if (!profile) return null;
-
+  const profile = await getOutlookProfile(userId);
   const safeLimit = Math.min(Math.max(limit, 1), 25);
   const folderPath = folder ? folderPathMap[folder] : folderPathMap.Inbox;
   const params = new URLSearchParams({
@@ -227,7 +214,7 @@ export async function listOutlookMessages(folder?: string | null, limit = 25) {
     ? `/v1.0/me/mailFolders/${folderPath}/messages?${params.toString()}`
     : `/v1.0/me/messages?${params.toString()}`;
 
-  const listResponse = await outlookProxy(path);
+  const listResponse = await outlookFetch(accessToken, path);
   if (!listResponse.ok) return null;
 
   const list = (await listResponse.json()) as OutlookListResponse;
@@ -240,19 +227,45 @@ export async function listOutlookMessages(folder?: string | null, limit = 25) {
   };
 }
 
-export async function getOutlookMessage(virtualId: number) {
+export async function getOutlookMessage(userId: string, virtualId: number) {
   const outlookId = outlookIdsByVirtualId.get(virtualId);
   if (!outlookId) return null;
 
-  const profile = await getOutlookProfile();
-  if (!profile) return null;
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return null;
 
+  const profile = await getOutlookProfile(userId);
   const params = new URLSearchParams({
     "$select": "id,subject,bodyPreview,body,from,sender,toRecipients,ccRecipients,receivedDateTime,sentDateTime,isRead,isDraft,hasAttachments,flag",
   });
-  const response = await outlookProxy(`/v1.0/me/messages/${encodeURIComponent(outlookId)}?${params.toString()}`);
+  const response = await outlookFetch(accessToken, `/v1.0/me/messages/${encodeURIComponent(outlookId)}?${params.toString()}`);
   if (!response.ok) return null;
 
   const message = (await response.json()) as OutlookMessage;
   return toMessageResponse(message, profile);
+}
+
+export async function listOutlookMessageSenders(userId: string, limit = 25): Promise<Array<{ name: string; email: string }>> {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return [];
+  try {
+    const safeLimit = Math.min(Math.max(limit, 1), 25);
+    const params = new URLSearchParams({
+      "$top": String(safeLimit),
+      "$orderby": "receivedDateTime desc",
+      "$select": "from,sender",
+    });
+    const response = await outlookFetch(accessToken, `/v1.0/me/mailFolders/inbox/messages?${params.toString()}`);
+    if (!response.ok) return [];
+    const list = (await response.json()) as OutlookListResponse;
+    return (list.value ?? [])
+      .map((msg) => {
+        const addr = msg.from?.emailAddress ?? msg.sender?.emailAddress;
+        if (!addr?.address) return null;
+        return { name: addr.name || addr.address, email: addr.address };
+      })
+      .filter((s): s is NonNullable<typeof s> => Boolean(s?.email));
+  } catch {
+    return [];
+  }
 }

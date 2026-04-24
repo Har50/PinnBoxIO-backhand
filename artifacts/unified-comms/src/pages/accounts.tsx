@@ -1,15 +1,19 @@
 import { useGetAccounts, useDeleteAccount, useCreateAccount } from "@workspace/api-client-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Plus, Trash2, ShieldCheck, CheckCircle2, AlertCircle, MessageCircle, Phone, ExternalLink, ChevronRight } from "lucide-react";
+import { Mail, Plus, Trash2, ShieldCheck, CheckCircle2, AlertCircle, MessageCircle, Phone, ExternalLink, ChevronRight, Link2, Link2Off } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLocation } from "wouter";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 type AccountType = "email" | "whatsapp" | "phone";
 
@@ -67,8 +71,48 @@ export default function Accounts() {
   const deleteAccount = useDeleteAccount();
   const createAccount = useCreateAccount();
   const { toast } = useToast();
+  const [location] = useLocation();
 
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [oauthStatus, setOauthStatus] = useState<{ gmail: boolean; outlook: boolean } | null>(null);
+  const [disconnecting, setDisconnecting] = useState<"gmail" | "outlook" | null>(null);
+
+  useEffect(() => {
+    fetch(`${BASE}/api/accounts/connected`, { credentials: "include" })
+      .then((r) => r.json())
+      .then(setOauthStatus)
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const connected = params.get("connected");
+    if (connected === "gmail") {
+      toast({ title: "Gmail connected successfully!" });
+      setOauthStatus((prev) => ({ ...(prev ?? { outlook: false }), gmail: true }));
+      refetch();
+      window.history.replaceState({}, "", window.location.pathname);
+    } else if (connected === "outlook") {
+      toast({ title: "Outlook connected successfully!" });
+      setOauthStatus((prev) => ({ ...(prev ?? { gmail: false }), outlook: true }));
+      refetch();
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, [location]);
+
+  async function handleDisconnect(provider: "gmail" | "outlook") {
+    setDisconnecting(provider);
+    try {
+      await fetch(`${BASE}/api/auth/${provider}/disconnect`, { method: "DELETE", credentials: "include" });
+      setOauthStatus((prev) => prev ? { ...prev, [provider]: false } : null);
+      toast({ title: `${provider === "gmail" ? "Gmail" : "Outlook"} disconnected` });
+      refetch();
+    } catch {
+      toast({ title: "Failed to disconnect", variant: "destructive" });
+    } finally {
+      setDisconnecting(null);
+    }
+  }
   const [step, setStep] = useState<"type" | "form">("type");
   const [accountType, setAccountType] = useState<AccountType>("email");
 
@@ -126,6 +170,87 @@ export default function Accounts() {
           <Plus className="w-4 h-4" />
           Add Account
         </Button>
+      </div>
+
+      {/* Gmail & Outlook OAuth Connect */}
+      <div className="space-y-3">
+        <h2 className="text-lg font-semibold">Email Integrations</h2>
+        <p className="text-sm text-muted-foreground">Connect your personal Gmail or Outlook/Hotmail account. Each user connects their own account — your emails are private to you.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Gmail */}
+          <Card className="border-border shadow-sm">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-red-50 dark:bg-red-950/30 flex items-center justify-center flex-shrink-0">
+                <Mail className="w-6 h-6 text-red-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">Gmail</span>
+                  {oauthStatus?.gmail && <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 border-0 text-xs">Connected</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Google Mail account</p>
+              </div>
+              {oauthStatus?.gmail ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-shrink-0 text-destructive hover:text-destructive gap-1.5"
+                  onClick={() => handleDisconnect("gmail")}
+                  disabled={disconnecting === "gmail"}
+                >
+                  <Link2Off className="w-3.5 h-3.5" />
+                  {disconnecting === "gmail" ? "…" : "Disconnect"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="flex-shrink-0 gap-1.5"
+                  onClick={() => window.location.assign(`${BASE}/api/auth/gmail/connect`)}
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  Connect
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Outlook */}
+          <Card className="border-border shadow-sm">
+            <CardContent className="p-5 flex items-center gap-4">
+              <div className="w-12 h-12 rounded-xl bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center flex-shrink-0">
+                <Mail className="w-6 h-6 text-blue-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-semibold text-sm">Outlook / Hotmail</span>
+                  {oauthStatus?.outlook && <Badge variant="secondary" className="bg-emerald-500/10 text-emerald-700 border-0 text-xs">Connected</Badge>}
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">Microsoft account</p>
+              </div>
+              {oauthStatus?.outlook ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex-shrink-0 text-destructive hover:text-destructive gap-1.5"
+                  onClick={() => handleDisconnect("outlook")}
+                  disabled={disconnecting === "outlook"}
+                >
+                  <Link2Off className="w-3.5 h-3.5" />
+                  {disconnecting === "outlook" ? "…" : "Disconnect"}
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  className="flex-shrink-0 gap-1.5"
+                  onClick={() => window.location.assign(`${BASE}/api/auth/outlook/connect`)}
+                >
+                  <Link2 className="w-3.5 h-3.5" />
+                  Connect
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </div>
       </div>
 
       {/* Account cards */}

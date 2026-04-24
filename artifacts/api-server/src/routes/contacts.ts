@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, count, max, sql, and } from "drizzle-orm";
-import { db, contactsTable, messagesTable } from "@workspace/db";
+import { eq, ilike, or, count, max, and } from "drizzle-orm";
+import { db, contactsTable, messagesTable, accountsTable } from "@workspace/db";
 import {
   CreateContactBody,
   UpdateContactBody,
@@ -17,44 +17,51 @@ import { listOutlookMessageSenders } from "../services/outlook";
 
 const router: IRouter = Router();
 
-router.get("/contacts", async (req, res): Promise<void> => {
+router.get("/contacts", async (req: any, res): Promise<void> => {
   const query = GetContactsQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
     return;
   }
 
+  const userId: string = req.userId;
   const q = query.data.q;
   let contacts;
+  const userFilter = eq(contactsTable.userId, userId);
+
   if (q) {
     contacts = await db
       .select()
       .from(contactsTable)
       .where(
-        or(
-          ilike(contactsTable.name, `%${q}%`),
-          ilike(contactsTable.email, `%${q}%`),
-          ilike(contactsTable.company, `%${q}%`)
+        and(
+          userFilter,
+          or(
+            ilike(contactsTable.name, `%${q}%`),
+            ilike(contactsTable.email, `%${q}%`),
+            ilike(contactsTable.company, `%${q}%`)
+          )
         )
       )
       .orderBy(contactsTable.name);
   } else {
-    contacts = await db.select().from(contactsTable).orderBy(contactsTable.name);
+    contacts = await db
+      .select()
+      .from(contactsTable)
+      .where(userFilter)
+      .orderBy(contactsTable.name);
   }
 
-  // Get total + unread message counts per contact email
   const messageCounts = await db
-    .select({
-      fromEmail: messagesTable.fromEmail,
-      cnt: count(),
-      lastAt: max(messagesTable.receivedAt),
-    })
+    .select({ fromEmail: messagesTable.fromEmail, cnt: count(), lastAt: max(messagesTable.receivedAt) })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .groupBy(messagesTable.fromEmail);
 
   const unreadCounts = await db
     .select({ fromEmail: messagesTable.fromEmail, cnt: count() })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(eq(messagesTable.isRead, false))
     .groupBy(messagesTable.fromEmail);
 
@@ -75,18 +82,25 @@ router.get("/contacts", async (req, res): Promise<void> => {
   res.json(GetContactsResponse.parse(result));
 });
 
-router.post("/contacts/sync", async (req, res): Promise<void> => {
-  const existingContacts = await db.select({ email: contactsTable.email }).from(contactsTable);
+router.post("/contacts/sync", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
+
+  const existingContacts = await db
+    .select({ email: contactsTable.email })
+    .from(contactsTable)
+    .where(eq(contactsTable.userId, userId));
+
   const existingEmails = new Set(existingContacts.map((c) => c.email.toLowerCase()));
 
   const dbSenders = await db
     .select({ fromEmail: messagesTable.fromEmail, fromName: messagesTable.fromName })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .groupBy(messagesTable.fromEmail, messagesTable.fromName);
 
   const [gmailSenders, outlookSenders] = await Promise.all([
-    listGmailMessageSenders(25),
-    listOutlookMessageSenders(25),
+    listGmailMessageSenders(userId, 25),
+    listOutlookMessageSenders(userId, 25),
   ]);
 
   const allSenders: Array<{ name: string; email: string }> = [
@@ -108,7 +122,7 @@ router.post("/contacts/sync", async (req, res): Promise<void> => {
   let added = 0;
   for (const s of toInsert) {
     try {
-      await db.insert(contactsTable).values({ name: s.name, email: s.email }).onConflictDoNothing();
+      await db.insert(contactsTable).values({ name: s.name, email: s.email, userId }).onConflictDoNothing();
       added++;
     } catch {
     }
@@ -117,33 +131,40 @@ router.post("/contacts/sync", async (req, res): Promise<void> => {
   res.json({ added, total: toInsert.length });
 });
 
-router.post("/contacts", async (req, res): Promise<void> => {
+router.post("/contacts", async (req: any, res): Promise<void> => {
   const parsed = CreateContactBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [contact] = await db.insert(contactsTable).values(parsed.data).returning();
+  const userId: string = req.userId;
+  const [contact] = await db.insert(contactsTable).values({ ...parsed.data, userId }).returning();
 
   res.status(201).json(
     GetContactResponse.parse({
       ...contact,
       messageCount: 0,
+      unreadCount: 0,
       lastMessageAt: null,
       createdAt: contact.createdAt.toISOString(),
     })
   );
 });
 
-router.get("/contacts/:id", async (req, res): Promise<void> => {
+router.get("/contacts/:id", async (req: any, res): Promise<void> => {
   const params = GetContactParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [contact] = await db.select().from(contactsTable).where(eq(contactsTable.id, params.data.id));
+  const userId: string = req.userId;
+  const [contact] = await db
+    .select()
+    .from(contactsTable)
+    .where(and(eq(contactsTable.id, params.data.id), eq(contactsTable.userId, userId)));
+
   if (!contact) {
     res.status(404).json({ error: "Contact not found" });
     return;
@@ -152,11 +173,13 @@ router.get("/contacts/:id", async (req, res): Promise<void> => {
   const [stats] = await db
     .select({ cnt: count(), lastAt: max(messagesTable.receivedAt) })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(eq(messagesTable.fromEmail, contact.email));
 
   const [unreadRow] = await db
     .select({ cnt: count() })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(and(eq(messagesTable.fromEmail, contact.email), eq(messagesTable.isRead, false)));
 
   res.json(
@@ -170,7 +193,7 @@ router.get("/contacts/:id", async (req, res): Promise<void> => {
   );
 });
 
-router.patch("/contacts/:id", async (req, res): Promise<void> => {
+router.patch("/contacts/:id", async (req: any, res): Promise<void> => {
   const params = UpdateContactParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -183,6 +206,7 @@ router.patch("/contacts/:id", async (req, res): Promise<void> => {
     return;
   }
 
+  const userId: string = req.userId;
   const updateData: Record<string, unknown> = {};
   if (parsed.data.name != null) updateData.name = parsed.data.name;
   if (parsed.data.email != null) updateData.email = parsed.data.email;
@@ -194,7 +218,7 @@ router.patch("/contacts/:id", async (req, res): Promise<void> => {
   const [contact] = await db
     .update(contactsTable)
     .set(updateData)
-    .where(eq(contactsTable.id, params.data.id))
+    .where(and(eq(contactsTable.id, params.data.id), eq(contactsTable.userId, userId)))
     .returning();
 
   if (!contact) {
@@ -205,11 +229,13 @@ router.patch("/contacts/:id", async (req, res): Promise<void> => {
   const [stats] = await db
     .select({ cnt: count(), lastAt: max(messagesTable.receivedAt) })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(eq(messagesTable.fromEmail, contact.email));
 
   const [unreadRow2] = await db
     .select({ cnt: count() })
     .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(and(eq(messagesTable.fromEmail, contact.email), eq(messagesTable.isRead, false)));
 
   res.json(
@@ -223,14 +249,19 @@ router.patch("/contacts/:id", async (req, res): Promise<void> => {
   );
 });
 
-router.delete("/contacts/:id", async (req, res): Promise<void> => {
+router.delete("/contacts/:id", async (req: any, res): Promise<void> => {
   const params = DeleteContactParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
     return;
   }
 
-  const [deleted] = await db.delete(contactsTable).where(eq(contactsTable.id, params.data.id)).returning();
+  const userId: string = req.userId;
+  const [deleted] = await db
+    .delete(contactsTable)
+    .where(and(eq(contactsTable.id, params.data.id), eq(contactsTable.userId, userId)))
+    .returning();
+
   if (!deleted) {
     res.status(404).json({ error: "Contact not found" });
     return;

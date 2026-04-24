@@ -52,17 +52,15 @@ async function buildMessageResponse(msg: typeof messagesTable.$inferSelect, acco
   };
 }
 
-router.get("/messages/recent", async (req, res): Promise<void> => {
+router.get("/messages/recent", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
   const query = GetRecentMessagesQueryParams.safeParse(req.query);
   const limit = query.success && query.data.limit ? query.data.limit : 20;
 
   const msgs = await db
-    .select({
-      msg: messagesTable,
-      account: accountsTable,
-    })
+    .select({ msg: messagesTable, account: accountsTable })
     .from(messagesTable)
-    .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .orderBy(desc(messagesTable.receivedAt))
     .limit(limit);
 
@@ -70,7 +68,8 @@ router.get("/messages/recent", async (req, res): Promise<void> => {
   res.json(results);
 });
 
-router.get("/messages", async (req, res): Promise<void> => {
+router.get("/messages", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
   const query = GetMessagesQueryParams.safeParse(req.query);
   if (!query.success) {
     res.status(400).json({ error: query.error.message });
@@ -78,8 +77,9 @@ router.get("/messages", async (req, res): Promise<void> => {
   }
 
   const { accountId, folder, limit = 50, offset = 0 } = query.data;
+
   if (accountId === -1) {
-    const gmailMessages = await listGmailMessages(folder, limit ?? 25);
+    const gmailMessages = await listGmailMessages(userId, folder, limit ?? 25);
     if (gmailMessages) {
       res.json(GetMessagesResponse.parse(gmailMessages));
       return;
@@ -87,7 +87,7 @@ router.get("/messages", async (req, res): Promise<void> => {
   }
 
   if (accountId === -2) {
-    const outlookMessages = await listOutlookMessages(folder, limit ?? 25);
+    const outlookMessages = await listOutlookMessages(userId, folder, limit ?? 25);
     if (outlookMessages) {
       res.json(GetMessagesResponse.parse(outlookMessages));
       return;
@@ -96,8 +96,8 @@ router.get("/messages", async (req, res): Promise<void> => {
 
   if (!accountId) {
     const [gmailMessages, outlookMessages] = await Promise.all([
-      listGmailMessages(folder, limit ?? 25),
-      listOutlookMessages(folder, limit ?? 25),
+      listGmailMessages(userId, folder, limit ?? 25),
+      listOutlookMessages(userId, folder, limit ?? 25),
     ]);
     if (gmailMessages || outlookMessages) {
       const messages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? [])]
@@ -114,20 +114,21 @@ router.get("/messages", async (req, res): Promise<void> => {
     }
   }
 
-  const conditions = [];
+  const conditions = [eq(accountsTable.userId, userId)];
   if (accountId) conditions.push(eq(messagesTable.accountId, accountId));
   if (folder) conditions.push(eq(messagesTable.folder, folder));
 
   const [totalRow] = await db
     .select({ cnt: count() })
     .from(messagesTable)
-    .where(conditions.length > 0 ? and(...conditions) : undefined);
+    .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
+    .where(and(...conditions));
 
   const msgs = await db
     .select({ msg: messagesTable, account: accountsTable })
     .from(messagesTable)
-    .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
-    .where(conditions.length > 0 ? and(...conditions) : undefined)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
+    .where(and(...conditions))
     .orderBy(desc(messagesTable.receivedAt))
     .limit(limit ?? 50)
     .offset(offset ?? 0);
@@ -144,14 +145,19 @@ router.get("/messages", async (req, res): Promise<void> => {
   );
 });
 
-router.post("/messages", async (req, res): Promise<void> => {
+router.post("/messages", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
   const parsed = CreateMessageBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
 
-  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, parsed.data.accountId));
+  const [account] = await db
+    .select()
+    .from(accountsTable)
+    .where(and(eq(accountsTable.id, parsed.data.accountId), eq(accountsTable.userId, userId)));
+
   if (!account) {
     res.status(404).json({ error: "Account not found" });
     return;
@@ -159,17 +165,15 @@ router.post("/messages", async (req, res): Promise<void> => {
 
   const [msg] = await db
     .insert(messagesTable)
-    .values({
-      ...parsed.data,
-      receivedAt: new Date(parsed.data.receivedAt),
-    })
+    .values({ ...parsed.data, receivedAt: new Date(parsed.data.receivedAt) })
     .returning();
 
   const response = await buildMessageResponse(msg, account);
   res.status(201).json(GetMessageResponse.parse(response));
 });
 
-router.get("/messages/:id", async (req, res): Promise<void> => {
+router.get("/messages/:id", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
   const params = GetMessageParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -178,8 +182,8 @@ router.get("/messages/:id", async (req, res): Promise<void> => {
 
   if (params.data.id < 0) {
     const [gmailMessage, outlookMessage] = await Promise.all([
-      getGmailMessage(params.data.id),
-      getOutlookMessage(params.data.id),
+      getGmailMessage(userId, params.data.id),
+      getOutlookMessage(userId, params.data.id),
     ]);
     const message = gmailMessage ?? outlookMessage;
     if (!message) {
@@ -193,7 +197,7 @@ router.get("/messages/:id", async (req, res): Promise<void> => {
   const [row] = await db
     .select({ msg: messagesTable, account: accountsTable })
     .from(messagesTable)
-    .innerJoin(accountsTable, eq(messagesTable.accountId, accountsTable.id))
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
     .where(eq(messagesTable.id, params.data.id));
 
   if (!row) {
@@ -201,11 +205,11 @@ router.get("/messages/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const response = await buildMessageResponse(row.msg, row.account);
-  res.json(GetMessageResponse.parse(response));
+  res.json(GetMessageResponse.parse(await buildMessageResponse(row.msg, row.account)));
 });
 
-router.patch("/messages/:id", async (req, res): Promise<void> => {
+router.patch("/messages/:id", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
   const params = UpdateMessageParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -234,12 +238,15 @@ router.patch("/messages/:id", async (req, res): Promise<void> => {
     return;
   }
 
-  const [account] = await db.select().from(accountsTable).where(eq(accountsTable.id, msg.accountId));
-  const response = await buildMessageResponse(msg, account!);
-  res.json(UpdateMessageResponse.parse(response));
+  const [account] = await db
+    .select()
+    .from(accountsTable)
+    .where(and(eq(accountsTable.id, msg.accountId), eq(accountsTable.userId, userId)));
+
+  res.json(UpdateMessageResponse.parse(await buildMessageResponse(msg, account!)));
 });
 
-router.delete("/messages/:id", async (req, res): Promise<void> => {
+router.delete("/messages/:id", async (req: any, res): Promise<void> => {
   const params = DeleteMessageParams.safeParse(req.params);
   if (!params.success) {
     res.status(400).json({ error: params.error.message });
@@ -279,7 +286,6 @@ router.post("/messages/:id/attachments", async (req, res): Promise<void> => {
     .values({ messageId: params.data.id, ...parsed.data })
     .returning();
 
-  // Update hasAttachments flag
   await db.update(messagesTable).set({ hasAttachments: true }).where(eq(messagesTable.id, params.data.id));
 
   res.status(201).json({
