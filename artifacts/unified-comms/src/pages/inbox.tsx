@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComposeModal } from "@/components/compose-modal";
+import { PreviewPanel, type PreviewItem } from "@/components/preview-panel";
 
 type MobileView = "mailboxes" | "messages" | "detail";
 
@@ -25,6 +26,17 @@ export default function Inbox() {
   const [bodyZoom, setBodyZoom] = useState(100);
   const [composeDraft, setComposeDraft] = useState<{ accountId?: string; to?: string; subject?: string; body?: string } | undefined>();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [previewItem, setPreviewItem] = useState<PreviewItem | null>(null);
+
+  const handleBodyLinkClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const target = (e.target as HTMLElement).closest("a");
+    if (!target) return;
+    const href = target.getAttribute("href");
+    if (!href || href.startsWith("mailto:") || href.startsWith("#")) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setPreviewItem({ kind: "link", url: href, title: target.textContent || href });
+  }, []);
   
   const debouncedSearch = useDebounce(searchQuery, 300);
 
@@ -371,7 +383,11 @@ export default function Inbox() {
                 </Button>
               </div>
 
-              <div className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary" style={{ fontSize: `${bodyZoom}%` }}>
+              <div
+                className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary"
+                style={{ fontSize: `${bodyZoom}%` }}
+                onClick={handleBodyLinkClick}
+              >
                 {activeMessage.bodyHtml ? (
                   <div dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
                 ) : (
@@ -387,8 +403,12 @@ export default function Inbox() {
                   </h3>
                   <div className="flex flex-wrap gap-3">
                     {activeMessage.attachments.map(att => (
-                      <div key={att.id} className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 transition-colors max-w-[240px] cursor-pointer">
-                        <div className="p-2 bg-background rounded border shadow-sm">
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 hover:border-primary/30 transition-colors max-w-[240px] cursor-pointer group"
+                        onClick={() => setPreviewItem({ kind: "attachment", filename: att.filename, url: att.url ?? "", size: att.size, mimeType: att.mimeType ?? undefined })}
+                      >
+                        <div className="p-2 bg-background rounded border shadow-sm group-hover:border-primary/30 transition-colors">
                           <File className="w-5 h-5 text-primary" />
                         </div>
                         <div className="min-w-0 flex-1">
@@ -414,6 +434,7 @@ export default function Inbox() {
         {mobileView === "messages" && messageListPanel}
         {mobileView === "detail" && messageDetailPanel}
         <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
+        <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
       </div>
     );
   }
@@ -438,6 +459,7 @@ export default function Inbox() {
         </ResizablePanel>
       </ResizablePanelGroup>
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
+      <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
     </div>
   );
 }
