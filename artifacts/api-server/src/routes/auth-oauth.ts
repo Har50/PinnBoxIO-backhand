@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
-import { upsertOAuthToken, deleteOAuthToken } from "../services/tokenManager";
+import { upsertOAuthToken, deleteOAuthToken, ensureUser } from "../services/tokenManager";
 
 const router: IRouter = Router();
 
@@ -121,6 +121,7 @@ router.get("/auth/gmail/callback", async (req, res) => {
     const profile = profileRes.ok ? (await profileRes.json()) as { email?: string } : null;
 
     const expiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+    await ensureUser(stateData.userId, { email: profile?.email ?? null });
     await upsertOAuthToken(stateData.userId, "gmail", {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? null,
@@ -221,11 +222,13 @@ router.get("/auth/outlook/callback", async (req, res) => {
     const profile = profileRes.ok ? (await profileRes.json()) as { mail?: string; userPrincipalName?: string } : null;
 
     const expiresAt = tokenData.expires_in ? new Date(Date.now() + tokenData.expires_in * 1000) : null;
+    const outlookEmail = profile?.mail ?? profile?.userPrincipalName ?? null;
+    await ensureUser(stateData.userId, { email: outlookEmail });
     await upsertOAuthToken(stateData.userId, "outlook", {
       accessToken: tokenData.access_token,
       refreshToken: tokenData.refresh_token ?? null,
       expiresAt,
-      email: profile?.mail ?? profile?.userPrincipalName ?? null,
+      email: outlookEmail,
     });
 
     res.redirect(`/settings?connected=outlook`);

@@ -1,5 +1,17 @@
-import { db, userOAuthTokensTable } from "@workspace/db";
+import { db, userOAuthTokensTable, usersTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
+
+/**
+ * Ensure a user row exists in the local DB. Called before any operation that
+ * requires a users FK (e.g. saving OAuth tokens). Uses ON CONFLICT DO NOTHING
+ * so it's a no-op when the user already exists.
+ */
+export async function ensureUser(userId: string, data?: { email?: string | null }) {
+  await db
+    .insert(usersTable)
+    .values({ id: userId, email: data?.email ?? null })
+    .onConflictDoNothing();
+}
 
 export async function getOAuthToken(userId: string, provider: string) {
   const [row] = await db
