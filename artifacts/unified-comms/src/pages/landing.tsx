@@ -1,13 +1,21 @@
 import { Mail, Users, Search } from "lucide-react";
 import { useLocation } from "wouter";
+import { APP_NAME, APP_TAGLINE, FEATURE_LABELS, brand } from "@workspace/brand";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
-export const heroFeatures = [
-  { Icon: Mail, label: "Unified email inbox across all accounts" },
-  { Icon: Users, label: "Smart contact management" },
-  { Icon: Search, label: "Global message search" },
-];
+const FEATURE_ICONS = [Mail, Users, Search] as const;
+
+if (FEATURE_LABELS.length !== FEATURE_ICONS.length) {
+  throw new Error(
+    `@workspace/brand FEATURE_LABELS has ${FEATURE_LABELS.length} items but landing page defines ${FEATURE_ICONS.length} icons. Add/remove icons to match.`
+  );
+}
+
+export const heroFeatures = FEATURE_LABELS.map((label, i) => ({
+  Icon: FEATURE_ICONS[i],
+  label,
+}));
 
 export function AuthHeroPanel() {
   return (
@@ -17,8 +25,8 @@ export function AuthHeroPanel() {
           width: 72,
           height: 72,
           borderRadius: 20,
-          backgroundColor: "#3b82f6",
-          boxShadow: "0 8px 32px rgba(59,130,246,0.35)",
+          backgroundColor: brand.primary,
+          boxShadow: `0 8px 32px ${brand.primaryShadow}`,
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
@@ -27,7 +35,7 @@ export function AuthHeroPanel() {
       >
         <span
           style={{
-            color: "#ffffff",
+            color: brand.primaryForeground,
             fontSize: 24,
             fontWeight: 700,
             letterSpacing: -1,
@@ -41,7 +49,7 @@ export function AuthHeroPanel() {
       <div>
         <h1
           style={{
-            color: "#f1f5f9",
+            color: brand.dark.foreground,
             fontSize: 32,
             fontWeight: 700,
             letterSpacing: -0.5,
@@ -50,11 +58,11 @@ export function AuthHeroPanel() {
             margin: 0,
           }}
         >
-          PinnboxIO
+          {APP_NAME}
         </h1>
         <p
           style={{
-            color: "#94a3b8",
+            color: brand.dark.foregroundMuted,
             fontSize: 15,
             fontFamily: "Inter, system-ui, sans-serif",
             lineHeight: 1.6,
@@ -62,7 +70,7 @@ export function AuthHeroPanel() {
             marginBottom: 0,
           }}
         >
-          Your unified communications workspace — email, contacts, and messages in one place.
+          {APP_TAGLINE}
         </p>
       </div>
 
@@ -74,18 +82,18 @@ export function AuthHeroPanel() {
                 width: 36,
                 height: 36,
                 borderRadius: 10,
-                backgroundColor: "#1e3a5f",
+                backgroundColor: brand.dark.surfaceDeep,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 flexShrink: 0,
               }}
             >
-              <Icon size={16} color="#3b82f6" />
+              <Icon size={16} color={brand.primary} />
             </div>
             <span
               style={{
-                color: "#e2e8f0",
+                color: brand.dark.foregroundSubtle,
                 fontSize: 14,
                 fontFamily: "Inter, system-ui, sans-serif",
                 fontWeight: 500,
@@ -106,19 +114,19 @@ export default function LandingPage() {
   return (
     <div
       className="min-h-screen w-full flex items-center justify-center px-6 py-12"
-      style={{ backgroundColor: "#0f172a" }}
+      style={{ backgroundColor: brand.dark.background }}
     >
       <div className="w-full max-w-md flex flex-col items-center gap-8">
         <AuthHeroPanel />
 
-        <div style={{ height: 1, backgroundColor: "#1e293b", width: "100%" }} />
+        <div style={{ height: 1, backgroundColor: brand.dark.surface, width: "100%" }} />
 
         <button
           onClick={() => setLocation("/sign-in")}
           className="w-full"
           style={{
-            backgroundColor: "#3b82f6",
-            color: "#ffffff",
+            backgroundColor: brand.primary,
+            color: brand.primaryForeground,
             borderRadius: 14,
             paddingTop: 16,
             paddingBottom: 16,
@@ -128,16 +136,16 @@ export default function LandingPage() {
             letterSpacing: 0.2,
             border: "none",
             cursor: "pointer",
-            boxShadow: "0 4px 16px rgba(59,130,246,0.3)",
+            boxShadow: `0 4px 16px ${brand.primaryButtonShadow}`,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#2563eb";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = brand.primaryHover;
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "#3b82f6";
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = brand.primary;
           }}
         >
           Sign in
@@ -148,7 +156,7 @@ export default function LandingPage() {
           className="w-full"
           style={{
             backgroundColor: "transparent",
-            color: "#94a3b8",
+            color: brand.dark.foregroundMuted,
             borderRadius: 14,
             paddingTop: 14,
             paddingBottom: 14,
@@ -156,29 +164,36 @@ export default function LandingPage() {
             fontWeight: 500,
             fontFamily: "Inter, system-ui, sans-serif",
             letterSpacing: 0.1,
-            border: "1px solid #1e293b",
+            border: `1px solid ${brand.dark.border}`,
             cursor: "pointer",
             display: "flex",
             alignItems: "center",
             justifyContent: "center",
           }}
           onMouseEnter={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "#334155";
-            (e.currentTarget as HTMLButtonElement).style.color = "#e2e8f0";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = brand.dark.surface;
+            (e.currentTarget as HTMLButtonElement).style.color = brand.dark.foregroundSubtle;
           }}
           onMouseLeave={(e) => {
-            (e.currentTarget as HTMLButtonElement).style.borderColor = "#1e293b";
-            (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
+            (e.currentTarget as HTMLButtonElement).style.borderColor = brand.dark.border;
+            (e.currentTarget as HTMLButtonElement).style.color = brand.dark.foregroundMuted;
           }}
         >
           Create account
         </button>
 
-        <div className="flex flex-wrap justify-center gap-4 text-xs" style={{ color: "#64748b" }}>
-          <a href={`${basePath}/terms`} className="hover:text-slate-300 transition-colors">Terms</a>
-          <a href={`${basePath}/privacy`} className="hover:text-slate-300 transition-colors">Privacy</a>
-          <a href={`${basePath}/refunds`} className="hover:text-slate-300 transition-colors">Refunds</a>
-          <a href={`${basePath}/cookies`} className="hover:text-slate-300 transition-colors">Cookies</a>
+        <div className="flex flex-wrap justify-center gap-4 text-xs" style={{ color: brand.dark.footerText }}>
+          {(["Terms", "Privacy", "Refunds", "Cookies"] as const).map((label) => (
+            <a
+              key={label}
+              href={`${basePath}/${label.toLowerCase()}`}
+              style={{ color: brand.dark.footerText, textDecoration: "none", transition: "color 0.15s" }}
+              onMouseEnter={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = brand.dark.footerLinkHover; }}
+              onMouseLeave={(e) => { (e.currentTarget as HTMLAnchorElement).style.color = brand.dark.footerText; }}
+            >
+              {label}
+            </a>
+          ))}
         </div>
       </div>
     </div>

@@ -1,4 +1,5 @@
 import { useAuth } from "@/contexts/AuthContext";
+import { APP_NAME, LOGIN_TAGLINE } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
@@ -30,10 +31,8 @@ export default function LoginScreen() {
         <View style={styles.logoBox}>
           <Text style={styles.logoText}>PB</Text>
         </View>
-        <Text style={styles.appName}>PinnboxIO</Text>
-        <Text style={styles.tagline}>
-          Sign in to your unified{"\n"}communications hub
-        </Text>
+        <Text style={styles.appName}>{APP_NAME}</Text>
+        <Text style={styles.tagline}>{LOGIN_TAGLINE}</Text>
       </View>
 
       <View style={styles.card}>

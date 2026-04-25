@@ -1,73 +1,75 @@
+import { brand } from "@workspace/brand";
+
 const colors = {
   light: {
-    text: "#0f172a",
-    tint: "#2563eb",
+    text: brand.light.foreground,
+    tint: brand.primary,
 
-    background: "#ffffff",
-    foreground: "#0f172a",
+    background: brand.light.background,
+    foreground: brand.light.foreground,
 
-    card: "#f8fafc",
-    cardForeground: "#0f172a",
+    card: brand.light.card,
+    cardForeground: brand.light.cardForeground,
 
-    primary: "#2563eb",
-    primaryForeground: "#ffffff",
+    primary: brand.primary,
+    primaryForeground: brand.primaryForeground,
 
-    secondary: "#f1f5f9",
-    secondaryForeground: "#0f172a",
+    secondary: brand.light.secondary,
+    secondaryForeground: brand.light.secondaryForeground,
 
-    muted: "#f1f5f9",
-    mutedForeground: "#64748b",
+    muted: brand.light.muted,
+    mutedForeground: brand.light.mutedForeground,
 
-    accent: "#eff6ff",
-    accentForeground: "#1e40af",
+    accent: brand.light.accent,
+    accentForeground: brand.light.accentForeground,
 
-    destructive: "#ef4444",
-    destructiveForeground: "#ffffff",
+    destructive: brand.unread,
+    destructiveForeground: brand.primaryForeground,
 
-    border: "#e2e8f0",
-    input: "#e2e8f0",
+    border: brand.light.border,
+    input: brand.light.input,
 
-    success: "#22c55e",
-    successLight: "#f0fdf4",
+    success: brand.success,
+    successLight: brand.successLight,
 
-    emerald: "#10b981",
-    emeraldLight: "#ecfdf5",
+    emerald: brand.emerald,
+    emeraldLight: brand.emeraldLight,
 
-    amber: "#f59e0b",
-    amberLight: "#fffbeb",
+    amber: brand.amber,
+    amberLight: brand.amberLight,
 
-    unread: "#ef4444",
-    unreadLight: "#fef2f2",
+    unread: brand.unread,
+    unreadLight: brand.unreadLight,
   },
   dark: {
     text: "#f8fafc",
-    tint: "#60a5fa",
+    tint: brand.primary,
 
-    background: "#0f172a",
+    background: brand.dark.background,
     foreground: "#f8fafc",
 
     card: "#111827",
     cardForeground: "#f8fafc",
 
-    primary: "#60a5fa",
-    primaryForeground: "#0f172a",
+    primary: brand.primary,
+    primaryForeground: brand.dark.background,
 
-    secondary: "#1e293b",
+    secondary: brand.dark.surface,
     secondaryForeground: "#f8fafc",
 
-    muted: "#1e293b",
-    mutedForeground: "#94a3b8",
+    muted: brand.dark.surface,
+    mutedForeground: brand.dark.foregroundMuted,
 
     accent: "#1d4ed8",
     accentForeground: "#dbeafe",
 
     destructive: "#f87171",
-    destructiveForeground: "#0f172a",
+    destructiveForeground: brand.dark.background,
 
     border: "#334155",
     input: "#334155",
 
-    success: "#22c55e",
+    success: brand.success,
     successLight: "#052e16",
 
     emerald: "#34d399",
