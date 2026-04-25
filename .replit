@@ -40,3 +40,6 @@ EXPO_PUBLIC_REVENUECAT_TEST_API_KEY = "test_RwBWyvPgyNyhhGhlLwaCWTXMhFR"
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_xEeoLrNEKawMaZfbZUXDzQXxajL"
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_gxhrOzFIGYGpnTCqraejJuASwsF"
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_dGhhbmtmdWwtc3dpZnQtNDIuY2xlcmsuYWNjb3VudHMuZGV2JA"
+
+[userenv.production]
+PUBLIC_URL = "https://pinn-box-io.replit.app"

@@ -23,8 +23,14 @@ const OUTLOOK_SCOPES = [
 ];
 
 function getRedirectBase(req: any): string {
+  if (process.env.PUBLIC_URL) {
+    return process.env.PUBLIC_URL.replace(/\/$/, "");
+  }
   const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = req.headers["x-forwarded-host"] || req.headers.host;
+  // Strip any port from the host header (e.g. ":443" or ":8080") so the
+  // redirect URI is always clean and matches what's registered in Google / Microsoft.
+  const rawHost: string = req.headers["x-forwarded-host"] || req.headers.host || "";
+  const host = rawHost.replace(/:\d+$/, "");
   return `${proto}://${host}`;
 }
 
@@ -123,7 +129,8 @@ router.get("/auth/gmail/callback", async (req, res) => {
     });
 
     res.redirect(`/settings?connected=gmail`);
-  } catch {
+  } catch (err) {
+    console.error("[Gmail callback] unhandled error:", err);
     res.redirect(`/?error=gmail_callback_failed`);
   }
 });
