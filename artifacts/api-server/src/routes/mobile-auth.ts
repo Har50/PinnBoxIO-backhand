@@ -104,6 +104,17 @@ export async function getMobileSessionUser(token: string): Promise<string | null
   }
 }
 
+router.get("/login", (req: Request, res: Response) => {
+  const base = process.env.PUBLIC_URL?.replace(/\/$/, "") ?? "";
+  const returnTo = (req.query.returnTo as string) ?? "/";
+  res.redirect(`${base}/sign-in`);
+});
+
+router.get("/logout", (req: Request, res: Response) => {
+  const base = process.env.PUBLIC_URL?.replace(/\/$/, "") ?? "";
+  res.redirect(`${base}/sign-in`);
+});
+
 router.get("/mobile-auth/callback", (req: Request, res: Response) => {
   const { code, state, error } = req.query as Record<string, string>;
 

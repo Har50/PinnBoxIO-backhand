@@ -13,6 +13,7 @@ import {
 } from "@clerk/react";
 import { registerTokenGetter } from "@/lib/api-client";
 import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
 import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
 import RefundsAndCancellations from "@/pages/refunds";
@@ -175,6 +176,7 @@ function Router() {
       <Route path="/cookies" component={CookiePolicy} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
+      <Route path="/login" component={Login} />
       <Route>
         <Show when="signed-in">
           <Layout>
