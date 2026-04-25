@@ -17,6 +17,8 @@ const router: IRouter = Router();
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
 router.use(authOAuthRouter);
+// WhatsApp is a shared single-instance connection — status/events are server-wide
+router.use(whatsappRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   const auth = getAuth(req);
@@ -36,7 +38,6 @@ router.use(contactsRouter);
 router.use(searchRouter);
 router.use(statsRouter);
 router.use(aiRouter);
-router.use(whatsappRouter);
 router.use(linkedinRouter);
 router.use(storageRouter);
 

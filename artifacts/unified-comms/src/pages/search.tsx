@@ -8,6 +8,7 @@ import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
+import { apiFetch } from "@/lib/api-client";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -34,20 +35,16 @@ function useUnifiedSearch(q: string) {
     if (!enabled) { setData(null); setLimitReached(null); return; }
     let cancelled = false;
     setIsLoading(true);
-    fetch(`${BASE}/api/search?q=${encodeURIComponent(q)}&type=all`, { credentials: "include" })
-      .then(async (r) => {
-        if (r.status === 402) {
-          const body = await r.json();
-          if (!cancelled && body.code === "SEARCH_DAILY_LIMIT_REACHED") {
-            setLimitReached({ usedToday: body.usedToday ?? 3, limit: body.limit ?? 3 });
-            setData(null);
-          }
-          return;
-        }
-        const d = await r.json();
+    apiFetch<SearchResults>(`/api/search?q=${encodeURIComponent(q)}&type=all`)
+      .then((d) => {
         if (!cancelled) { setLimitReached(null); setData(d); }
       })
-      .catch(() => {})
+      .catch((err: any) => {
+        if (!cancelled && err?.status === 402 && err?.code === "SEARCH_DAILY_LIMIT_REACHED") {
+          setLimitReached({ usedToday: err?.usedToday ?? 3, limit: err?.limit ?? 3 });
+          setData(null);
+        }
+      })
       .finally(() => { if (!cancelled) setIsLoading(false); });
     return () => { cancelled = true; };
   }, [q, enabled]);

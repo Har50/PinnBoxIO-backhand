@@ -9,7 +9,9 @@ import {
   SignUp,
   Show,
   useClerk,
+  useAuth,
 } from "@clerk/react";
+import { registerTokenGetter } from "@/lib/api-client";
 import NotFound from "@/pages/not-found";
 import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
@@ -92,6 +94,17 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function ClerkApiTokenSync() {
+  const { getToken } = useAuth();
+  useEffect(() => {
+    registerTokenGetter(async () => {
+      try { return await getToken(); } catch { return null; }
+    });
+    return () => registerTokenGetter(null);
+  }, [getToken]);
+  return null;
+}
 
 function ClerkQueryClientCacheInvalidator() {
   const { addListener } = useClerk();
@@ -216,6 +229,7 @@ function ClerkProviderWithRoutes() {
       routerReplace={(to) => setLocation(stripBase(to), { replace: true })}
     >
       <QueryClientProvider client={queryClient}>
+        <ClerkApiTokenSync />
         <ClerkQueryClientCacheInvalidator />
         <TooltipProvider>
           <Router />

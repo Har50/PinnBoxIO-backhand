@@ -5,6 +5,7 @@ import {
   QrCode, Smartphone, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api-client";
 
 const WA_GREEN = "#25D366";
 const WA_DARK = "#128C7E";
@@ -30,20 +31,14 @@ type Message = {
 };
 
 async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`, { credentials: "include" });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
+  return apiFetch<T>(`/api${path}`);
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const res = await fetch(`/api${path}`, {
+  return apiFetch<T>(`/api${path}`, {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return res.json();
 }
 
 function formatTime(ts: number | null): string {

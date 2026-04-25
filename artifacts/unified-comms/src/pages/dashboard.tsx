@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useState } from "react";
+import { apiFetch } from "@/lib/api-client";
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 export default function Dashboard() {
@@ -28,8 +29,7 @@ export default function Dashboard() {
     setSyncing(true);
     setSyncResult(null);
     try {
-      const res = await fetch(`${BASE}/api/contacts/sync`, { method: "POST" });
-      const data = await res.json();
+      const data = await apiFetch<{ added: number }>(`/api/contacts/sync`, { method: "POST" });
       setSyncResult(`Added ${data.added} new contact${data.added !== 1 ? "s" : ""}`);
       await Promise.all([refetchContacts(), refetchStats()]);
     } catch {

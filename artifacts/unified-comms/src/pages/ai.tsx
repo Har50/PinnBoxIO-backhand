@@ -5,6 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getAuthHeaders } from "@/lib/api-client";
 
 type Provider = "openai" | "claude" | "gemini";
 
@@ -28,11 +29,13 @@ interface Conversation {
 }
 
 async function apiFetch(path: string, options?: RequestInit) {
+  const authHeaders = await getAuthHeaders();
   return fetch(`/api${path}`, {
     credentials: "include",
     ...options,
     headers: {
       "Content-Type": "application/json",
+      ...authHeaders,
       ...(options?.headers || {}),
     },
   });
@@ -129,10 +132,8 @@ function AiChat() {
 
     let assistantContent = "";
     try {
-      const res = await fetch(`/api/ai/conversations/${convId}/messages`, {
+      const res = await apiFetch(`/ai/conversations/${convId}/messages`, {
         method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ content: userMsg, provider }),
       });
 

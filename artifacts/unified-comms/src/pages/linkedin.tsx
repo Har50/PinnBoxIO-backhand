@@ -6,6 +6,7 @@ import {
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
 import { useLocation } from "wouter";
+import { apiFetch } from "@/lib/api-client";
 
 const LI_BLUE = "#0A66C2";
 
@@ -42,28 +43,14 @@ interface Message {
 }
 
 async function apiGet<T>(path: string): Promise<T> {
-  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-  const res = await fetch(`${base}/api${path}`, { credentials: "include" });
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(body?.error ?? `HTTP ${res.status}`), { status: res.status, code: body?.error });
-  }
-  return res.json();
+  return apiFetch<T>(`/api${path}`);
 }
 
 async function apiPost<T>(path: string, body: unknown): Promise<T> {
-  const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-  const res = await fetch(`${base}/api${path}`, {
+  return apiFetch<T>(`/api${path}`, {
     method: "POST",
-    credentials: "include",
-    headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
-  if (!res.ok) {
-    const b = await res.json().catch(() => ({}));
-    throw Object.assign(new Error(b?.error ?? `HTTP ${res.status}`), { status: res.status, code: b?.error });
-  }
-  return res.json();
 }
 
 function Avatar({ src, name, size = 40 }: { src: string | null; name: string; size?: number }) {

@@ -8,11 +8,17 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
+import { getAuthHeaders } from "@/lib/api-client";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
-  const res = await fetch(`${BASE}/api${path}`, { credentials: "include", ...opts });
+  const authHeaders = await getAuthHeaders();
+  const res = await fetch(`${BASE}/api${path}`, {
+    credentials: "include",
+    ...opts,
+    headers: { ...authHeaders, ...(opts.headers as Record<string, string> || {}) },
+  });
   if (!res.ok) {
     const b = await res.json().catch(() => ({}));
     throw new Error(b?.error ?? `HTTP ${res.status}`);
@@ -119,10 +125,11 @@ function AiPanel({
     setMessages((prev) => [...prev, assistantMsg]);
 
     try {
+      const authHeaders = await getAuthHeaders();
       const convRes = await fetch(`${BASE}/api/ai/conversations`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ title: selectedFiles.length > 0 ? `Drive: ${selectedFiles[0].name}` : "Drive AI" }),
       });
       const convData = await convRes.json();
@@ -131,7 +138,7 @@ function AiPanel({
       const msgRes = await fetch(`${BASE}/api/ai/conversations/${convId}/messages`, {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ content: context, provider: "openai" }),
       });
 

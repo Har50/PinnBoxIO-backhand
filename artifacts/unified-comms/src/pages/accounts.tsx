@@ -1,4 +1,5 @@
 import { useGetAccounts, useDeleteAccount, useCreateAccount } from "@workspace/api-client-react";
+import { apiFetch } from "@/lib/api-client";
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -78,8 +79,7 @@ export default function Accounts() {
   const [disconnecting, setDisconnecting] = useState<"gmail" | "outlook" | null>(null);
 
   useEffect(() => {
-    fetch(`${BASE}/api/accounts/connected`, { credentials: "include" })
-      .then((r) => r.json())
+    apiFetch<{ gmail: boolean; outlook: boolean }>("/api/accounts/connected")
       .then(setOauthStatus)
       .catch(() => {});
   }, []);
@@ -103,7 +103,7 @@ export default function Accounts() {
   async function handleDisconnect(provider: "gmail" | "outlook") {
     setDisconnecting(provider);
     try {
-      await fetch(`${BASE}/api/auth/${provider}/disconnect`, { method: "DELETE", credentials: "include" });
+      await apiFetch(`/api/auth/${provider}/disconnect`, { method: "DELETE" });
       setOauthStatus((prev) => prev ? { ...prev, [provider]: false } : null);
       toast({ title: `${provider === "gmail" ? "Gmail" : "Outlook"} disconnected` });
       refetch();
