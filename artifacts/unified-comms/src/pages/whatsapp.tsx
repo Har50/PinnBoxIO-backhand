@@ -319,6 +319,14 @@ export default function WhatsApp() {
     return () => clearInterval(interval);
   }, [pollStatus, status]);
 
+  // When connected, periodically refresh chats so they populate even if SSE events were missed
+  useEffect(() => {
+    if (status !== "connected") return;
+    loadChats();
+    const interval = setInterval(loadChats, 5000);
+    return () => clearInterval(interval);
+  }, [status, loadChats]);
+
   useEffect(() => {
     const es = new EventSource("/api/whatsapp/events", { withCredentials: true });
     sseRef.current = es;

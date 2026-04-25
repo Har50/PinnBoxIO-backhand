@@ -11,6 +11,7 @@ import whatsappRouter from "./whatsapp";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 import storageRouter from "./storage";
 import authOAuthRouter from "./auth-oauth";
+import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import { ensureUser } from "../services/tokenManager";
 
 const router: IRouter = Router();
@@ -22,26 +23,48 @@ const seenUsers = new Set<string>();
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
 router.use(authOAuthRouter);
+router.use(mobileAuthRouter);
 // WhatsApp is a shared single-instance connection — status/events are server-wide
 router.use(whatsappRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
+  // First try Clerk (web app)
   const auth = getAuth(req);
-  const userId = auth?.userId;
-  if (!userId) {
+  const clerkUserId = auth?.userId;
+
+  if (clerkUserId) {
+    (req as any).userId = clerkUserId;
+    if (!seenUsers.has(clerkUserId)) {
+      seenUsers.add(clerkUserId);
+      ensureUser(clerkUserId).catch(() => {});
+    }
+    next();
+    return;
+  }
+
+  // Fall back to mobile session token
+  const authHeader = req.headers.authorization;
+  const bearerToken = authHeader?.replace(/^Bearer\s+/i, "");
+
+  if (!bearerToken) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
-  (req as any).userId = userId;
 
-  // Lazily create the user row on first request — fire-and-forget, does not
-  // block the request and is a no-op (ON CONFLICT DO NOTHING) for known users.
-  if (!seenUsers.has(userId)) {
-    seenUsers.add(userId);
-    ensureUser(userId).catch(() => {});
-  }
-
-  next();
+  getMobileSessionUser(bearerToken).then((userId) => {
+    if (!userId) {
+      res.status(401).json({ error: "Unauthorized" });
+      return;
+    }
+    (req as any).userId = userId;
+    if (!seenUsers.has(userId)) {
+      seenUsers.add(userId);
+      ensureUser(userId).catch(() => {});
+    }
+    next();
+  }).catch(() => {
+    res.status(401).json({ error: "Unauthorized" });
+  });
 }
 
 router.use(requireAuth);

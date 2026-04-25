@@ -43,3 +43,17 @@ export const userOAuthTokensTable = pgTable("user_oauth_tokens", {
 });
 
 export type UserOAuthToken = typeof userOAuthTokensTable.$inferSelect;
+
+export const mobileSessionsTable = pgTable(
+  "mobile_sessions",
+  {
+    id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+    token: varchar("token", { length: 128 }).notNull().unique(),
+    userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }),
+  },
+  (table) => [index("IDX_mobile_sessions_token").on(table.token)],
+);
+
+export type MobileSession = typeof mobileSessionsTable.$inferSelect;
