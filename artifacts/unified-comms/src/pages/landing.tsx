@@ -143,6 +143,37 @@ export default function LandingPage() {
           Sign in
         </button>
 
+        <button
+          onClick={() => setLocation("/sign-up")}
+          className="w-full"
+          style={{
+            backgroundColor: "transparent",
+            color: "#94a3b8",
+            borderRadius: 14,
+            paddingTop: 14,
+            paddingBottom: 14,
+            fontSize: 15,
+            fontWeight: 500,
+            fontFamily: "Inter, system-ui, sans-serif",
+            letterSpacing: 0.1,
+            border: "1px solid #1e293b",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "#334155";
+            (e.currentTarget as HTMLButtonElement).style.color = "#e2e8f0";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.borderColor = "#1e293b";
+            (e.currentTarget as HTMLButtonElement).style.color = "#94a3b8";
+          }}
+        >
+          Create account
+        </button>
+
         <div className="flex flex-wrap justify-center gap-4 text-xs" style={{ color: "#64748b" }}>
           <a href={`${basePath}/terms`} className="hover:text-slate-300 transition-colors">Terms</a>
           <a href={`${basePath}/privacy`} className="hover:text-slate-300 transition-colors">Privacy</a>
