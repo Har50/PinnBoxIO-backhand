@@ -186,8 +186,12 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function AuthPageShell({ children }: { children: React.ReactNode }) {
+  const isDark = useDarkMode();
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8">
+    <div
+      className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8"
+      style={isDark ? { backgroundColor: brand.dark.background } : undefined}
+    >
       <div className="w-full max-w-[440px] mb-4">
         <a
           href={basePath || "/"}
