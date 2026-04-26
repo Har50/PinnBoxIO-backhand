@@ -5,7 +5,7 @@ import { TEST_USER_EMAIL } from "./global-setup";
 /**
  * Protected-routes end-to-end tests for PinnboxIO (unified-comms web app).
  *
- * These tests cover two scenarios for each protected route (/inbox, /contacts, /accounts):
+ * These tests cover two scenarios for each protected route:
  *  1. Unauthenticated visitors are redirected to /sign-in.
  *  2. Authenticated users can reach the route without being redirected to /sign-in.
  *
@@ -15,7 +15,17 @@ import { TEST_USER_EMAIL } from "./global-setup";
 
 const BASE = process.env.BASE_PATH?.replace(/\/$/, "") ?? "";
 
-const PROTECTED_ROUTES = ["/inbox", "/contacts", "/accounts"] as const;
+const PROTECTED_ROUTES = [
+  "/inbox",
+  "/contacts",
+  "/accounts",
+  "/search",
+  "/whatsapp",
+  "/linkedin",
+  "/ai",
+  "/storage",
+  "/settings",
+] as const;
 
 test.describe("Protected routes — unauthenticated access", () => {
   for (const route of PROTECTED_ROUTES) {
