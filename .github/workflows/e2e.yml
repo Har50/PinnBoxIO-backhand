@@ -50,8 +50,22 @@ jobs:
           fi
           echo "Clerk secrets are present — authenticated tests will run."
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
       - name: Install Playwright Chromium browser
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @workspace/unified-comms exec playwright install chromium --with-deps
+
+      - name: Install Playwright system dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @workspace/unified-comms exec playwright install-deps chromium
 
       - name: Run E2E tests
         run: pnpm --filter @workspace/unified-comms run test:e2e
