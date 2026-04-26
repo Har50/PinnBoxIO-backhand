@@ -2,6 +2,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { APP_NAME } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
+import {
+  InboxIllustration,
+  SearchIllustration,
+  AIIllustration,
+  FreeIllustration,
+} from "@/components/OnboardingIllustrations";
 import { router } from "expo-router";
 import {
   ActivityIndicator,
@@ -20,36 +26,28 @@ const c = colors.light;
 
 const SLIDES = [
   {
-    icon: "inbox" as const,
+    illustration: <InboxIllustration primary={c.primary} />,
     title: "All your inboxes, one place",
     description:
       "Connect Gmail, Outlook, WhatsApp, LinkedIn and more — read and reply from a single unified feed.",
-    iconBg: `${c.primary}18`,
-    iconColor: c.primary,
   },
   {
-    icon: "search" as const,
+    illustration: <SearchIllustration emerald={c.emerald} />,
     title: "Unified search",
     description:
       "Find any message across every connected channel in seconds, no matter where it was sent.",
-    iconBg: `${c.emerald}22`,
-    iconColor: c.emerald,
   },
   {
-    icon: "cpu" as const,
+    illustration: <AIIllustration amber={c.amber} />,
     title: "AI-powered replies",
     description:
       "Let the built-in AI draft replies and summarise long threads so you can focus on what matters.",
-    iconBg: `${c.amber}22`,
-    iconColor: c.amber,
   },
   {
-    icon: "star" as const,
+    illustration: <FreeIllustration primary={c.primary} />,
     title: "Free from day one",
     description:
       "Every feature unlocked the moment you sign up — no credit card, no hidden fees.",
-    iconBg: `${c.primary}18`,
-    iconColor: c.primary,
   },
 ];
 
@@ -134,8 +132,8 @@ export default function SignUpScreen() {
       >
         {SLIDES.map((slide, i) => (
           <View key={i} style={[styles.slide, { width: SCREEN_WIDTH }]}>
-            <View style={[styles.slideIconBox, { backgroundColor: slide.iconBg }]}>
-              <Feather name={slide.icon} size={40} color={slide.iconColor} />
+            <View style={styles.slideIllustrationBox}>
+              {slide.illustration}
             </View>
             <Text style={styles.slideTitle}>{slide.title}</Text>
             <Text style={styles.slideDescription}>{slide.description}</Text>
@@ -270,10 +268,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 36,
     gap: 16,
   },
-  slideIconBox: {
-    width: 96,
-    height: 96,
-    borderRadius: 28,
+  slideIllustrationBox: {
+    width: 140,
+    height: 140,
     alignItems: "center",
     justifyContent: "center",
     marginBottom: 8,
