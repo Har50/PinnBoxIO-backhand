@@ -10,44 +10,63 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useState } from "react";
-
+import { useRef, useState } from "react";
 
 const c = colors.light;
 
-const FEATURES = [
+const SLIDES = [
   {
     icon: "inbox" as const,
     title: "All your inboxes, one place",
-    description: "Connect Gmail, Outlook, WhatsApp, LinkedIn and more — read and reply from a single feed.",
+    description:
+      "Connect Gmail, Outlook, WhatsApp, LinkedIn and more — read and reply from a single unified feed.",
+    iconBg: `${c.primary}18`,
+    iconColor: c.primary,
   },
   {
     icon: "search" as const,
     title: "Unified search",
-    description: "Find any message across every connected channel in seconds.",
+    description:
+      "Find any message across every connected channel in seconds, no matter where it was sent.",
+    iconBg: `${c.emerald}22`,
+    iconColor: c.emerald,
   },
   {
     icon: "cpu" as const,
     title: "AI-powered replies",
-    description: "Let the built-in AI draft replies and summarise long threads so you can focus on what matters.",
+    description:
+      "Let the built-in AI draft replies and summarise long threads so you can focus on what matters.",
+    iconBg: `${c.amber}22`,
+    iconColor: c.amber,
   },
   {
-    icon: "hard-drive" as const,
-    title: "Cloud storage, built in",
-    description: "Attach and access files across your communications without switching apps.",
+    icon: "star" as const,
+    title: "Free from day one",
+    description:
+      "Every feature unlocked the moment you sign up — no credit card, no hidden fees.",
+    iconBg: `${c.primary}18`,
+    iconColor: c.primary,
   },
 ];
+
+const TOTAL = SLIDES.length;
 
 export default function SignUpScreen() {
   const { signUp, signInError } = useAuth();
   const insets = useSafeAreaInsets();
+  const { width: SCREEN_WIDTH } = useWindowDimensions();
   const [isLoading, setIsLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(0);
+  const scrollRef = useRef<ScrollView>(null);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const isFinal = activeIndex === TOTAL - 1;
 
   async function handleContinue() {
     setIsLoading(true);
@@ -66,6 +85,25 @@ export default function SignUpScreen() {
     }
   }
 
+  function goToSlide(index: number) {
+    scrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
+    setActiveIndex(index);
+  }
+
+  function handleNext() {
+    if (activeIndex < TOTAL - 1) {
+      goToSlide(activeIndex + 1);
+    }
+  }
+
+  function handleScroll(event: { nativeEvent: { contentOffset: { x: number } } }) {
+    const offsetX = event.nativeEvent.contentOffset.x;
+    const index = Math.round(offsetX / SCREEN_WIDTH);
+    if (index !== activeIndex && index >= 0 && index < TOTAL) {
+      setActiveIndex(index);
+    }
+  }
+
   return (
     <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad + 16 }]}>
       <View style={[styles.header, { paddingTop: 8 }]}>
@@ -76,34 +114,46 @@ export default function SignUpScreen() {
         <View style={styles.backButton} />
       </View>
 
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.heroSection}>
-          <View style={styles.logoBox}>
-            <Text style={styles.logoText}>PB</Text>
-          </View>
-          <Text style={styles.heroTitle}>Welcome to {APP_NAME}</Text>
-          <Text style={styles.heroSubtitle}>
-            Your free account gives you access to all of these features from day one.
-          </Text>
+      <View style={styles.heroSection}>
+        <View style={styles.logoBox}>
+          <Text style={styles.logoText}>PB</Text>
         </View>
+        <Text style={styles.heroTitle}>Welcome to {APP_NAME}</Text>
+      </View>
 
-        <View style={styles.featureList}>
-          {FEATURES.map((feature) => (
-            <View key={feature.icon} style={styles.featureRow}>
-              <View style={styles.featureIconBox}>
-                <Feather name={feature.icon} size={18} color={c.primary} />
-              </View>
-              <View style={styles.featureText}>
-                <Text style={styles.featureTitle}>{feature.title}</Text>
-                <Text style={styles.featureDescription}>{feature.description}</Text>
-              </View>
+      <ScrollView
+        ref={scrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        onMomentumScrollEnd={handleScroll}
+        scrollEventThrottle={16}
+        style={styles.carousel}
+        contentContainerStyle={styles.carouselContent}
+        testID="signup-carousel"
+      >
+        {SLIDES.map((slide, i) => (
+          <View key={i} style={[styles.slide, { width: SCREEN_WIDTH }]}>
+            <View style={[styles.slideIconBox, { backgroundColor: slide.iconBg }]}>
+              <Feather name={slide.icon} size={40} color={slide.iconColor} />
             </View>
-          ))}
-        </View>
+            <Text style={styles.slideTitle}>{slide.title}</Text>
+            <Text style={styles.slideDescription}>{slide.description}</Text>
+          </View>
+        ))}
       </ScrollView>
+
+      <View style={styles.dotsRow}>
+        {SLIDES.map((_, i) => (
+          <Pressable
+            key={i}
+            onPress={() => goToSlide(i)}
+            style={[styles.dot, i === activeIndex && styles.dotActive]}
+            testID={`signup-dot-${i}`}
+            accessibilityLabel={`Go to slide ${i + 1}`}
+          />
+        ))}
+      </View>
 
       <View style={styles.footer}>
         {signInError ? (
@@ -112,21 +162,34 @@ export default function SignUpScreen() {
             <Text style={styles.errorText}>{signInError}</Text>
           </View>
         ) : null}
-        <Pressable
-          style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
-          onPress={handleContinue}
-          disabled={isLoading}
-          testID="signup-continue-button"
-        >
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
-          ) : (
-            <>
-              <Feather name="user-plus" size={18} color="#ffffff" />
-              <Text style={styles.continueButtonText}>Create my free account</Text>
-            </>
-          )}
-        </Pressable>
+
+        {isFinal ? (
+          <Pressable
+            style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+            onPress={handleContinue}
+            disabled={isLoading}
+            testID="signup-continue-button"
+          >
+            {isLoading ? (
+              <ActivityIndicator color="#ffffff" size="small" />
+            ) : (
+              <>
+                <Feather name="user-plus" size={18} color="#ffffff" />
+                <Text style={styles.continueButtonText}>Create my free account</Text>
+              </>
+            )}
+          </Pressable>
+        ) : (
+          <Pressable
+            style={styles.nextButton}
+            onPress={handleNext}
+            testID="signup-next-button"
+          >
+            <Text style={styles.nextButtonText}>Next</Text>
+            <Feather name="arrow-right" size={16} color={c.primary} />
+          </Pressable>
+        )}
+
         <Text style={styles.footerNote}>
           By continuing you agree to our{" "}
           <Text style={styles.footerLink}>Terms</Text> and{" "}
@@ -162,24 +225,19 @@ const styles = StyleSheet.create({
     color: c.foreground,
     letterSpacing: -0.2,
   },
-  scrollContent: {
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
   heroSection: {
     alignItems: "center",
-    gap: 12,
-    paddingVertical: 24,
+    gap: 10,
+    paddingTop: 12,
+    paddingBottom: 8,
   },
   logoBox: {
-    width: 64,
-    height: 64,
-    borderRadius: 16,
+    width: 56,
+    height: 56,
+    borderRadius: 14,
     backgroundColor: c.primary,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 4,
     shadowColor: c.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
@@ -188,68 +246,68 @@ const styles = StyleSheet.create({
   },
   logoText: {
     color: c.primaryForeground,
-    fontSize: 22,
+    fontSize: 20,
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.5,
   },
   heroTitle: {
+    fontSize: 20,
+    fontFamily: "Inter_700Bold",
+    color: c.foreground,
+    letterSpacing: -0.4,
+    textAlign: "center",
+  },
+  carousel: {
+    flex: 1,
+  },
+  carouselContent: {
+    alignItems: "center",
+  },
+  slide: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 36,
+    gap: 16,
+  },
+  slideIconBox: {
+    width: 96,
+    height: 96,
+    borderRadius: 28,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 8,
+  },
+  slideTitle: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
     color: c.foreground,
     letterSpacing: -0.4,
     textAlign: "center",
   },
-  heroSubtitle: {
-    fontSize: 14,
+  slideDescription: {
+    fontSize: 15,
     fontFamily: "Inter_400Regular",
     color: c.mutedForeground,
     textAlign: "center",
-    lineHeight: 20,
-    paddingHorizontal: 8,
+    lineHeight: 22,
   },
-  featureList: {
-    gap: 12,
-    paddingBottom: 8,
-  },
-  featureRow: {
+  dotsRow: {
     flexDirection: "row",
-    alignItems: "flex-start",
-    gap: 14,
-    backgroundColor: "#ffffff",
-    borderRadius: 14,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: c.border,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  featureIconBox: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    backgroundColor: `${c.primary}15`,
-    alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
+    alignItems: "center",
+    gap: 8,
+    paddingVertical: 16,
   },
-  featureText: {
-    flex: 1,
-    gap: 3,
+  dot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: c.border,
   },
-  featureTitle: {
-    fontSize: 14,
-    fontFamily: "Inter_600SemiBold",
-    color: c.foreground,
-    letterSpacing: -0.1,
-  },
-  featureDescription: {
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: c.mutedForeground,
-    lineHeight: 18,
+  dotActive: {
+    width: 22,
+    backgroundColor: c.primary,
   },
   footer: {
     paddingHorizontal: 24,
@@ -272,6 +330,22 @@ const styles = StyleSheet.create({
   },
   continueButtonText: {
     color: "#ffffff",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.1,
+  },
+  nextButton: {
+    borderRadius: 12,
+    paddingVertical: 15,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: c.primary,
+  },
+  nextButtonText: {
+    color: c.primary,
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.1,
