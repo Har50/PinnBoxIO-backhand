@@ -134,6 +134,14 @@ function ClerkQueryClientCacheInvalidator() {
 function AuthPageShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8">
+      <div className="w-full max-w-[440px] mb-4">
+        <a
+          href={basePath || "/"}
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          ← Back to PinnboxIO
+        </a>
+      </div>
       {children}
       <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
         <a href={`${basePath}/terms`} className="hover:text-foreground transition-colors">Terms</a>
