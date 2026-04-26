@@ -21,6 +21,7 @@ import RefundsAndCancellations from "@/pages/refunds";
 import CookiePolicy from "@/pages/cookies";
 import { Redirect } from "wouter";
 import { Layout } from "./components/layout";
+import { Spinner } from "@/components/ui/spinner";
 import LandingPage from "./pages/landing";
 import Dashboard from "./pages/dashboard";
 import Inbox from "./pages/inbox";
@@ -242,7 +243,9 @@ function Router() {
       <Route path="/login" component={Login} />
       <Route path="/">
         <Show when="loading">
-          <div className="min-h-screen bg-background" />
+          <div className="min-h-screen bg-background flex items-center justify-center">
+            <Spinner className="size-8 text-primary" />
+          </div>
         </Show>
         <Show when="signed-out">
           <LandingPage />
@@ -255,7 +258,9 @@ function Router() {
       </Route>
       <Route>
         <Show when="loading">
-          <div className="min-h-screen bg-background" />
+          <div className="min-h-screen bg-background flex items-center justify-center">
+            <Spinner className="size-8 text-primary" />
+          </div>
         </Show>
         <Show when="signed-in">
           <Layout>
