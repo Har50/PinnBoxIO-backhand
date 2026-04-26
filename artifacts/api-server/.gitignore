@@ -2,3 +2,4 @@
 # WhatsApp transient runtime state
 wa-auth/creds.json
 wa-auth/session-*.json
+wa-auth/pre-key-*.json
