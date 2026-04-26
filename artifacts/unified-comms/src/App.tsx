@@ -187,25 +187,28 @@ function ClerkQueryClientCacheInvalidator() {
 
 function AuthPageShell({ children }: { children: React.ReactNode }) {
   const isDark = useDarkMode();
+  const shellStyle = isDark
+    ? { backgroundColor: brand.dark.background, color: brand.dark.foreground }
+    : undefined;
   return (
     <div
       className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8"
-      style={isDark ? { backgroundColor: brand.dark.background } : undefined}
+      style={shellStyle}
     >
       <div className="w-full max-w-[440px] mb-4">
         <a
           href={basePath || "/"}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+          className="inline-flex items-center gap-1 text-sm auth-muted-link transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           ← Back to PinnboxIO
         </a>
       </div>
       {children}
-      <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
-        <a href={`${basePath}/terms`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Terms</a>
-        <a href={`${basePath}/privacy`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Privacy</a>
-        <a href={`${basePath}/refunds`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Refunds</a>
-        <a href={`${basePath}/cookies`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Cookies</a>
+      <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs">
+        <a href={`${basePath}/terms`} className="auth-muted-link transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Terms</a>
+        <a href={`${basePath}/privacy`} className="auth-muted-link transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Privacy</a>
+        <a href={`${basePath}/refunds`} className="auth-muted-link transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Refunds</a>
+        <a href={`${basePath}/cookies`} className="auth-muted-link transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Cookies</a>
       </div>
     </div>
   );
@@ -333,17 +336,27 @@ function ClerkProviderWithRoutes() {
 }
 
 function BrandCssVars() {
+  const isDark = useDarkMode();
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--brand-primary", brand.primary);
     root.style.setProperty("--brand-primary-hover", brand.primaryHover);
     root.style.setProperty("--brand-primary-foreground", brand.primaryForeground);
-    root.style.setProperty("--brand-border", brand.light.border);
-    root.style.setProperty("--brand-background", brand.light.background);
-    root.style.setProperty("--brand-muted", brand.light.muted);
-    root.style.setProperty("--brand-foreground", brand.light.foreground);
     root.style.setProperty("--brand-success", brand.success);
-  }, []);
+    if (isDark) {
+      root.style.setProperty("--brand-border", brand.dark.border);
+      root.style.setProperty("--brand-background", brand.dark.background);
+      root.style.setProperty("--brand-muted", brand.dark.surface);
+      root.style.setProperty("--brand-foreground", brand.dark.foreground);
+      root.style.setProperty("--brand-foreground-muted", brand.dark.foregroundMuted);
+    } else {
+      root.style.setProperty("--brand-border", brand.light.border);
+      root.style.setProperty("--brand-background", brand.light.background);
+      root.style.setProperty("--brand-muted", brand.light.muted);
+      root.style.setProperty("--brand-foreground", brand.light.foreground);
+      root.style.setProperty("--brand-foreground-muted", brand.light.mutedForeground);
+    }
+  }, [isDark]);
   return null;
 }
 
