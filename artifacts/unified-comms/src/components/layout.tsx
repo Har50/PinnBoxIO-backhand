@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun, SlidersHorizontal } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -54,6 +54,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/whatsapp", label: "WhatsApp", icon: MessageCircle },
     { href: "/linkedin", label: "LinkedIn", icon: Linkedin },
     { href: "/accounts", label: "Accounts", icon: Settings },
+    { href: "/settings", label: "Settings", icon: SlidersHorizontal },
   ];
 
   function handlePersonClick(contact: { email: string; name: string }) {
