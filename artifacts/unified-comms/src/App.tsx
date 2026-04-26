@@ -12,6 +12,7 @@ import {
   useAuth,
 } from "@clerk/react";
 import { registerTokenGetter } from "@/lib/api-client";
+import { brand } from "@workspace/brand";
 import NotFound from "@/pages/not-found";
 import Login from "@/pages/login";
 import PrivacyPolicy from "@/pages/privacy";
@@ -49,14 +50,14 @@ const clerkAppearance = {
     logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
   },
   variables: {
-    colorPrimary: "hsl(217 91% 60%)",
-    colorForeground: "hsl(222 47% 11%)",
-    colorMutedForeground: "hsl(215 16% 47%)",
-    colorDanger: "hsl(0 72% 51%)",
-    colorBackground: "hsl(210 40% 98%)",
-    colorInput: "hsl(0 0% 100%)",
-    colorInputForeground: "hsl(222 47% 11%)",
-    colorNeutral: "hsl(214 32% 91%)",
+    colorPrimary: brand.primary,
+    colorForeground: brand.light.foreground,
+    colorMutedForeground: brand.light.mutedForeground,
+    colorDanger: brand.error.foreground,
+    colorBackground: brand.light.card,
+    colorInput: brand.light.background,
+    colorInputForeground: brand.light.foreground,
+    colorNeutral: brand.light.border,
     fontFamily: "Inter, system-ui, sans-serif",
     borderRadius: "0.75rem",
   },
