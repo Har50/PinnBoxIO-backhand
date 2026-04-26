@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -42,81 +42,105 @@ function stripBase(path: string): string {
     : path;
 }
 
-const clerkAppearance = {
-  cssLayerName: "clerk",
-  options: {
-    logoPlacement: "inside" as const,
-    logoLinkUrl: basePath || "/",
-    logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
-  },
-  variables: {
-    colorPrimary: brand.primary,
-    colorForeground: brand.light.foreground,
-    colorMutedForeground: brand.light.mutedForeground,
-    colorDanger: brand.error.foreground,
-    colorBackground: brand.light.card,
-    colorInput: brand.light.background,
-    colorInputForeground: brand.light.foreground,
-    colorNeutral: brand.light.border,
-    fontFamily: "Inter, system-ui, sans-serif",
-    borderRadius: "0.75rem",
-  },
-  elements: {
-    rootBox: "flex justify-center w-full",
-    cardBox: {
-      className: "rounded-2xl w-[440px] max-w-full overflow-hidden shadow-lg",
-      style: { backgroundColor: brand.light.background },
+function useDarkMode(): boolean {
+  const mq =
+    typeof window !== "undefined" && typeof window.matchMedia === "function"
+      ? window.matchMedia("(prefers-color-scheme: dark)")
+      : null;
+  const [isDark, setIsDark] = useState<boolean>(mq?.matches ?? false);
+  useEffect(() => {
+    if (!mq) return;
+    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  return isDark;
+}
+
+function buildClerkAppearance(isDark: boolean) {
+  const bg = isDark ? brand.dark.background : brand.light.background;
+  const surface = isDark ? brand.dark.surface : brand.light.card;
+  const fg = isDark ? brand.dark.foreground : brand.light.foreground;
+  const mutedFg = isDark ? brand.dark.foregroundMuted : brand.light.mutedForeground;
+  const border = isDark ? brand.dark.border : brand.light.border;
+  const muted = isDark ? brand.dark.surface : brand.light.muted;
+
+  return {
+    cssLayerName: "clerk",
+    options: {
+      logoPlacement: "inside" as const,
+      logoLinkUrl: basePath || "/",
+      logoImageUrl: `${window.location.origin}${basePath}/logo.svg`,
     },
-    card: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "font-bold",
-    socialButtonsBlockButtonText: "font-medium",
-    formFieldLabel: "font-medium",
-    footerActionLink: "font-medium",
-    formFieldSuccessText: { style: { color: brand.success } },
-    logoBox: "flex items-center justify-center py-2",
-    logoImage: "h-12 w-12",
-    socialButtonsBlockButton: {
-      className: "border",
-      style: {
-        borderColor: brand.light.border,
-        backgroundColor: brand.light.background,
+    variables: {
+      colorPrimary: brand.primary,
+      colorForeground: fg,
+      colorMutedForeground: mutedFg,
+      colorDanger: brand.error.foreground,
+      colorBackground: surface,
+      colorInput: bg,
+      colorInputForeground: fg,
+      colorNeutral: border,
+      fontFamily: "Inter, system-ui, sans-serif",
+      borderRadius: "0.75rem",
+    },
+    elements: {
+      rootBox: "flex justify-center w-full",
+      cardBox: {
+        className: "rounded-2xl w-[440px] max-w-full overflow-hidden shadow-lg",
+        style: { backgroundColor: bg },
+      },
+      card: "!shadow-none !border-0 !bg-transparent !rounded-none",
+      footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
+      headerTitle: "font-bold",
+      socialButtonsBlockButtonText: "font-medium",
+      formFieldLabel: "font-medium",
+      footerActionLink: "font-medium",
+      formFieldSuccessText: { style: { color: brand.success } },
+      logoBox: "flex items-center justify-center py-2",
+      logoImage: "h-12 w-12",
+      socialButtonsBlockButton: {
+        className: "border",
+        style: {
+          borderColor: border,
+          backgroundColor: bg,
+        },
+      },
+      formButtonPrimary: { className: "clerk-btn-primary" },
+      formFieldInput: {
+        className: "border",
+        style: {
+          borderColor: border,
+          backgroundColor: bg,
+          color: fg,
+        },
+      },
+      footerAction: {
+        className: "border-t",
+        style: {
+          borderColor: border,
+          backgroundColor: muted,
+        },
+      },
+      dividerLine: { style: { backgroundColor: border } },
+      alert: {
+        className: "border",
+        style: {
+          borderColor: border,
+          backgroundColor: muted,
+        },
+      },
+      otpCodeFieldInput: {
+        className: "border",
+        style: {
+          borderColor: border,
+          backgroundColor: bg,
+          color: fg,
+        },
       },
     },
-    formButtonPrimary: { className: "clerk-btn-primary" },
-    formFieldInput: {
-      className: "border",
-      style: {
-        borderColor: brand.light.border,
-        backgroundColor: brand.light.background,
-        color: brand.light.foreground,
-      },
-    },
-    footerAction: {
-      className: "border-t",
-      style: {
-        borderColor: brand.light.border,
-        backgroundColor: brand.light.muted,
-      },
-    },
-    dividerLine: { style: { backgroundColor: brand.light.border } },
-    alert: {
-      className: "border",
-      style: {
-        borderColor: brand.light.border,
-        backgroundColor: brand.light.muted,
-      },
-    },
-    otpCodeFieldInput: {
-      className: "border",
-      style: {
-        borderColor: brand.light.border,
-        backgroundColor: brand.light.background,
-        color: brand.light.foreground,
-      },
-    },
-  },
-};
+  };
+}
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -259,6 +283,8 @@ function Router() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
+  const isDark = useDarkMode();
+  const clerkAppearance = buildClerkAppearance(isDark);
 
   return (
     <ClerkProvider
