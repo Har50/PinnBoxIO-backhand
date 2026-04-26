@@ -102,4 +102,56 @@ test.describe("Sign-out flow", () => {
 
     await signOutAndVerify(page);
   });
+
+  test("signing out from /whatsapp redirects to /sign-in", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping sign-out test");
+    }
+
+    await signIn(page);
+
+    await page.goto(`${BASE}/whatsapp`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    await signOutAndVerify(page);
+  });
+
+  test("signing out from /linkedin redirects to /sign-in", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping sign-out test");
+    }
+
+    await signIn(page);
+
+    await page.goto(`${BASE}/linkedin`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    await signOutAndVerify(page);
+  });
+
+  test("signing out from /ai redirects to /sign-in", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping sign-out test");
+    }
+
+    await signIn(page);
+
+    await page.goto(`${BASE}/ai`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    await signOutAndVerify(page);
+  });
+
+  test("signing out from /storage redirects to /sign-in", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping sign-out test");
+    }
+
+    await signIn(page);
+
+    await page.goto(`${BASE}/storage`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    await signOutAndVerify(page);
+  });
 });
