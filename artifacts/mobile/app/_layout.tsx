@@ -18,7 +18,6 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
-import { initializeRevenueCat, SubscriptionProvider } from "@/lib/revenuecat";
 
 const REQUIRED_ENV: Record<string, string | undefined> = {
   EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN,
@@ -43,12 +42,6 @@ setAuthTokenGetter(async () => {
 });
 
 SplashScreen.preventAutoHideAsync();
-
-try {
-  initializeRevenueCat();
-} catch (err: any) {
-  console.warn("RevenueCat init error:", err?.message);
-}
 
 const queryClient = new QueryClient();
 
@@ -120,13 +113,11 @@ export default function RootLayout() {
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <ThemeProvider>
-              <SubscriptionProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <KeyboardProvider>
-                    <RootLayoutNav />
-                  </KeyboardProvider>
-                </GestureHandlerRootView>
-              </SubscriptionProvider>
+              <GestureHandlerRootView style={{ flex: 1 }}>
+                <KeyboardProvider>
+                  <RootLayoutNav />
+                </KeyboardProvider>
+              </GestureHandlerRootView>
             </ThemeProvider>
           </AuthProvider>
         </QueryClientProvider>

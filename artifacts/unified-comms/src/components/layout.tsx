@@ -1,8 +1,7 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, CreditCard, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun } from "lucide-react";
+import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
-import { PayModal } from "./pay-modal";
 import { useEffect, useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -12,7 +11,6 @@ import { Badge } from "./ui/badge";
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [isPayOpen, setIsPayOpen] = useState(false);
   const [importantExpanded, setImportantExpanded] = useState(true);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
@@ -98,24 +96,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             Compose
           </Button>
 
-          {/* Mobile: icon-only pay button */}
-          <button
-            onClick={() => setIsPayOpen(true)}
-            title="Pay"
-            className="md:hidden w-8 h-8 mx-auto rounded-full border border-emerald-500/40 text-emerald-600 flex items-center justify-center hover:bg-emerald-500/10 transition-colors"
-          >
-            <CreditCard className="w-4 h-4" />
-          </button>
-          {/* Desktop: full Pay button */}
-          <Button
-            onClick={() => setIsPayOpen(true)}
-            variant="outline"
-            size="lg"
-            className="hidden md:flex w-full justify-start gap-2 font-medium border-emerald-500/40 text-emerald-600 hover:bg-emerald-500/10 hover:text-emerald-600 hover:border-emerald-500/60"
-          >
-            <CreditCard className="w-4 h-4" />
-            Pay
-          </Button>
           <Button
             type="button"
             variant="outline"
@@ -342,7 +322,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} />
-      <PayModal open={isPayOpen} onOpenChange={setIsPayOpen} />
     </div>
   );
 }

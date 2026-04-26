@@ -1,13 +1,11 @@
 import { useColors } from "@/hooks/useColors";
-import { useSubscription } from "@/lib/revenuecat";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
 import * as DocumentPicker from "expo-document-picker";
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
   FlatList,
   Linking,
   Platform,
@@ -92,8 +90,6 @@ async function apiDelete<T>(path: string): Promise<T> {
 interface Quota { totalBytes: number; usedBytes: number; planName: string; }
 interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; downloadCount: number; createdAt: string; folder: string; }
 interface StorageFolder { path: string; name: string; }
-interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; currency: string; }
-type RevenueCatPackage = { identifier?: string; packageType?: string; product: { identifier?: string; priceString?: string; title?: string; }; };
 
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
@@ -154,19 +150,15 @@ function BreadcrumbBar({ path, onNavigate }: { path: string; onNavigate: (p: str
 export default function StorageScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { offerings, purchase, isPurchasing, isLoading: subscriptionLoading } = useSubscription();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [currentFolder, setCurrentFolder] = useState("/");
   const [quota, setQuota] = useState<Quota | null>(null);
   const [files, setFiles] = useState<StorageFile[]>([]);
   const [folders, setFolders] = useState<StorageFolder[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
-  const [purchaseError, setPurchaseError] = useState<string | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -174,16 +166,14 @@ export default function StorageScreen() {
 
   const loadData = useCallback(async (folder = currentFolder) => {
     try {
-      const [quotaRes, filesRes, foldersRes, plansRes] = await Promise.all([
+      const [quotaRes, filesRes, foldersRes] = await Promise.all([
         apiGet<{ quota: Quota }>("/storage/quota"),
         apiGet<{ files: StorageFile[] }>(`/storage/files?folder=${encodeURIComponent(folder)}`),
         apiGet<{ folders: StorageFolder[] }>(`/storage/folders?folder=${encodeURIComponent(folder)}`),
-        apiGet<{ plans: Plan[] }>("/storage/plans"),
       ]);
       setQuota(quotaRes.quota);
       setFiles(filesRes.files);
       setFolders(foldersRes.folders);
-      setPlans(plansRes.plans);
     } catch (err: any) {
       if (err?.message !== "AUTH_REQUIRED") Alert.alert("Error", err.message);
     } finally {
@@ -324,49 +314,6 @@ export default function StorageScreen() {
       Alert.alert("Error", err.message);
     }
   }, [loadData, currentFolder]);
-
-  const getRevenueCatPackage = useCallback((plan: Plan): RevenueCatPackage | null => {
-    const packages = (offerings?.current?.availablePackages ?? []) as RevenueCatPackage[];
-    const gb = String(plan.gb);
-    return packages.find((pkg) => {
-      const id = pkg.identifier?.toLowerCase() ?? "";
-      const prodId = pkg.product.identifier?.toLowerCase() ?? "";
-      const title = pkg.product.title?.toLowerCase() ?? "";
-      return id.includes("storage") && (id.includes(gb) || prodId.includes(gb) || title.includes(`${gb} gb`));
-    }) ?? null;
-  }, [offerings]);
-
-  const getPlanPrice = useCallback((plan: Plan) => {
-    const pkg = getRevenueCatPackage(plan);
-    return pkg?.product.priceString || (plan.unitAmount ? `$${(plan.unitAmount / 100).toFixed(2)}/mo` : "Free");
-  }, [getRevenueCatPackage]);
-
-  const handleUpgrade = useCallback((plan: Plan) => {
-    setPurchaseError(null);
-    if (!getRevenueCatPackage(plan)) {
-      setPurchaseError("Plans still syncing. Please try again shortly.");
-      return;
-    }
-    setSelectedPlan(plan);
-  }, [getRevenueCatPackage]);
-
-  const confirmUpgrade = useCallback(async () => {
-    if (!selectedPlan) return;
-    const pkg = getRevenueCatPackage(selectedPlan);
-    if (!pkg) return;
-    try {
-      setPurchaseError(null);
-      setSelectedPlan(null);
-      await purchase(pkg);
-      await apiPost("/storage/revenuecat/activate", { gb: selectedPlan.gb });
-      await loadData(currentFolder);
-      Alert.alert("Storage upgraded", `${selectedPlan.gb} GB storage is now active.`);
-    } catch (err: any) {
-      if (!err?.userCancelled) {
-        setPurchaseError(err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
-      }
-    }
-  }, [selectedPlan, getRevenueCatPackage, purchase, loadData, currentFolder]);
 
   const quotaPct = quota ? Math.min(100, (quota.usedBytes / quota.totalBytes) * 100) : 0;
   const isWarning = quotaPct > 80;
@@ -532,42 +479,6 @@ export default function StorageScreen() {
           <Feather name="upload-cloud" size={24} color={colors.mutedForeground} />
           <Text style={[styles.uploadTitle, { color: colors.mutedForeground }]}>Upload to {currentFolder === "/" ? "My Drive" : currentFolder.split("/").pop()}</Text>
         </Pressable>
-
-        {/* Upgrade plans */}
-        {currentFolder === "/" && (
-          <>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground, marginTop: 8 }]}>Get More Storage</Text>
-            {purchaseError && <Text style={[styles.purchaseError, { color: "#dc2626" }]}>{purchaseError}</Text>}
-            <View style={styles.plansGrid}>
-              {plans.map((plan) => (
-                <Pressable
-                  key={plan.gb}
-                  onPress={() => handleUpgrade(plan)}
-                  disabled={isPurchasing || subscriptionLoading || !getRevenueCatPackage(plan)}
-                  style={({ pressed }) => [
-                    styles.planCard,
-                    {
-                      backgroundColor: colors.card,
-                      borderColor: colors.border,
-                      opacity: pressed ? 0.85 : isPurchasing || subscriptionLoading || !getRevenueCatPackage(plan) ? 0.55 : 1,
-                    },
-                  ]}
-                >
-                  <View style={[styles.planIconWrap, { backgroundColor: colors.primary + "18" }]}>
-                    <Feather name="cloud" size={16} color={colors.primary} />
-                  </View>
-                  <Text style={[styles.planLabel, { color: colors.foreground }]}>{plan.gb} GB</Text>
-                  <Text style={[styles.planPrice, { color: colors.mutedForeground }]}>{getPlanPrice(plan)}</Text>
-                  <View style={[styles.planBtn, { backgroundColor: colors.primary }]}>
-                    {isPurchasing && selectedPlan?.gb === plan.gb
-                      ? <ActivityIndicator color="#fff" size="small" />
-                      : <Text style={styles.planBtnText}>{getRevenueCatPackage(plan) ? "Upgrade" : "Syncing"}</Text>}
-                  </View>
-                </Pressable>
-              ))}
-            </View>
-          </>
-        )}
       </ScrollView>
 
       {/* New Folder modal */}
@@ -597,26 +508,6 @@ export default function StorageScreen() {
                 {creatingFolder
                   ? <ActivityIndicator color="#fff" size="small" />
                   : <Text style={styles.modalConfirmText}>Create</Text>}
-              </Pressable>
-            </View>
-          </View>
-        </View>
-      )}
-
-      {/* Purchase confirm modal */}
-      {selectedPlan && (
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modal, { backgroundColor: colors.card }]}>
-            <Text style={[styles.modalTitle, { color: colors.foreground }]}>Confirm Storage Upgrade</Text>
-            <Text style={[styles.modalText, { color: colors.mutedForeground }]}>
-              Subscribe to {selectedPlan.gb} GB cloud storage for {getPlanPrice(selectedPlan)}? You can cancel anytime from your app store account settings.
-            </Text>
-            <View style={styles.modalButtons}>
-              <Pressable style={[styles.modalCancel, { borderColor: colors.border }]} onPress={() => setSelectedPlan(null)}>
-                <Text style={[styles.modalCancelText, { color: colors.foreground }]}>Cancel</Text>
-              </Pressable>
-              <Pressable style={[styles.modalConfirm, { backgroundColor: colors.primary }]} onPress={confirmUpgrade} disabled={isPurchasing}>
-                <Text style={styles.modalConfirmText}>{isPurchasing ? "Processing..." : "Subscribe"}</Text>
               </Pressable>
             </View>
           </View>
@@ -736,21 +627,12 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   uploadTitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  purchaseError: { fontSize: 12, fontFamily: "Inter_400Regular", paddingHorizontal: 16, marginBottom: 8 },
-  plansGrid: { flexDirection: "row", flexWrap: "wrap", paddingHorizontal: 12, gap: 10, marginBottom: 16 },
-  planCard: { flex: 1, minWidth: "28%", borderRadius: 14, borderWidth: 1, padding: 12, gap: 5, alignItems: "center" },
-  planIconWrap: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  planLabel: { fontSize: 15, fontFamily: "Inter_700Bold" },
-  planPrice: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  planBtn: { marginTop: 4, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 8, width: "100%", alignItems: "center" },
-  planBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
   modalOverlay: {
     position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
     backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24,
   },
   modal: { borderRadius: 20, padding: 22, width: "100%", gap: 16 },
   modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  modalText: { fontSize: 14, fontFamily: "Inter_400Regular", lineHeight: 20 },
   folderInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, fontFamily: "Inter_400Regular" },
   modalButtons: { flexDirection: "row", gap: 10 },
   modalCancel: { flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, alignItems: "center" },
