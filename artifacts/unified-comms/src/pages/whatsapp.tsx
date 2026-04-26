@@ -437,9 +437,12 @@ export default function WhatsApp() {
         {/* Chat list */}
         <div className="flex-1 overflow-y-auto">
           {filteredChats.length === 0 && !loadingChats && (
-            <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400 dark:text-[#8696a0]">
-              <MessageCircle size={24} />
-              <p className="text-sm">No chats yet</p>
+            <div className="flex flex-col items-center justify-center h-48 gap-3 px-5 text-center">
+              <MessageCircle size={28} className="text-gray-300 dark:text-[#8696a0]" />
+              <p className="text-sm font-medium text-gray-500 dark:text-[#e9edef]">No chats yet</p>
+              <p className="text-xs text-gray-400 dark:text-[#8696a0] leading-relaxed">
+                Chats appear here as messages arrive. Send or receive a message on your phone and it will show up automatically.
+              </p>
             </div>
           )}
           {filteredChats.map((chat) => (

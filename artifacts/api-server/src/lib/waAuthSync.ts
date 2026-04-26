@@ -26,12 +26,22 @@ export async function downloadWaAuthFromStorage(localDir: string): Promise<void>
     fs.mkdirSync(localDir, { recursive: true });
     const bucket = objectStorageClient.bucket(BUCKET_ID);
     const [files] = await bucket.getFiles({ prefix: WA_AUTH_GCS_PREFIX + "/" });
-    for (const file of files) {
-      const relName = file.name.slice(WA_AUTH_GCS_PREFIX.length + 1);
-      if (!relName) continue;
-      const localPath = path.join(localDir, relName);
-      fs.mkdirSync(path.dirname(localPath), { recursive: true });
-      await file.download({ destination: localPath });
+    // Download all files in parallel (batches of 20) instead of sequentially
+    const BATCH = 20;
+    for (let i = 0; i < files.length; i += BATCH) {
+      await Promise.all(
+        files.slice(i, i + BATCH).map(async (file) => {
+          const relName = file.name.slice(WA_AUTH_GCS_PREFIX.length + 1);
+          if (!relName) return;
+          const localPath = path.join(localDir, relName);
+          fs.mkdirSync(path.dirname(localPath), { recursive: true });
+          try {
+            await file.download({ destination: localPath });
+          } catch {
+            // Skip individual missing/corrupt files — non-fatal
+          }
+        })
+      );
     }
     logger.info({ count: files.length }, "WA auth files restored from storage");
   } catch (err) {
