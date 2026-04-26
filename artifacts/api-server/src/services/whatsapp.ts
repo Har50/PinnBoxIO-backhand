@@ -270,10 +270,26 @@ class WhatsAppService extends EventEmitter {
         });
       });
 
-      this.sock.ev.on("messages.upsert", ({ messages: msgs }) => {
+      this.sock.ev.on("messages.upsert", ({ messages: msgs, type }) => {
         msgs.forEach((msg) => {
           if (!msg.key.remoteJid) return;
           const chatId = msg.key.remoteJid;
+
+          // Always create/refresh the chat entry so it shows up in the list
+          const existingChat = this.chats.get(chatId) ?? ({ id: chatId } as WAChat);
+          const updatedChat: WAChat = {
+            ...existingChat,
+            id: chatId,
+            conversationTimestamp: msg.messageTimestamp ?? existingChat.conversationTimestamp,
+            // Use push name from incoming messages (contact's display name)
+            name: existingChat.name ?? (msg.key.fromMe ? undefined : (msg.pushName ?? undefined)),
+            messages: { first: msg } as any,
+            unreadCount: msg.key.fromMe ? (existingChat.unreadCount ?? 0) : ((existingChat.unreadCount ?? 0) + 1),
+          };
+          this.chats.set(chatId, updatedChat);
+          this.scheduleSaveChats();
+
+          // Update message history
           const existing = this.messages.get(chatId) ?? [];
           const idx = existing.findIndex((m) => m.key.id === msg.key.id);
           if (idx >= 0) {

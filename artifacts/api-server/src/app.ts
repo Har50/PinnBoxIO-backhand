@@ -40,6 +40,4 @@ app.use(clerkMiddleware());
 
 app.use("/api", router);
 
-whatsappService.connect().catch((err) => logger.warn({ err }, "WhatsApp auto-connect skipped"));
-
 export default app;
