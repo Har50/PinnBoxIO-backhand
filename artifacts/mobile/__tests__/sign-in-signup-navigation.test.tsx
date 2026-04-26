@@ -152,6 +152,60 @@ describe("Signup screen — rendering", () => {
   });
 });
 
+describe("Error message display", () => {
+  it("login screen renders the error banner when signInError is set", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: "Authentication failed. Please try again.",
+    });
+
+    const { getByText } = render(<LoginScreen />);
+
+    expect(getByText("Authentication failed. Please try again.")).toBeTruthy();
+  });
+
+  it("login screen does not render an error banner when signInError is null", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: null,
+    });
+
+    const { queryByText } = render(<LoginScreen />);
+
+    expect(queryByText("Authentication failed. Please try again.")).toBeNull();
+  });
+
+  it("signup screen renders the error banner when signInError is set", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: "Sign-up failed. Please try again.",
+    });
+
+    const { getByText } = render(<SignUpScreen />);
+
+    expect(getByText("Sign-up failed. Please try again.")).toBeTruthy();
+  });
+
+  it("signup screen does not render an error banner when signInError is null", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: null,
+    });
+
+    const { queryByText } = render(<SignUpScreen />);
+
+    expect(queryByText("Sign-up failed. Please try again.")).toBeNull();
+  });
+});
+
 describe("Signup screen — back navigation", () => {
   it("calls router.back() when the back button is tapped and history exists", () => {
     const { useAuth } = require("@/contexts/AuthContext");
