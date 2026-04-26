@@ -165,7 +165,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
       <div className="w-full max-w-[440px] mb-4">
         <a
           href={basePath || "/"}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         >
           ← Back to PinnboxIO
         </a>
