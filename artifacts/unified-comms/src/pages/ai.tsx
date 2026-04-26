@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown, Camera, ImageIcon, FileText, X } from "lucide-react";
+import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown, Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
 
@@ -47,6 +47,90 @@ async function apiFetch(path: string, options?: RequestInit) {
       ...(options?.headers || {}),
     },
   });
+}
+
+interface EmailDraft { to: string; subject: string; body: string }
+
+function parseEmailDraft(text: string): { draft: EmailDraft | null; clean: string } {
+  const match = text.match(/<email-draft>([\s\S]*?)<\/email-draft>/);
+  if (!match) return { draft: null, clean: text };
+  try {
+    const draft = JSON.parse(match[1]) as EmailDraft;
+    const clean = text.replace(match[0], "").trim();
+    return { draft, clean };
+  } catch {
+    return { draft: null, clean: text };
+  }
+}
+
+function EmailDraftCard({ draft }: { draft: EmailDraft }) {
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [provider, setProvider] = useState<"gmail" | "outlook">("gmail");
+
+  const handleSend = async () => {
+    setSending(true);
+    setError(null);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch("/api/messages/send", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ to: draft.to, subject: draft.subject, body: draft.body, provider }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError((data as any).error ?? "Failed to send");
+      } else {
+        setSent(true);
+      }
+    } catch {
+      setError("Network error");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 rounded-xl border bg-background text-foreground overflow-hidden">
+      <div className="flex items-center gap-2 px-3 py-2 bg-muted/50 border-b">
+        <Mail className="w-3.5 h-3.5 text-primary" />
+        <span className="text-xs font-semibold">Email Draft</span>
+      </div>
+      <div className="p-3 space-y-1.5 text-xs">
+        <div><span className="text-muted-foreground">To: </span><span className="font-medium">{draft.to}</span></div>
+        <div><span className="text-muted-foreground">Subject: </span><span className="font-medium">{draft.subject}</span></div>
+        <div className="border-t pt-1.5 mt-1.5 whitespace-pre-wrap text-foreground/80">{draft.body}</div>
+      </div>
+      {sent ? (
+        <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-green-600 dark:text-green-400 border-t">
+          <CheckCircle className="w-3.5 h-3.5" /> Sent successfully
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 px-3 py-2 border-t flex-wrap">
+          <div className="flex rounded-md border overflow-hidden text-xs">
+            {(["gmail", "outlook"] as const).map((p) => (
+              <button key={p} onClick={() => setProvider(p)}
+                className={cn("px-2.5 py-1 font-medium transition-colors", provider === p ? "bg-primary text-primary-foreground" : "hover:bg-muted")}>
+                {p === "gmail" ? "Gmail" : "Outlook"}
+              </button>
+            ))}
+          </div>
+          <Button size="sm" className="h-7 text-xs gap-1.5" onClick={handleSend} disabled={sending}>
+            {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+            {sending ? "Sending…" : "Send Now"}
+          </Button>
+          {error && (
+            <div className="flex items-center gap-1 text-xs text-destructive">
+              <AlertCircle className="w-3 h-3" /> {error}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 export default function AiPage() {
@@ -428,7 +512,15 @@ function AiChat() {
                     ))}
                   </div>
                 )}
-                <div className="whitespace-pre-wrap">{msg.content || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
+                {(() => {
+                  const { draft, clean } = parseEmailDraft(msg.content);
+                  return (
+                    <>
+                      <div className="whitespace-pre-wrap">{clean || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
+                      {draft && !msg.streaming && <EmailDraftCard draft={draft} />}
+                    </>
+                  );
+                })()}
                 {msg.limitReached && (
                   <Button
                     size="sm"

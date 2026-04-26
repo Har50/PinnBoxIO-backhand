@@ -280,3 +280,42 @@ export async function listGmailMessageSenders(userId: string, limit = 25): Promi
     return [];
   }
 }
+
+export async function sendGmailMessage(
+  userId: string,
+  to: string,
+  subject: string,
+  body: string,
+  replyToMessageId?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const accessToken = await getValidGmailToken(userId);
+  if (!accessToken) return { success: false, error: "Gmail not connected" };
+
+  try {
+    // Build RFC 2822 MIME message
+    const lines = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      body,
+    ];
+    if (replyToMessageId) lines.splice(3, 0, `In-Reply-To: ${replyToMessageId}`, `References: ${replyToMessageId}`);
+    const raw = Buffer.from(lines.join("\r\n")).toString("base64url");
+
+    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ raw }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: (err as any)?.error?.message ?? `Gmail API error ${res.status}` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}

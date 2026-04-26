@@ -269,3 +269,39 @@ export async function listOutlookMessageSenders(userId: string, limit = 25): Pro
     return [];
   }
 }
+
+export async function sendOutlookMessage(
+  userId: string,
+  to: string,
+  subject: string,
+  body: string,
+): Promise<{ success: boolean; error?: string }> {
+  const accessToken = await getValidOutlookToken(userId);
+  if (!accessToken) return { success: false, error: "Outlook not connected" };
+
+  try {
+    const res = await fetch("https://graph.microsoft.com/v1.0/me/sendMail", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        message: {
+          subject,
+          body: { contentType: "Text", content: body },
+          toRecipients: [{ emailAddress: { address: to } }],
+        },
+        saveToSentItems: true,
+      }),
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: (err as any)?.error?.message ?? `Outlook API error ${res.status}` };
+    }
+    return { success: true };
+  } catch (err: any) {
+    return { success: false, error: err?.message ?? "Unknown error" };
+  }
+}

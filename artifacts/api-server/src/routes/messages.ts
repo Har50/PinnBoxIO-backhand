@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
-import { getGmailMessage, listGmailMessages } from "../services/gmail";
-import { getOutlookMessage, listOutlookMessages } from "../services/outlook";
+import { getGmailMessage, listGmailMessages, sendGmailMessage } from "../services/gmail";
+import { getOutlookMessage, listOutlookMessages, sendOutlookMessage } from "../services/outlook";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -296,6 +296,34 @@ router.post("/messages/:id/attachments", async (req, res): Promise<void> => {
     size: att.size,
     url: att.url ?? null,
   });
+});
+
+// Send email via Gmail or Outlook
+router.post("/messages/send", async (req: any, res) => {
+  const { to, subject, body, provider = "gmail" } = req.body as {
+    to: string;
+    subject: string;
+    body: string;
+    provider?: "gmail" | "outlook";
+  };
+
+  if (!to || !subject || !body) {
+    return res.status(400).json({ error: "to, subject, and body are required" });
+  }
+
+  const userId = req.userId as string;
+  let result: { success: boolean; error?: string };
+
+  if (provider === "outlook") {
+    result = await sendOutlookMessage(userId, to, subject, body);
+  } else {
+    result = await sendGmailMessage(userId, to, subject, body);
+  }
+
+  if (!result.success) {
+    return res.status(500).json({ error: result.error ?? "Failed to send email" });
+  }
+  res.json({ sent: true });
 });
 
 export default router;
