@@ -188,6 +188,9 @@ function Router() {
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/login" component={Login} />
       <Route path="/">
+        <Show when="loading">
+          <div className="min-h-screen bg-background" />
+        </Show>
         <Show when="signed-out">
           <LandingPage />
         </Show>
