@@ -2,6 +2,7 @@ import { Link, useLocation } from "wouter";
 import { Mail, Search, Users, Settings, MessageCircle, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Phone, Sparkles, Linkedin, LogOut, HardDrive, Moon, Sun } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { useEffect, useState } from "react";
 import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
@@ -15,6 +16,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [importantExpanded, setImportantExpanded] = useState(true);
+  const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
     return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
@@ -253,7 +255,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Mobile: avatar only with sign-out on tap */}
           <div className="md:hidden flex justify-center">
             <button
-              onClick={() => signOut({ redirectUrl: signInPath })}
+              onClick={() => setShowSignOutDialog(true)}
               title="Sign out"
               className="relative group"
             >
@@ -286,7 +288,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={() => signOut({ redirectUrl: signInPath })}
+              onClick={() => setShowSignOutDialog(true)}
               title="Sign out"
               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground"
             >
@@ -325,6 +327,34 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </div>
 
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} />
+
+      <Dialog open={showSignOutDialog} onOpenChange={setShowSignOutDialog}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Sign out of PinnboxIO?</DialogTitle>
+            <DialogDescription>
+              You will be redirected to the sign-in page.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              onClick={() => setShowSignOutDialog(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                setShowSignOutDialog(false);
+                signOut({ redirectUrl: signInPath });
+              }}
+            >
+              Sign out
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
