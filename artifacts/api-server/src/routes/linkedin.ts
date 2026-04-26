@@ -7,6 +7,9 @@ export const linkedinPublicRouter = Router();
 export const linkedinRouter = Router();
 
 function getBaseUrl(req: Request): string {
+  if (process.env.LINKEDIN_REDIRECT_BASE_URL) {
+    return process.env.LINKEDIN_REDIRECT_BASE_URL.replace(/\/$/, "");
+  }
   const host = req.headers["x-forwarded-host"] ?? req.headers.host ?? "localhost";
   const proto = req.headers["x-forwarded-proto"] ?? "https";
   return `${proto}://${host}`;
