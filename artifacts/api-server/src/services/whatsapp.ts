@@ -54,6 +54,7 @@ class WhatsAppService extends EventEmitter {
   private messages: Map<string, WAMessage[]> = new Map();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private saveTimer: NodeJS.Timeout | null = null;
+  private connectInProgress = false;
 
   getStatus(): WAStatus { return this.status; }
   getQR(): string | null { return this.qrCode; }
@@ -85,13 +86,15 @@ class WhatsAppService extends EventEmitter {
     }, 2000);
   }
 
-  /** Returns true when saved credentials exist (i.e. we were previously logged in). */
+  /** Returns true when valid saved credentials exist in cloud storage (source of truth). */
   async hasCredentials(): Promise<boolean> {
-    // Check local disk first (fast path for dev / already-downloaded)
-    if (fs.existsSync(path.join(AUTH_DIR, "creds.json"))) return true;
-    // Fall back to checking cloud storage (production after a fresh deploy)
+    // Only trust cloud storage — local disk may hold stale/invalidated creds
+    // from a previous session that was logged out or replaced.
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
-    if (!bucketId) return false;
+    if (!bucketId) {
+      // No cloud storage configured: fall back to local disk (dev/local mode)
+      return fs.existsSync(path.join(AUTH_DIR, "creds.json"));
+    }
     try {
       const { objectStorageClient } = await import("../lib/objectStorage");
       const bucket = objectStorageClient.bucket(bucketId);
@@ -112,19 +115,42 @@ class WhatsAppService extends EventEmitter {
   }
 
   async connect() {
-    if (this.sock) {
-      try { this.sock.end(undefined); } catch {}
-      this.sock = null;
+    // Prevent simultaneous connect calls from racing each other
+    if (this.connectInProgress) {
+      logger.info("connect() already in progress — skipping duplicate call");
+      return;
     }
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
-
-    this.setStatus("connecting");
+    this.connectInProgress = true;
 
     try {
-      // Restore credentials from persistent cloud storage before connecting
+      if (this.sock) {
+        try { this.sock.end(undefined); } catch {}
+        this.sock = null;
+      }
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = null;
+      }
+
+      this.setStatus("connecting");
+
+      // Always clear local auth dir first so stale/invalidated creds from a
+      // previous session never get accidentally reused by Baileys.
+      try {
+        if (fs.existsSync(AUTH_DIR)) {
+          const entries = fs.readdirSync(AUTH_DIR);
+          for (const entry of entries) {
+            const fp = path.join(AUTH_DIR, entry);
+            if (fs.lstatSync(fp).isDirectory()) {
+              fs.rmSync(fp, { recursive: true, force: true });
+            } else {
+              fs.unlinkSync(fp);
+            }
+          }
+        }
+      } catch {}
+
+      // Download fresh credentials from cloud storage (empty = fresh scan needed)
       await downloadWaAuthFromStorage(AUTH_DIR);
 
       const { version } = await fetchLatestBaileysVersion();
@@ -268,6 +294,8 @@ class WhatsAppService extends EventEmitter {
     } catch (err) {
       logger.error({ err }, "WhatsApp connect error");
       this.setStatus("disconnected");
+    } finally {
+      this.connectInProgress = false;
     }
   }
 
