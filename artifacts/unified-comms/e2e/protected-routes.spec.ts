@@ -53,7 +53,15 @@ test.describe("Protected routes — no content flash before redirect", () => {
    * the DOM.  If the loading guard works correctly, that element must NEVER appear
    * for a signed-out user — not even for a single frame.
    */
-  const SAMPLED_ROUTES = ["/inbox", "/contacts", "/settings"] as const;
+  const SAMPLED_ROUTES = [
+    "/whatsapp",
+    "/linkedin",
+    "/ai",
+    "/storage",
+    "/inbox",
+    "/contacts",
+    "/settings",
+  ] as const;
 
   for (const route of SAMPLED_ROUTES) {
     test(`no protected content is rendered before redirect from ${route}`, async ({
