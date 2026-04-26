@@ -31,6 +31,7 @@ import WhatsApp from "./pages/whatsapp";
 import LinkedInPage from "./pages/linkedin";
 import AiPage from "./pages/ai";
 import StoragePage from "./pages/storage";
+import SettingsPage from "./pages/settings";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -268,7 +269,7 @@ function Router() {
               <Route path="/linkedin" component={LinkedInPage} />
               <Route path="/ai" component={AiPage} />
               <Route path="/storage" component={StoragePage} />
-              <Route path="/settings" component={AiPage} />
+              <Route path="/settings" component={SettingsPage} />
               <Route component={NotFound} />
             </Switch>
           </Layout>
