@@ -197,10 +197,10 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
       </div>
       {children}
       <div className="mt-6 flex flex-wrap justify-center gap-4 text-xs text-muted-foreground">
-        <a href={`${basePath}/terms`} className="hover:text-foreground transition-colors">Terms</a>
-        <a href={`${basePath}/privacy`} className="hover:text-foreground transition-colors">Privacy</a>
-        <a href={`${basePath}/refunds`} className="hover:text-foreground transition-colors">Refunds</a>
-        <a href={`${basePath}/cookies`} className="hover:text-foreground transition-colors">Cookies</a>
+        <a href={`${basePath}/terms`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Terms</a>
+        <a href={`${basePath}/privacy`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Privacy</a>
+        <a href={`${basePath}/refunds`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Refunds</a>
+        <a href={`${basePath}/cookies`} className="hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2">Cookies</a>
       </div>
     </div>
   );
