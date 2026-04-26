@@ -8,6 +8,9 @@ import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 import { Badge } from "./ui/badge";
 
+const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
+const signInPath = `${basePath}/sign-in`;
+
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location, navigate] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
@@ -250,7 +253,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
           {/* Mobile: avatar only with sign-out on tap */}
           <div className="md:hidden flex justify-center">
             <button
-              onClick={() => signOut()}
+              onClick={() => signOut({ redirectUrl: signInPath })}
               title="Sign out"
               className="relative group"
             >
@@ -283,7 +286,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </div>
             </div>
             <button
-              onClick={() => signOut()}
+              onClick={() => signOut({ redirectUrl: signInPath })}
               title="Sign out"
               className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-sidebar-accent text-sidebar-foreground/60 hover:text-sidebar-foreground"
             >
