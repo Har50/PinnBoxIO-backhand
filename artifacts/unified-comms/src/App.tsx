@@ -229,6 +229,9 @@ function Router() {
         </Show>
       </Route>
       <Route>
+        <Show when="loading">
+          <div className="min-h-screen bg-background" />
+        </Show>
         <Show when="signed-in">
           <Layout>
             <Switch>
