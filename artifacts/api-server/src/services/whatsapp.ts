@@ -11,9 +11,11 @@ import {
 import { Boom } from "@hapi/boom";
 import { EventEmitter } from "events";
 import path from "path";
+import fs from "fs";
 import { logger } from "../lib/logger";
 
 const AUTH_DIR = path.join(process.cwd(), "wa-auth");
+const CHATS_FILE = path.join(AUTH_DIR, "chats.json");
 
 export type WAStatus = "disconnected" | "connecting" | "qr" | "pairing" | "connected";
 
@@ -22,15 +24,31 @@ export interface WAEvent {
   data: unknown;
 }
 
+function loadPersistedChats(): Map<string, WAChat> {
+  try {
+    if (fs.existsSync(CHATS_FILE)) {
+      const raw = fs.readFileSync(CHATS_FILE, "utf-8");
+      const arr: WAChat[] = JSON.parse(raw);
+      const map = new Map<string, WAChat>();
+      arr.forEach((c) => map.set(c.id, c));
+      return map;
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not load persisted WhatsApp chats");
+  }
+  return new Map();
+}
+
 class WhatsAppService extends EventEmitter {
   private sock: WASocket | null = null;
   private status: WAStatus = "disconnected";
   private qrCode: string | null = null;
   private pairingCode: string | null = null;
   private pendingPairingPhone: string | null = null;
-  private chats: Map<string, WAChat> = new Map();
+  private chats: Map<string, WAChat> = loadPersistedChats();
   private messages: Map<string, WAMessage[]> = new Map();
   private reconnectTimer: NodeJS.Timeout | null = null;
+  private saveTimer: NodeJS.Timeout | null = null;
 
   getStatus(): WAStatus { return this.status; }
   getQR(): string | null { return this.qrCode; }
@@ -48,9 +66,29 @@ class WhatsAppService extends EventEmitter {
     return this.messages.get(chatId) ?? [];
   }
 
+  private scheduleSaveChats() {
+    if (this.saveTimer) clearTimeout(this.saveTimer);
+    this.saveTimer = setTimeout(() => {
+      try {
+        fs.mkdirSync(AUTH_DIR, { recursive: true });
+        fs.writeFileSync(CHATS_FILE, JSON.stringify(Array.from(this.chats.values())));
+      } catch (err) {
+        logger.warn({ err }, "Could not persist WhatsApp chats");
+      }
+    }, 2000);
+  }
+
+  /** Returns true when saved credentials exist (i.e. we were previously logged in). */
+  hasCredentials(): boolean {
+    try {
+      return fs.existsSync(path.join(AUTH_DIR, "creds.json"));
+    } catch {
+      return false;
+    }
+  }
+
   /** Start a connection that will use a pairing code instead of QR. */
   async requestPairing(phoneNumber: string): Promise<void> {
-    // Normalise: strip non-digits, keep country code
     const clean = phoneNumber.replace(/\D/g, "");
     if (clean.length < 7) throw new Error("Invalid phone number");
     this.pendingPairingPhone = clean;
@@ -89,11 +127,9 @@ class WhatsAppService extends EventEmitter {
 
       this.sock.ev.on("creds.update", saveCreds);
 
-      // If pairing requested, attempt to get pairing code once socket is ready
       if (this.pendingPairingPhone && !state.creds.registered) {
         const phone = this.pendingPairingPhone;
         this.setStatus("pairing");
-        // Small delay to let the socket handshake complete before requesting
         setTimeout(async () => {
           try {
             const code = await this.sock!.requestPairingCode(phone);
@@ -138,11 +174,13 @@ class WhatsAppService extends EventEmitter {
 
       this.sock.ev.on("chats.set", ({ chats }) => {
         chats.forEach((c) => this.chats.set(c.id, c));
+        this.scheduleSaveChats();
         this.emit("event", { type: "chats", data: null } as WAEvent);
       });
 
       this.sock.ev.on("chats.upsert", (chats) => {
         chats.forEach((c) => this.chats.set(c.id, c));
+        this.scheduleSaveChats();
         this.emit("event", { type: "chats", data: null } as WAEvent);
       });
 
@@ -151,6 +189,7 @@ class WhatsAppService extends EventEmitter {
           const existing = this.chats.get(u.id);
           if (existing) this.chats.set(u.id, { ...existing, ...u });
         });
+        this.scheduleSaveChats();
         this.emit("event", { type: "chats", data: null } as WAEvent);
       });
 
@@ -213,12 +252,12 @@ class WhatsAppService extends EventEmitter {
     this.qrCode = null;
     this.pairingCode = null;
     this.pendingPairingPhone = null;
+    try { fs.unlinkSync(CHATS_FILE); } catch {}
     this.setStatus("disconnected");
   }
 
   async loadMessages(_chatId: string) {
     // Messages are populated in real-time via messages.upsert events
-    // and messages.set on initial connection. No explicit fetch needed.
   }
 
   private setStatus(s: WAStatus) {

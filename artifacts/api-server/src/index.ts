@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { whatsappService } from "./services/whatsapp";
 
 // Prevent WhatsApp crypto errors and other transient library errors from
 // crashing the whole server process. Log them and let the service reconnect.
@@ -43,4 +44,11 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  if (whatsappService.hasCredentials()) {
+    logger.info("WhatsApp credentials found — auto-connecting");
+    whatsappService.connect().catch((e) => {
+      logger.warn({ e }, "WhatsApp auto-connect failed");
+    });
+  }
 });
