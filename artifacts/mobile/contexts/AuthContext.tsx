@@ -29,6 +29,7 @@ interface AuthContextValue {
   isLoading: boolean;
   signInError: string | null;
   signIn: () => Promise<void>;
+  signUp: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -38,6 +39,7 @@ const AuthContext = createContext<AuthContextValue>({
   isLoading: true,
   signInError: null,
   signIn: async () => {},
+  signUp: async () => {},
   signOut: async () => {},
 });
 
@@ -136,14 +138,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const completeWebCallback = useCallback(async (code: string, storedState: string, returnedState: string) => {
     if (returnedState !== storedState) {
-      setSignInError("Sign-in response was invalid. Please try again.");
+      setSignInError("Authentication response was invalid. Please try again.");
       setIsLoading(false);
       return;
     }
 
     const stored = Platform.OS === "web" ? sessionStorage.getItem(PKCE_STORAGE_KEY) : null;
     if (!stored) {
-      setSignInError("Sign-in session expired. Please try again.");
+      setSignInError("Authentication session expired. Please try again.");
       setIsLoading(false);
       return;
     }
@@ -152,7 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       pkce = JSON.parse(stored);
     } catch {
-      setSignInError("Sign-in session was corrupted. Please try again.");
+      setSignInError("Authentication session was corrupted. Please try again.");
       setIsLoading(false);
       return;
     }
@@ -174,7 +176,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!exchangeRes.ok) {
-        setSignInError("Could not complete sign-in. Please try again.");
+        setSignInError("Could not complete authentication. Please try again.");
         setIsLoading(false);
         return;
       }
@@ -238,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })();
   }, [completeWebCallback]);
 
-  const signIn = useCallback(async () => {
+  const startAuthFlow = useCallback(async (screenHint?: "signup") => {
     setSignInError(null);
     try {
       const discoveryRes = await fetch(`${ISSUER}/.well-known/openid-configuration`);
@@ -265,6 +267,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
         authUrl.searchParams.set("state", state);
         authUrl.searchParams.set("nonce", nonce);
+        if (screenHint) authUrl.searchParams.set("screen_hint", screenHint);
 
         window.location.href = authUrl.toString();
         return;
@@ -281,6 +284,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
       authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("nonce", nonce);
+      if (screenHint) authUrl.searchParams.set("screen_hint", screenHint);
 
       const result = await WebBrowser.openAuthSessionAsync(authUrl.toString(), appCallbackUri);
 
@@ -291,7 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const returnedState = resultUrl.searchParams.get("state");
 
       if (!code || returnedState !== state) {
-        setSignInError("Sign-in was cancelled or the response was invalid. Please try again.");
+        setSignInError("Authentication was cancelled or the response was invalid. Please try again.");
         return;
       }
 
@@ -308,7 +312,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (!exchangeRes.ok) {
-        setSignInError("Could not complete sign-in. Please try again.");
+        setSignInError("Could not complete authentication. Please try again.");
         return;
       }
 
@@ -334,6 +338,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  const signIn = useCallback(() => startAuthFlow(), [startAuthFlow]);
+  const signUp = useCallback(() => startAuthFlow("signup"), [startAuthFlow]);
+
   const signOut = useCallback(async () => {
     const currentToken = token;
     setUser(null);
@@ -352,7 +359,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [token]);
 
   return (
-    <AuthContext.Provider value={{ user, token, isLoading, signInError, signIn, signOut }}>
+    <AuthContext.Provider value={{ user, token, isLoading, signInError, signIn, signUp, signOut }}>
       {children}
     </AuthContext.Provider>
   );

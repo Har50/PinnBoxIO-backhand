@@ -9,12 +9,14 @@ import { useState } from "react";
 const c = colors.light;
 
 export default function LoginScreen() {
-  const { signIn, signInError } = useAuth();
+  const { signIn, signUp, signInError } = useAuth();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
+
+  const [isSignUpLoading, setIsSignUpLoading] = useState(false);
 
   async function handleSignIn() {
     setIsLoading(true);
@@ -22,6 +24,15 @@ export default function LoginScreen() {
       await signIn();
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function handleSignUp() {
+    setIsSignUpLoading(true);
+    try {
+      await signUp();
+    } finally {
+      setIsSignUpLoading(false);
     }
   }
 
@@ -46,7 +57,7 @@ export default function LoginScreen() {
         <Pressable
           style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}
           onPress={handleSignIn}
-          disabled={isLoading}
+          disabled={isLoading || isSignUpLoading}
           testID="sign-in-button"
         >
           {isLoading ? (
@@ -54,17 +65,26 @@ export default function LoginScreen() {
           ) : (
             <>
               <Feather name="log-in" size={18} color="#ffffff" />
-              <Text style={styles.signInButtonText}>Continue</Text>
+              <Text style={styles.signInButtonText}>Sign in</Text>
             </>
           )}
         </Pressable>
 
-        <Text style={styles.signUpHint}>
-          Don't have an account?{" "}
-          <Text style={styles.signUpLink} onPress={handleSignIn}>
-            Sign up
-          </Text>
-        </Text>
+        <Pressable
+          style={[styles.signUpButton, isSignUpLoading && styles.signInButtonDisabled]}
+          onPress={handleSignUp}
+          disabled={isLoading || isSignUpLoading}
+          testID="sign-up-button"
+        >
+          {isSignUpLoading ? (
+            <ActivityIndicator color={c.primary} size="small" />
+          ) : (
+            <>
+              <Feather name="user-plus" size={18} color={c.primary} />
+              <Text style={styles.signUpButtonText}>Create account</Text>
+            </>
+          )}
+        </Pressable>
       </View>
 
       <View style={styles.footer}>
@@ -151,15 +171,22 @@ const styles = StyleSheet.create({
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.1,
   },
-  signUpHint: {
-    textAlign: "center",
-    fontSize: 13,
-    fontFamily: "Inter_400Regular",
-    color: c.mutedForeground,
+  signUpButton: {
+    borderWidth: 1.5,
+    borderColor: c.primary,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    flexDirection: "row",
+    gap: 8,
+    backgroundColor: "transparent",
   },
-  signUpLink: {
+  signUpButtonText: {
     color: c.primary,
-    fontFamily: "Inter_500Medium",
+    fontSize: 15,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.1,
   },
   errorBanner: {
     backgroundColor: "#fef2f2",
