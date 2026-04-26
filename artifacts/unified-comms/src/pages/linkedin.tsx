@@ -132,10 +132,11 @@ export default function LinkedInPage() {
     try {
       const data = await apiGet<{ conversations: Conversation[] }>("/linkedin/conversations");
       setConversations(data.conversations);
+      // If the API returns successfully but with zero conversations, LinkedIn's
+      // standard API doesn't expose the messaging endpoint — treat as blocked.
+      if (data.conversations.length === 0) setMessagingBlocked(true);
     } catch (err: any) {
-      if (err.code === "MESSAGING_ACCESS_REQUIRED") {
-        setMessagingBlocked(true);
-      }
+      setMessagingBlocked(true);
     } finally {
       setLoadingConvs(false);
     }

@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { apiFetch } from "@/lib/api-client";
 
 const WA_GREEN = "#25D366";
-const WA_DARK = "#128C7E";
+const WA_DARK_HEADER = "#128C7E";
 
 type WAStatus = "disconnected" | "connecting" | "qr" | "pairing" | "connected";
 type ConnectMode = "qr" | "phone";
@@ -91,25 +91,25 @@ function ConnectPanel({
     : null;
 
   return (
-    <div className="flex h-full items-center justify-center" style={{ backgroundColor: "#f0f2f5" }}>
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-8 max-w-sm w-full mx-4 text-center">
-        {/* Icon */}
+    <div className="flex h-full items-center justify-center bg-gray-100 dark:bg-[#111b21]">
+      <div className="bg-white dark:bg-[#1f2c34] rounded-2xl shadow-sm border border-gray-200 dark:border-gray-700 p-8 max-w-sm w-full mx-4 text-center">
         <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: WA_GREEN + "20" }}>
           <MessageCircle size={30} style={{ color: WA_GREEN }} />
         </div>
-        <h2 className="text-xl font-semibold text-gray-900 mb-1">Connect WhatsApp</h2>
-        <p className="text-sm text-gray-500 mb-5">Link your account to send and receive messages.</p>
+        <h2 className="text-xl font-semibold text-gray-900 dark:text-[#e9edef] mb-1">Connect WhatsApp</h2>
+        <p className="text-sm text-gray-500 dark:text-[#8696a0] mb-5">Link your account to send and receive messages.</p>
 
-        {/* Tab switcher */}
         {isIdle && (
-          <div className="flex rounded-lg bg-gray-100 p-1 mb-5 gap-1">
+          <div className="flex rounded-lg bg-gray-100 dark:bg-[#2a3942] p-1 mb-5 gap-1">
             {(["qr", "phone"] as ConnectMode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => { setMode(m); setPhoneError(null); }}
                 className={cn(
                   "flex-1 flex items-center justify-center gap-1.5 py-2 rounded-md text-sm font-medium transition-all",
-                  mode === m ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"
+                  mode === m
+                    ? "bg-white dark:bg-[#111b21] shadow-sm text-gray-900 dark:text-[#e9edef]"
+                    : "text-gray-500 dark:text-[#8696a0] hover:text-gray-700 dark:hover:text-[#e9edef]"
                 )}
               >
                 {m === "qr" ? <QrCode size={14} /> : <Smartphone size={14} />}
@@ -119,10 +119,9 @@ function ConnectPanel({
           </div>
         )}
 
-        {/* QR mode (idle) */}
         {isIdle && mode === "qr" && (
           <>
-            <p className="text-xs text-gray-400 mb-4">
+            <p className="text-xs text-gray-400 dark:text-[#8696a0] mb-4">
               Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong> and scan the QR code.
             </p>
             <button
@@ -135,21 +134,20 @@ function ConnectPanel({
           </>
         )}
 
-        {/* Phone mode (idle) */}
         {isIdle && mode === "phone" && (
           <>
-            <p className="text-xs text-gray-400 mb-3">
+            <p className="text-xs text-gray-400 dark:text-[#8696a0] mb-3">
               Enter your WhatsApp number with country code (no +). You'll get an 8-digit code to enter in WhatsApp.
             </p>
             <div className={cn(
-              "flex items-center gap-2 border rounded-lg px-3 py-2.5 mb-1 bg-gray-50 text-left",
-              phoneError ? "border-red-400" : "border-gray-200"
+              "flex items-center gap-2 border rounded-lg px-3 py-2.5 mb-1 bg-gray-50 dark:bg-[#2a3942] text-left",
+              phoneError ? "border-red-400" : "border-gray-200 dark:border-gray-600"
             )}>
-              <Smartphone size={15} className="text-gray-400 shrink-0" />
+              <Smartphone size={15} className="text-gray-400 dark:text-[#8696a0] shrink-0" />
               <input
                 type="tel"
                 placeholder="14155552671"
-                className="flex-1 text-sm bg-transparent outline-none text-gray-800 placeholder-gray-400"
+                className="flex-1 text-sm bg-transparent outline-none text-gray-800 dark:text-[#e9edef] placeholder-gray-400 dark:placeholder-[#8696a0]"
                 value={phone}
                 onChange={(e) => { setPhone(e.target.value); setPhoneError(null); }}
                 onKeyDown={(e) => e.key === "Enter" && handlePairing()}
@@ -171,67 +169,61 @@ function ConnectPanel({
           </>
         )}
 
-        {/* Connecting spinner */}
         {status === "connecting" && (
           <div className="flex flex-col items-center gap-3 mt-2">
-            <Loader2 className="animate-spin text-gray-400" size={28} />
-            <p className="text-sm text-gray-500">Starting connection…</p>
+            <Loader2 className="animate-spin text-gray-400 dark:text-[#8696a0]" size={28} />
+            <p className="text-sm text-gray-500 dark:text-[#8696a0]">Starting connection…</p>
           </div>
         )}
 
-        {/* QR code */}
         {status === "qr" && (
           <>
             {qr ? (
               <>
-                <p className="text-xs text-gray-500 mb-3">
+                <p className="text-xs text-gray-500 dark:text-[#8696a0] mb-3">
                   Open WhatsApp → <strong>Settings → Linked Devices → Link a Device</strong>
                 </p>
                 <div className="flex justify-center mb-3">
-                  <img src={qr} alt="WhatsApp QR Code" className="w-52 h-52 rounded-xl border border-gray-100" />
+                  <img src={qr} alt="WhatsApp QR Code" className="w-52 h-52 rounded-xl border border-gray-100 dark:border-gray-700" />
                 </div>
-                <p className="text-xs text-gray-400 mb-3">QR code refreshes automatically</p>
+                <p className="text-xs text-gray-400 dark:text-[#8696a0] mb-3">QR code refreshes automatically</p>
                 <button
                   onClick={onRefresh}
-                  className="flex items-center gap-1.5 mx-auto text-sm text-gray-400 hover:text-gray-600"
+                  className="flex items-center gap-1.5 mx-auto text-sm text-gray-400 dark:text-[#8696a0] hover:text-gray-600 dark:hover:text-[#e9edef]"
                 >
                   <RefreshCw size={13} /> Refresh
                 </button>
               </>
             ) : (
               <div className="flex flex-col items-center gap-3 mt-2">
-                <Loader2 className="animate-spin text-gray-400" size={28} />
-                <p className="text-sm text-gray-500">Generating QR code…</p>
+                <Loader2 className="animate-spin text-gray-400 dark:text-[#8696a0]" size={28} />
+                <p className="text-sm text-gray-500 dark:text-[#8696a0]">Generating QR code…</p>
               </div>
             )}
           </>
         )}
 
-        {/* Pairing code */}
         {status === "pairing" && (
           <>
             {formattedCode ? (
               <>
-                <p className="text-xs text-gray-500 mb-4">
+                <p className="text-xs text-gray-500 dark:text-[#8696a0] mb-4">
                   Open WhatsApp → <strong>Settings → Linked Devices → Link with Phone Number</strong> and enter this code:
                 </p>
                 <div
                   className="rounded-xl border-2 py-5 px-6 mb-3 mx-auto inline-block"
                   style={{ borderColor: WA_GREEN, backgroundColor: WA_GREEN + "12" }}
                 >
-                  <span
-                    className="text-4xl font-bold tracking-[0.25em]"
-                    style={{ color: WA_DARK, fontFamily: "monospace" }}
-                  >
+                  <span className="text-4xl font-bold tracking-[0.25em] dark:text-[#e9edef]" style={{ color: WA_DARK_HEADER, fontFamily: "monospace" }}>
                     {formattedCode}
                   </span>
                 </div>
-                <p className="text-xs text-gray-400">Code expires — enter it quickly in WhatsApp</p>
+                <p className="text-xs text-gray-400 dark:text-[#8696a0]">Code expires — enter it quickly in WhatsApp</p>
               </>
             ) : (
               <div className="flex flex-col items-center gap-3 mt-2">
-                <Loader2 className="animate-spin text-gray-400" size={28} />
-                <p className="text-sm text-gray-500">Requesting pairing code…</p>
+                <Loader2 className="animate-spin text-gray-400 dark:text-[#8696a0]" size={28} />
+                <p className="text-sm text-gray-500 dark:text-[#8696a0]">Requesting pairing code…</p>
               </div>
             )}
           </>
@@ -319,7 +311,6 @@ export default function WhatsApp() {
     return () => clearInterval(interval);
   }, [pollStatus, status]);
 
-  // When connected, periodically refresh chats so they populate even if SSE events were missed
   useEffect(() => {
     if (status !== "connected") return;
     loadChats();
@@ -398,13 +389,17 @@ export default function WhatsApp() {
   }
 
   return (
-    <div className="flex h-full overflow-hidden" style={{ background: "#f0f2f5" }}>
+    <div className="flex h-full overflow-hidden bg-gray-100 dark:bg-[#0b141a]">
       {/* Sidebar */}
       <div className={cn(
-        "flex flex-col border-r border-gray-200 bg-white",
+        "flex flex-col border-r border-gray-200 dark:border-gray-700 bg-white dark:bg-[#111b21]",
         selectedChat ? "hidden md:flex md:w-80 lg:w-96" : "flex w-full md:w-80 lg:w-96"
       )}>
-        <div className="flex items-center justify-between px-4 py-3" style={{ backgroundColor: WA_DARK }}>
+        {/* Header */}
+        <div
+          className="flex items-center justify-between px-4 py-3"
+          style={{ backgroundColor: WA_DARK_HEADER }}
+        >
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-semibold text-white" style={{ backgroundColor: WA_GREEN }}>
               Me
@@ -419,27 +414,30 @@ export default function WhatsApp() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 border-b border-green-100">
+        {/* Connected badge */}
+        <div className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 border-b border-green-100 dark:border-green-800/30">
           <div className="w-2 h-2 rounded-full bg-green-500" />
-          <p className="text-xs text-green-700 font-medium">Connected</p>
+          <p className="text-xs text-green-700 dark:text-green-400 font-medium">Connected</p>
         </div>
 
-        <div className="px-3 py-2 bg-white border-b border-gray-100">
-          <div className="flex items-center gap-2 bg-gray-100 rounded-full px-3 py-1.5">
-            <Search size={14} className="text-gray-400" />
+        {/* Search */}
+        <div className="px-3 py-2 bg-white dark:bg-[#111b21] border-b border-gray-100 dark:border-gray-700">
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-[#2a3942] rounded-full px-3 py-1.5">
+            <Search size={14} className="text-gray-400 dark:text-[#8696a0]" />
             <input
               type="text"
               placeholder="Search chats"
-              className="flex-1 bg-transparent text-sm outline-none text-gray-700 placeholder-gray-400"
+              className="flex-1 bg-transparent text-sm outline-none text-gray-700 dark:text-[#e9edef] placeholder-gray-400 dark:placeholder-[#8696a0]"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
           </div>
         </div>
 
+        {/* Chat list */}
         <div className="flex-1 overflow-y-auto">
           {filteredChats.length === 0 && !loadingChats && (
-            <div className="flex flex-col items-center justify-center h-40 text-gray-400 gap-2">
+            <div className="flex flex-col items-center justify-center h-40 gap-2 text-gray-400 dark:text-[#8696a0]">
               <MessageCircle size={24} />
               <p className="text-sm">No chats yet</p>
             </div>
@@ -449,24 +447,38 @@ export default function WhatsApp() {
               key={chat.id}
               onClick={() => setSelectedChat(chat)}
               className={cn(
-                "w-full flex items-center gap-3 px-4 py-3 hover:bg-gray-50 border-b border-gray-100 transition-colors text-left",
-                selectedChat?.id === chat.id && "bg-gray-100"
+                "w-full flex items-center gap-3 px-4 py-3 border-b border-gray-100 dark:border-gray-700/50 transition-colors text-left",
+                selectedChat?.id === chat.id
+                  ? "bg-gray-100 dark:bg-[#2a3942]"
+                  : "hover:bg-gray-50 dark:hover:bg-[#2a3942]"
               )}
             >
-              <div className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0" style={{ backgroundColor: WA_DARK }}>
+              <div
+                className="w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold text-white shrink-0"
+                style={{ backgroundColor: WA_DARK_HEADER }}
+              >
                 {chat.name.substring(0, 2).toUpperCase()}
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex justify-between items-baseline mb-0.5">
-                  <span className="font-medium text-sm text-gray-900 truncate">{chat.name}</span>
-                  <span className="text-xs shrink-0 ml-2" style={{ color: chat.unreadCount > 0 ? WA_GREEN : "#aaa" }}>
-                    {formatTime(chat.timestamp)}
+                  <span className="font-medium text-sm text-gray-900 dark:text-[#e9edef] truncate">{chat.name}</span>
+                  <span
+                    className="text-xs shrink-0 ml-2"
+                    style={{ color: chat.unreadCount > 0 ? WA_GREEN : undefined }}
+                    data-dim={chat.unreadCount === 0 ? "true" : undefined}
+                  >
+                    <span className={chat.unreadCount > 0 ? "" : "text-gray-400 dark:text-[#8696a0]"}>
+                      {formatTime(chat.timestamp)}
+                    </span>
                   </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-gray-500 truncate">{chat.lastMessage ?? ""}</span>
+                  <span className="text-xs text-gray-500 dark:text-[#8696a0] truncate">{chat.lastMessage ?? ""}</span>
                   {chat.unreadCount > 0 && (
-                    <span className="ml-2 text-xs text-white font-medium rounded-full px-1.5 py-0.5 min-w-[20px] text-center shrink-0" style={{ backgroundColor: WA_GREEN }}>
+                    <span
+                      className="ml-2 text-xs text-white font-medium rounded-full px-1.5 py-0.5 min-w-[20px] text-center shrink-0"
+                      style={{ backgroundColor: WA_GREEN }}
+                    >
                       {chat.unreadCount}
                     </span>
                   )}
@@ -480,11 +492,15 @@ export default function WhatsApp() {
       {/* Conversation pane */}
       {selectedChat ? (
         <div className="flex-1 flex flex-col min-w-0">
-          <div className="flex items-center gap-3 px-4 py-2.5" style={{ backgroundColor: WA_DARK }}>
+          {/* Conversation header */}
+          <div className="flex items-center gap-3 px-4 py-2.5" style={{ backgroundColor: WA_DARK_HEADER }}>
             <button className="md:hidden text-white mr-1" onClick={() => setSelectedChat(null)}>
               <ChevronLeft size={22} />
             </button>
-            <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0" style={{ backgroundColor: WA_GREEN }}>
+            <div
+              className="w-9 h-9 rounded-full flex items-center justify-center text-xs font-semibold text-white shrink-0"
+              style={{ backgroundColor: WA_GREEN }}
+            >
               {selectedChat.name.substring(0, 2).toUpperCase()}
             </div>
             <div className="flex-1">
@@ -497,26 +513,41 @@ export default function WhatsApp() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1" style={{ backgroundColor: "#e5ddd5" }}>
+          {/* Messages */}
+          <div
+            className="flex-1 overflow-y-auto px-4 py-3 flex flex-col gap-1 bg-[#e5ddd5] dark:bg-[#0b141a]"
+          >
             {loadingMessages && (
-              <div className="flex justify-center py-8"><Loader2 className="animate-spin text-gray-400" size={22} /></div>
+              <div className="flex justify-center py-8">
+                <Loader2 className="animate-spin text-gray-400 dark:text-[#8696a0]" size={22} />
+              </div>
             )}
             {!loadingMessages && messages.length === 0 && (
               <div className="flex-1 flex items-center justify-center">
-                <p className="text-sm text-gray-500">No messages yet</p>
+                <p className="text-sm text-gray-500 dark:text-[#8696a0]">No messages yet</p>
               </div>
             )}
             {messages.map((msg) => (
               <div key={msg.id} className={cn("flex", msg.fromMe ? "justify-end" : "justify-start")}>
                 <div
-                  className={cn("max-w-[65%] rounded-lg px-3 py-2 shadow-sm", msg.fromMe ? "rounded-tr-sm" : "rounded-tl-sm bg-white")}
-                  style={msg.fromMe ? { backgroundColor: "#dcf8c6" } : {}}
+                  className={cn(
+                    "max-w-[65%] rounded-lg px-3 py-2 shadow-sm",
+                    msg.fromMe ? "rounded-tr-sm" : "rounded-tl-sm"
+                  )}
+                  style={{
+                    backgroundColor: msg.fromMe
+                      ? "var(--wa-bubble-me, #dcf8c6)"
+                      : "var(--wa-bubble-them, #ffffff)",
+                  }}
                 >
-                  <p className="text-sm text-gray-800 leading-relaxed">
-                    {msg.text || <span className="italic text-gray-400">[media]</span>}
+                  <style>{`
+                    .dark { --wa-bubble-me: #005c4b; --wa-bubble-them: #202c33; }
+                  `}</style>
+                  <p className="text-sm text-gray-800 dark:text-[#e9edef] leading-relaxed">
+                    {msg.text || <span className="italic text-gray-400 dark:text-[#8696a0]">[media]</span>}
                   </p>
                   <div className="flex items-center justify-end gap-1 mt-1">
-                    <span className="text-[11px] text-gray-400">
+                    <span className="text-[11px] text-gray-400 dark:text-[#8696a0]">
                       {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}
                     </span>
                     {msg.fromMe && (
@@ -532,14 +563,15 @@ export default function WhatsApp() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="flex items-end gap-2 px-4 py-2 bg-gray-100 border-t border-gray-200">
-            <button className="text-gray-500 hover:text-gray-700 mb-2"><Smile size={22} /></button>
-            <button className="text-gray-500 hover:text-gray-700 mb-2"><Paperclip size={22} /></button>
-            <div className="flex-1 bg-white rounded-full px-4 py-2.5 flex items-center">
+          {/* Input */}
+          <div className="flex items-end gap-2 px-4 py-2 bg-gray-100 dark:bg-[#202c33] border-t border-gray-200 dark:border-gray-700">
+            <button className="text-gray-500 dark:text-[#8696a0] hover:text-gray-700 dark:hover:text-[#e9edef] mb-2"><Smile size={22} /></button>
+            <button className="text-gray-500 dark:text-[#8696a0] hover:text-gray-700 dark:hover:text-[#e9edef] mb-2"><Paperclip size={22} /></button>
+            <div className="flex-1 bg-white dark:bg-[#2a3942] rounded-full px-4 py-2.5 flex items-center">
               <input
                 type="text"
                 placeholder="Type a message"
-                className="flex-1 text-sm outline-none text-gray-800 placeholder-gray-400 bg-transparent"
+                className="flex-1 text-sm outline-none text-gray-800 dark:text-[#e9edef] placeholder-gray-400 dark:placeholder-[#8696a0] bg-transparent"
                 value={inputText}
                 onChange={(e) => setInputText(e.target.value)}
                 onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
@@ -549,20 +581,20 @@ export default function WhatsApp() {
               onClick={sendMessage}
               disabled={!inputText.trim() || sending}
               className="w-10 h-10 rounded-full flex items-center justify-center text-white transition-colors disabled:opacity-50"
-              style={{ backgroundColor: inputText.trim() ? WA_GREEN : WA_DARK }}
+              style={{ backgroundColor: inputText.trim() ? WA_GREEN : WA_DARK_HEADER }}
             >
               {sending ? <Loader2 size={16} className="animate-spin" /> : <Send size={17} />}
             </button>
           </div>
         </div>
       ) : (
-        <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-4" style={{ backgroundColor: "#f0f2f5" }}>
+        <div className="hidden md:flex flex-1 flex-col items-center justify-center gap-4 bg-[#f0f2f5] dark:bg-[#0b141a]">
           <div className="w-20 h-20 rounded-full flex items-center justify-center" style={{ backgroundColor: WA_GREEN + "20" }}>
             <MessageCircle size={36} style={{ color: WA_GREEN }} />
           </div>
           <div className="text-center">
-            <h2 className="text-2xl font-light text-gray-700 mb-2">WhatsApp</h2>
-            <p className="text-sm text-gray-500 max-w-xs">Select a conversation from the left to start messaging.</p>
+            <h2 className="text-2xl font-light text-gray-700 dark:text-[#e9edef] mb-2">WhatsApp</h2>
+            <p className="text-sm text-gray-500 dark:text-[#8696a0] max-w-xs">Select a conversation from the left to start messaging.</p>
           </div>
         </div>
       )}

@@ -77,6 +77,8 @@ class WhatsAppService extends EventEmitter {
       try {
         fs.mkdirSync(AUTH_DIR, { recursive: true });
         fs.writeFileSync(CHATS_FILE, JSON.stringify(Array.from(this.chats.values())));
+        // Upload chats to cloud storage so they survive deployments
+        uploadWaAuthDirToStorage(AUTH_DIR).catch(() => {});
       } catch (err) {
         logger.warn({ err }, "Could not persist WhatsApp chats");
       }
