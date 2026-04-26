@@ -61,8 +61,9 @@ linkedinPublicRouter.get("/linkedin/callback", async (req: Request, res: Respons
   }
 });
 
-linkedinRouter.get("/linkedin/status", (req: Request, res: Response) => {
+linkedinRouter.get("/linkedin/status", async (req: Request, res: Response) => {
   const userId = getUserId(req);
+  await linkedInService.ensureSession(userId);
   const status = linkedInService.getStatus(userId);
   const profile = linkedInService.getProfile(userId);
   const configured = !!(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
@@ -77,6 +78,7 @@ linkedinRouter.post("/linkedin/disconnect", async (req: Request, res: Response) 
 
 linkedinRouter.get("/linkedin/profile", async (req: Request, res: Response) => {
   const userId = getUserId(req);
+  await linkedInService.ensureSession(userId);
   if (linkedInService.getStatus(userId) !== "connected") {
     res.status(401).json({ error: "Not connected to LinkedIn" });
     return;
@@ -92,6 +94,7 @@ linkedinRouter.get("/linkedin/profile", async (req: Request, res: Response) => {
 
 linkedinRouter.get("/linkedin/conversations", async (req: Request, res: Response) => {
   const userId = getUserId(req);
+  await linkedInService.ensureSession(userId);
   if (linkedInService.getStatus(userId) !== "connected") {
     res.status(401).json({ error: "Not connected to LinkedIn" });
     return;
@@ -112,6 +115,7 @@ linkedinRouter.get("/linkedin/conversations", async (req: Request, res: Response
 linkedinRouter.get("/linkedin/conversations/:convId/messages", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   const { convId } = req.params;
+  await linkedInService.ensureSession(userId);
   if (linkedInService.getStatus(userId) !== "connected") {
     res.status(401).json({ error: "Not connected to LinkedIn" });
     return;
@@ -139,6 +143,7 @@ linkedinRouter.post("/linkedin/conversations/:convId/messages", async (req: Requ
     return;
   }
 
+  await linkedInService.ensureSession(userId);
   if (linkedInService.getStatus(userId) !== "connected") {
     res.status(401).json({ error: "Not connected to LinkedIn" });
     return;

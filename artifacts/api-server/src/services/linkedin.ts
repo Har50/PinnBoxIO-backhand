@@ -1,5 +1,11 @@
 import { EventEmitter } from "events";
 import { logger } from "../lib/logger";
+import {
+  getOAuthToken,
+  upsertOAuthToken,
+  deleteOAuthToken,
+  ensureUser,
+} from "./tokenManager";
 
 const LINKEDIN_API = "https://api.linkedin.com/v2";
 const LINKEDIN_AUTH = "https://www.linkedin.com/oauth/v2";
@@ -96,12 +102,26 @@ class LinkedInService extends EventEmitter {
     const data = (await res.json()) as any;
     const expiresAt = Date.now() + (data.expires_in ?? 5184000) * 1000;
 
+    // Store in memory
     this.sessions.set(userId, {
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       expiresAt,
       profile: null,
     });
+
+    // Persist to DB so it survives server restarts and deployments
+    try {
+      await ensureUser(userId);
+      await upsertOAuthToken(userId, "linkedin", {
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token ?? null,
+        expiresAt: new Date(expiresAt),
+        scope: SCOPES.join(" "),
+      });
+    } catch (err) {
+      logger.warn({ err }, "Could not persist LinkedIn token to DB");
+    }
 
     try {
       const profile = await this.fetchProfile(userId);
@@ -114,8 +134,42 @@ class LinkedInService extends EventEmitter {
     this.emit("event", { type: "status", userId, data: { status: "connected" } });
   }
 
+  /**
+   * Ensures the session is loaded from DB if it's not already in memory.
+   * Call this at the start of any authenticated route handler.
+   */
+  async ensureSession(userId: string): Promise<void> {
+    if (this.sessions.has(userId)) {
+      const s = this.sessions.get(userId)!;
+      if (s.expiresAt >= Date.now()) return; // still valid
+      this.sessions.delete(userId);
+    }
+    try {
+      const row = await getOAuthToken(userId, "linkedin");
+      if (!row) return;
+      const expiresAt = row.expiresAt ? row.expiresAt.getTime() : Date.now() + 3600_000;
+      if (expiresAt < Date.now()) {
+        await deleteOAuthToken(userId, "linkedin");
+        return;
+      }
+      this.sessions.set(userId, {
+        accessToken: row.accessToken,
+        refreshToken: row.refreshToken ?? undefined,
+        expiresAt,
+        profile: null,
+      });
+    } catch (err) {
+      logger.warn({ err }, "Could not restore LinkedIn session from DB");
+    }
+  }
+
   async disconnect(userId: string): Promise<void> {
     this.sessions.delete(userId);
+    try {
+      await deleteOAuthToken(userId, "linkedin");
+    } catch (err) {
+      logger.warn({ err }, "Could not delete LinkedIn token from DB");
+    }
     this.emit("event", { type: "status", userId, data: { status: "disconnected" } });
   }
 

@@ -13,6 +13,11 @@ import { EventEmitter } from "events";
 import path from "path";
 import fs from "fs";
 import { logger } from "../lib/logger";
+import {
+  downloadWaAuthFromStorage,
+  uploadWaAuthDirToStorage,
+  deleteWaAuthFromStorage,
+} from "../lib/waAuthSync";
 
 const AUTH_DIR = path.join(process.cwd(), "wa-auth");
 const CHATS_FILE = path.join(AUTH_DIR, "chats.json");
@@ -79,9 +84,17 @@ class WhatsAppService extends EventEmitter {
   }
 
   /** Returns true when saved credentials exist (i.e. we were previously logged in). */
-  hasCredentials(): boolean {
+  async hasCredentials(): Promise<boolean> {
+    // Check local disk first (fast path for dev / already-downloaded)
+    if (fs.existsSync(path.join(AUTH_DIR, "creds.json"))) return true;
+    // Fall back to checking cloud storage (production after a fresh deploy)
+    const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+    if (!bucketId) return false;
     try {
-      return fs.existsSync(path.join(AUTH_DIR, "creds.json"));
+      const { objectStorageClient } = await import("../lib/objectStorage");
+      const bucket = objectStorageClient.bucket(bucketId);
+      const [exists] = await bucket.file("wa-auth/creds.json").exists();
+      return exists;
     } catch {
       return false;
     }
@@ -109,6 +122,9 @@ class WhatsAppService extends EventEmitter {
     this.setStatus("connecting");
 
     try {
+      // Restore credentials from persistent cloud storage before connecting
+      await downloadWaAuthFromStorage(AUTH_DIR);
+
       const { version } = await fetchLatestBaileysVersion();
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 
@@ -125,7 +141,11 @@ class WhatsAppService extends EventEmitter {
         markOnlineOnConnect: false,
       });
 
-      this.sock.ev.on("creds.update", saveCreds);
+      this.sock.ev.on("creds.update", async () => {
+        await saveCreds();
+        // Persist updated credentials to cloud storage so they survive deploys
+        uploadWaAuthDirToStorage(AUTH_DIR).catch(() => {});
+      });
 
       if (this.pendingPairingPhone && !state.creds.registered) {
         const phone = this.pendingPairingPhone;
@@ -253,6 +273,8 @@ class WhatsAppService extends EventEmitter {
     this.pairingCode = null;
     this.pendingPairingPhone = null;
     try { fs.unlinkSync(CHATS_FILE); } catch {}
+    // Remove credentials from cloud storage so auto-connect doesn't fire next start
+    deleteWaAuthFromStorage().catch(() => {});
     this.setStatus("disconnected");
   }
 

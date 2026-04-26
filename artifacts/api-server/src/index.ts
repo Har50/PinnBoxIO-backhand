@@ -45,10 +45,12 @@ app.listen(port, (err) => {
 
   logger.info({ port }, "Server listening");
 
-  if (whatsappService.hasCredentials()) {
-    logger.info("WhatsApp credentials found — auto-connecting");
-    whatsappService.connect().catch((e) => {
-      logger.warn({ e }, "WhatsApp auto-connect failed");
-    });
-  }
+  whatsappService.hasCredentials().then((found) => {
+    if (found) {
+      logger.info("WhatsApp credentials found — auto-connecting");
+      whatsappService.connect().catch((e) => {
+        logger.warn({ e }, "WhatsApp auto-connect failed");
+      });
+    }
+  }).catch(() => {});
 });
