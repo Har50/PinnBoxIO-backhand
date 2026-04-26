@@ -185,10 +185,28 @@ class WhatsAppService extends EventEmitter {
 
         if (connection === "close") {
           const code = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const shouldReconnect = code !== DisconnectReason.loggedOut;
+          const isLoggedOut = code === DisconnectReason.loggedOut;
+          const isReplaced = code === DisconnectReason.connectionReplaced;
           this.pairingCode = null;
           this.setStatus("disconnected");
-          if (shouldReconnect && !this.pendingPairingPhone) {
+
+          if (isLoggedOut || isReplaced) {
+            // Session ended permanently — clear credentials so the next
+            // connection starts clean and doesn't loop on stale creds.
+            logger.info({ code, reason: isReplaced ? "replaced" : "loggedOut" }, "WA session ended, clearing credentials");
+            try {
+              const files = fs.readdirSync(AUTH_DIR);
+              files.forEach((f) => {
+                const fp = path.join(AUTH_DIR, f);
+                if (fs.lstatSync(fp).isDirectory()) {
+                  fs.rmSync(fp, { recursive: true, force: true });
+                } else {
+                  fs.unlinkSync(fp);
+                }
+              });
+            } catch {}
+            deleteWaAuthFromStorage().catch(() => {});
+          } else if (!this.pendingPairingPhone) {
             this.reconnectTimer = setTimeout(() => this.connect(), 5000);
           }
         }
