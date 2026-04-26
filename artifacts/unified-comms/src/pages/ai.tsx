@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown } from "lucide-react";
+import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown, Camera, ImageIcon, FileText, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
 
@@ -15,11 +15,19 @@ const PROVIDERS: { id: Provider; label: string; model: string }[] = [
   { id: "gemini", label: "Gemini", model: "Google" },
 ];
 
+interface Attachment {
+  name: string;
+  mimeType: string;
+  data: string; // base64
+  preview?: string; // object URL for images
+}
+
 interface Message {
   role: "user" | "assistant";
   content: string;
   streaming?: boolean;
   limitReached?: boolean;
+  attachments?: { name: string; mimeType: string; preview?: string }[];
 }
 
 interface Conversation {
@@ -53,8 +61,13 @@ function AiChat() {
   const [streaming, setStreaming] = useState(false);
   const [provider, setProvider] = useState<Provider>("openai");
   const [showMobileChats, setShowMobileChats] = useState(false);
+  const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [showAttachMenu, setShowAttachMenu] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const photoInputRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
 
   const fetchConversations = useCallback(async () => {
     const res = await apiFetch("/ai/conversations");
@@ -108,14 +121,43 @@ function AiChat() {
     }
   };
 
+  const addAttachments = useCallback(async (files: FileList | null) => {
+    if (!files) return;
+    const newAttachments: Attachment[] = [];
+    for (const file of Array.from(files)) {
+      const data = await new Promise<string>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
+        reader.readAsDataURL(file);
+      });
+      newAttachments.push({
+        name: file.name,
+        mimeType: file.type || "application/octet-stream",
+        data,
+        preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
+      });
+    }
+    setAttachments((prev) => [...prev, ...newAttachments]);
+    setShowAttachMenu(false);
+  }, []);
+
+  const removeAttachment = useCallback((index: number) => {
+    setAttachments((prev) => {
+      const updated = [...prev];
+      if (updated[index].preview) URL.revokeObjectURL(updated[index].preview!);
+      updated.splice(index, 1);
+      return updated;
+    });
+  }, []);
+
   const sendMessage = async () => {
-    if (!input.trim() || streaming) return;
+    if ((!input.trim() && attachments.length === 0) || streaming) return;
 
     let convId = activeConvId;
     if (!convId) {
       const res = await apiFetch("/ai/conversations", {
         method: "POST",
-        body: JSON.stringify({ title: input.slice(0, 60) }),
+        body: JSON.stringify({ title: input.slice(0, 60) || attachments[0]?.name || "Attachment" }),
       });
       if (!res.ok) return;
       const conv = await res.json();
@@ -125,8 +167,17 @@ function AiChat() {
     }
 
     const userMsg = input.trim();
+    const sentAttachments = attachments;
     setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
+    setAttachments([]);
+    setMessages((prev) => [
+      ...prev,
+      {
+        role: "user",
+        content: userMsg,
+        attachments: sentAttachments.map((a) => ({ name: a.name, mimeType: a.mimeType, preview: a.preview })),
+      },
+    ]);
     setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
     setStreaming(true);
 
@@ -134,7 +185,11 @@ function AiChat() {
     try {
       const res = await apiFetch(`/ai/conversations/${convId}/messages`, {
         method: "POST",
-        body: JSON.stringify({ content: userMsg, provider }),
+        body: JSON.stringify({
+          content: userMsg || "(see attached file)",
+          provider,
+          attachments: sentAttachments.map(({ name, mimeType, data }) => ({ name, mimeType, data })),
+        }),
       });
 
       if (!res.ok) {
@@ -359,7 +414,21 @@ function AiChat() {
                     : "bg-card border text-foreground rounded-bl-sm",
                 )}
               >
-                <div>{msg.content || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-2">
+                    {msg.attachments.map((a, ai) => (
+                      a.preview ? (
+                        <img key={ai} src={a.preview} alt={a.name} className="max-h-40 max-w-full rounded-lg object-cover" />
+                      ) : (
+                        <div key={ai} className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-primary-foreground/10 text-xs">
+                          <FileText className="w-3 h-3 shrink-0" />
+                          <span className="truncate max-w-[150px]">{a.name}</span>
+                        </div>
+                      )
+                    ))}
+                  </div>
+                )}
+                <div className="whitespace-pre-wrap">{msg.content || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
                 {msg.limitReached && (
                   <Button
                     size="sm"
@@ -376,7 +445,79 @@ function AiChat() {
         </div>
 
         <div className="p-3 sm:p-4 border-t">
+          {/* Hidden file inputs */}
+          <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden"
+            onChange={(e) => addAttachments(e.target.files)} />
+          <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden"
+            onChange={(e) => addAttachments(e.target.files)} />
+          <input ref={fileInputRef} type="file" multiple className="hidden"
+            onChange={(e) => addAttachments(e.target.files)} />
+
+          {/* Attachment chips */}
+          {attachments.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-2">
+              {attachments.map((a, i) => (
+                <div key={i} className="relative group">
+                  {a.preview ? (
+                    <div className="relative">
+                      <img src={a.preview} alt={a.name} className="h-14 w-14 rounded-lg object-cover border" />
+                      <button onClick={() => removeAttachment(i)}
+                        className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-destructive text-destructive-foreground rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <X className="w-2.5 h-2.5" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-muted text-xs border">
+                      <FileText className="w-3 h-3 text-muted-foreground shrink-0" />
+                      <span className="truncate max-w-[120px]">{a.name}</span>
+                      <button onClick={() => removeAttachment(i)} className="ml-1 text-muted-foreground hover:text-destructive">
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Attach menu popover */}
+          {showAttachMenu && (
+            <div className="mb-2 rounded-xl border bg-card shadow-lg overflow-hidden">
+              <div className="flex items-center justify-between px-4 py-2.5 border-b">
+                <span className="font-semibold text-sm">Add to Chat</span>
+                <button onClick={() => setShowAttachMenu(false)} className="text-muted-foreground hover:text-foreground">
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="grid grid-cols-3 gap-3 p-4">
+                <button onClick={() => cameraInputRef.current?.click()}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted hover:bg-accent transition-colors text-sm font-medium">
+                  <Camera className="w-6 h-6" />
+                  Camera
+                </button>
+                <button onClick={() => photoInputRef.current?.click()}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted hover:bg-accent transition-colors text-sm font-medium">
+                  <ImageIcon className="w-6 h-6" />
+                  Photos
+                </button>
+                <button onClick={() => fileInputRef.current?.click()}
+                  className="flex flex-col items-center gap-2 p-3 rounded-xl bg-muted hover:bg-accent transition-colors text-sm font-medium">
+                  <FileText className="w-6 h-6" />
+                  Files
+                </button>
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 items-end">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-11 w-11 shrink-0"
+              onClick={() => setShowAttachMenu((v) => !v)}
+            >
+              <Plus className="w-4 h-4" />
+            </Button>
             <Textarea
               ref={textareaRef}
               value={input}
@@ -388,14 +529,14 @@ function AiChat() {
             />
             <Button
               onClick={sendMessage}
-              disabled={!input.trim() || streaming}
+              disabled={(!input.trim() && attachments.length === 0) || streaming}
               size="icon"
               className="h-11 w-11 shrink-0"
             >
               {streaming ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
             </Button>
           </div>
-          <p className="text-xs text-muted-foreground mt-2 text-center">Press Enter to send, Shift+Enter for new line</p>
+          <p className="text-xs text-muted-foreground mt-2 text-center">Press Enter to send · Shift+Enter for new line</p>
         </div>
       </div>
     </div>

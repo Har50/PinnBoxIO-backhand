@@ -21,7 +21,7 @@ const router: IRouter = Router();
 
 type Provider = "openai" | "claude" | "gemini";
 
-const FREE_AI_REQUESTS_PER_DAY = 1;
+const FREE_AI_REQUESTS_PER_DAY = 200;
 
 function isTextLikeFile(name: string, mimeType: string) {
   const lowerName = name.toLowerCase();
@@ -304,10 +304,16 @@ router.delete("/ai/conversations/:id", async (req: any, res) => {
   }
 });
 
+type Attachment = { name: string; mimeType: string; data: string /* base64 */ };
+
 router.post("/ai/conversations/:id/messages", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);
-    const { content, provider = "openai" } = req.body as { content: string; provider?: Provider };
+    const { content, provider = "openai", attachments = [] } = req.body as {
+      content: string;
+      provider?: Provider;
+      attachments?: Attachment[];
+    };
 
     if (!content) return res.status(400).json({ error: "content is required" });
 
@@ -345,13 +351,29 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
     res.setHeader("Cache-Control", "no-cache");
     res.setHeader("Connection", "keep-alive");
 
+    // Build the latest user message content with any attachments
+    const imageAttachments = attachments.filter((a) => a.mimeType.startsWith("image/"));
+    const textAttachments = attachments.filter((a) => !a.mimeType.startsWith("image/"));
+    const textAttachmentContext = textAttachments.length > 0
+      ? "\n\n[Attached files]\n" + textAttachments.map((a) => `${a.name}:\n${Buffer.from(a.data, "base64").toString("utf8").slice(0, 3000)}`).join("\n\n")
+      : "";
+    const enrichedContent = content + textAttachmentContext;
+
     let fullResponse = "";
 
     if (provider === "claude") {
-      const claudeMessages = history.map((m) => ({
+      const claudeMessages: any[] = history.slice(0, -1).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       }));
+
+      // Build the latest message with optional image attachments
+      const latestContent: any[] = imageAttachments.map((a) => ({
+        type: "image",
+        source: { type: "base64", media_type: a.mimeType as any, data: a.data },
+      }));
+      latestContent.push({ type: "text", text: enrichedContent });
+      claudeMessages.push({ role: "user", content: latestContent });
 
       const stream = anthropic.messages.stream({
         model: "claude-sonnet-4-6",
@@ -367,10 +389,16 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
         }
       }
     } else if (provider === "gemini") {
-      const geminiContents = history.map((m) => ({
+      const geminiContents = history.slice(0, -1).map((m) => ({
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
       }));
+      // Latest message with optional image attachments (Gemini vision)
+      const latestParts: any[] = imageAttachments.map((a) => ({
+        inlineData: { mimeType: a.mimeType, data: a.data },
+      }));
+      latestParts.push({ text: enrichedContent });
+      geminiContents.push({ role: "user", parts: latestParts });
 
       const geminiStream = await geminiAi.models.generateContentStream({
         model: "gemini-2.5-flash",
@@ -392,8 +420,19 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
     } else {
       const chatMessages: any[] = [
         { role: "system", content: systemContext },
-        ...history.map((m) => ({ role: m.role, content: m.content })),
+        ...history.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
       ];
+      // Latest user message with optional image attachments (GPT-4o vision)
+      if (imageAttachments.length > 0) {
+        const latestParts: any[] = imageAttachments.map((a) => ({
+          type: "image_url",
+          image_url: { url: `data:${a.mimeType};base64,${a.data}`, detail: "auto" },
+        }));
+        latestParts.push({ type: "text", text: enrichedContent });
+        chatMessages.push({ role: "user", content: latestParts });
+      } else {
+        chatMessages.push({ role: "user", content: enrichedContent });
+      }
 
       const stream = await openai.chat.completions.create({
         model: "gpt-4o",
