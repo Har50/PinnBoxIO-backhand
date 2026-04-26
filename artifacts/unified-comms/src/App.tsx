@@ -63,30 +63,58 @@ const clerkAppearance = {
   },
   elements: {
     rootBox: "flex justify-center w-full",
-    cardBox: "bg-white rounded-2xl w-[440px] max-w-full overflow-hidden shadow-lg",
+    cardBox: {
+      className: "rounded-2xl w-[440px] max-w-full overflow-hidden shadow-lg",
+      style: { backgroundColor: brand.light.background },
+    },
     card: "!shadow-none !border-0 !bg-transparent !rounded-none",
     footer: "!shadow-none !border-0 !bg-transparent !rounded-none",
-    headerTitle: "text-gray-900 font-bold",
-    headerSubtitle: "text-gray-500",
-    socialButtonsBlockButtonText: "text-gray-700 font-medium",
-    formFieldLabel: "text-gray-700 font-medium",
-    footerActionLink: "text-blue-600 font-medium",
-    footerActionText: "text-gray-500",
-    dividerText: "text-gray-400",
-    identityPreviewEditButton: "text-blue-600",
-    formFieldSuccessText: "text-green-600",
-    alertText: "text-gray-700",
+    headerTitle: "font-bold",
+    socialButtonsBlockButtonText: "font-medium",
+    formFieldLabel: "font-medium",
+    footerActionLink: "font-medium",
+    formFieldSuccessText: { style: { color: brand.success } },
     logoBox: "flex items-center justify-center py-2",
     logoImage: "h-12 w-12",
-    socialButtonsBlockButton: "border border-gray-200 hover:border-gray-300 bg-white",
-    formButtonPrimary: "bg-blue-600 hover:bg-blue-700 text-white",
-    formFieldInput: "border border-gray-200 bg-white text-gray-900",
-    footerAction: "border-t border-gray-100 bg-gray-50",
-    dividerLine: "bg-gray-200",
-    alert: "border border-gray-200 bg-gray-50",
-    otpCodeFieldInput: "border border-gray-200 bg-white text-gray-900",
-    formFieldRow: "",
-    main: "",
+    socialButtonsBlockButton: {
+      className: "border",
+      style: {
+        borderColor: brand.light.border,
+        backgroundColor: brand.light.background,
+      },
+    },
+    formButtonPrimary: { className: "clerk-btn-primary" },
+    formFieldInput: {
+      className: "border",
+      style: {
+        borderColor: brand.light.border,
+        backgroundColor: brand.light.background,
+        color: brand.light.foreground,
+      },
+    },
+    footerAction: {
+      className: "border-t",
+      style: {
+        borderColor: brand.light.border,
+        backgroundColor: brand.light.muted,
+      },
+    },
+    dividerLine: { style: { backgroundColor: brand.light.border } },
+    alert: {
+      className: "border",
+      style: {
+        borderColor: brand.light.border,
+        backgroundColor: brand.light.muted,
+      },
+    },
+    otpCodeFieldInput: {
+      className: "border",
+      style: {
+        borderColor: brand.light.border,
+        backgroundColor: brand.light.background,
+        color: brand.light.foreground,
+      },
+    },
   },
 };
 
@@ -265,9 +293,25 @@ function ClerkProviderWithRoutes() {
   );
 }
 
+function BrandCssVars() {
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty("--brand-primary", brand.primary);
+    root.style.setProperty("--brand-primary-hover", brand.primaryHover);
+    root.style.setProperty("--brand-primary-foreground", brand.primaryForeground);
+    root.style.setProperty("--brand-border", brand.light.border);
+    root.style.setProperty("--brand-background", brand.light.background);
+    root.style.setProperty("--brand-muted", brand.light.muted);
+    root.style.setProperty("--brand-foreground", brand.light.foreground);
+    root.style.setProperty("--brand-success", brand.success);
+  }, []);
+  return null;
+}
+
 function App() {
   return (
     <WouterRouter base={basePath}>
+      <BrandCssVars />
       <ClerkProviderWithRoutes />
     </WouterRouter>
   );
