@@ -39,6 +39,12 @@ async function signOutAndVerify(page: import("@playwright/test").Page) {
 
   await signOutButton.click();
 
+  const dialog = page.getByRole("dialog");
+  await expect(dialog).toBeVisible({ timeout: 5_000 });
+  await expect(dialog.getByRole("heading", { name: "Sign out of PinnboxIO?" })).toBeVisible();
+
+  await dialog.getByRole("button", { name: "Sign out" }).click();
+
   await expect(page).toHaveURL(/\/sign-in/, { timeout: 15_000 });
 
   await expect(
