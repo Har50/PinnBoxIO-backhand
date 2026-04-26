@@ -20,6 +20,7 @@ import RefundsAndCancellations from "@/pages/refunds";
 import CookiePolicy from "@/pages/cookies";
 import { Redirect } from "wouter";
 import { Layout } from "./components/layout";
+import LandingPage from "./pages/landing";
 import Dashboard from "./pages/dashboard";
 import Inbox from "./pages/inbox";
 import Contacts from "./pages/contacts";
@@ -177,6 +178,16 @@ function Router() {
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/login" component={Login} />
+      <Route path="/">
+        <Show when="signed-out">
+          <LandingPage />
+        </Show>
+        <Show when="signed-in">
+          <Layout>
+            <Dashboard />
+          </Layout>
+        </Show>
+      </Route>
       <Route>
         <Show when="signed-in">
           <Layout>
