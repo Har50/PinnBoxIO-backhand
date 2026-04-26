@@ -6,7 +6,7 @@ import {
   useFonts,
 } from "@expo-google-fonts/inter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { Redirect, Stack } from "expo-router";
+import { Redirect, Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
@@ -45,8 +45,11 @@ SplashScreen.preventAutoHideAsync();
 
 const queryClient = new QueryClient();
 
+const ALLOWED_UNAUTHED_PATHS = ["/login", "/signup", "/callback"];
+
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
+  const pathname = usePathname();
 
   if (isLoading) {
     return (
@@ -57,13 +60,15 @@ function RootLayoutNav() {
   }
 
   if (!user) {
+    const isAllowed = ALLOWED_UNAUTHED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
     return (
       <>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
+          <Stack.Screen name="signup" />
           <Stack.Screen name="callback" />
         </Stack>
-        <Redirect href="/login" />
+        {!isAllowed && <Redirect href="/login" />}
       </>
     );
   }

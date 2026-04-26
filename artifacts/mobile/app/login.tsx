@@ -2,6 +2,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { APP_NAME, LOGIN_TAGLINE } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { ActivityIndicator, Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
@@ -9,14 +10,12 @@ import { useState } from "react";
 const c = colors.light;
 
 export default function LoginScreen() {
-  const { signIn, signUp, signInError } = useAuth();
+  const { signIn, signInError } = useAuth();
   const insets = useSafeAreaInsets();
   const [isLoading, setIsLoading] = useState(false);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
-
-  const [isSignUpLoading, setIsSignUpLoading] = useState(false);
 
   async function handleSignIn() {
     setIsLoading(true);
@@ -27,13 +26,8 @@ export default function LoginScreen() {
     }
   }
 
-  async function handleSignUp() {
-    setIsSignUpLoading(true);
-    try {
-      await signUp();
-    } finally {
-      setIsSignUpLoading(false);
-    }
+  function handleCreateAccount() {
+    router.push("/signup");
   }
 
   return (
@@ -57,7 +51,7 @@ export default function LoginScreen() {
         <Pressable
           style={[styles.signInButton, isLoading && styles.signInButtonDisabled]}
           onPress={handleSignIn}
-          disabled={isLoading || isSignUpLoading}
+          disabled={isLoading}
           testID="sign-in-button"
         >
           {isLoading ? (
@@ -71,19 +65,13 @@ export default function LoginScreen() {
         </Pressable>
 
         <Pressable
-          style={[styles.signUpButton, isSignUpLoading && styles.signInButtonDisabled]}
-          onPress={handleSignUp}
-          disabled={isLoading || isSignUpLoading}
+          style={[styles.signUpButton, isLoading && styles.signInButtonDisabled]}
+          onPress={handleCreateAccount}
+          disabled={isLoading}
           testID="sign-up-button"
         >
-          {isSignUpLoading ? (
-            <ActivityIndicator color={c.primary} size="small" />
-          ) : (
-            <>
-              <Feather name="user-plus" size={18} color={c.primary} />
-              <Text style={styles.signUpButtonText}>Create account</Text>
-            </>
-          )}
+          <Feather name="user-plus" size={18} color={c.primary} />
+          <Text style={styles.signUpButtonText}>Create account</Text>
         </Pressable>
       </View>
 
