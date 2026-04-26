@@ -47,8 +47,6 @@ const SCOPES = [
   "openid",
   "profile",
   "email",
-  "w_member_social",
-  "r_basicprofile",
 ];
 
 const MESSAGING_SCOPES = ["r_messages_v2", "w_messages_v2"];
