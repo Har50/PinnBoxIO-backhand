@@ -68,10 +68,26 @@ export default function SignUpScreen() {
     }))
   ).current;
 
+  const textAnims = useRef(
+    SLIDE_DATA.map(() => ({
+      titleOpacity: new Animated.Value(0),
+      titleTranslateY: new Animated.Value(8),
+      descOpacity: new Animated.Value(0),
+      descTranslateY: new Animated.Value(8),
+    }))
+  ).current;
+
   useEffect(() => {
     const anim = illustrationAnims[activeIndex];
+    const text = textAnims[activeIndex];
+
     anim.opacity.setValue(0);
     anim.scale.setValue(0.82);
+    text.titleOpacity.setValue(0);
+    text.titleTranslateY.setValue(8);
+    text.descOpacity.setValue(0);
+    text.descTranslateY.setValue(8);
+
     Animated.parallel([
       Animated.timing(anim.opacity, {
         toValue: 1,
@@ -85,6 +101,36 @@ export default function SignUpScreen() {
         stiffness: 220,
         mass: 1,
       }),
+      Animated.sequence([
+        Animated.delay(80),
+        Animated.parallel([
+          Animated.timing(text.titleOpacity, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(text.titleTranslateY, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+      Animated.sequence([
+        Animated.delay(120),
+        Animated.parallel([
+          Animated.timing(text.descOpacity, {
+            toValue: 1,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+          Animated.timing(text.descTranslateY, {
+            toValue: 0,
+            duration: 220,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
     ]).start();
   }, [activeIndex]);
 
@@ -193,10 +239,30 @@ export default function SignUpScreen() {
             >
               {renderIllustration(slide.key)}
             </Animated.View>
-            <Text style={[styles.slideTitle, { color: c.foreground }]}>{slide.title}</Text>
-            <Text style={[styles.slideDescription, { color: c.mutedForeground }]}>
+            <Animated.Text
+              style={[
+                styles.slideTitle,
+                { color: c.foreground },
+                {
+                  opacity: textAnims[i].titleOpacity,
+                  transform: [{ translateY: textAnims[i].titleTranslateY }],
+                },
+              ]}
+            >
+              {slide.title}
+            </Animated.Text>
+            <Animated.Text
+              style={[
+                styles.slideDescription,
+                { color: c.mutedForeground },
+                {
+                  opacity: textAnims[i].descOpacity,
+                  transform: [{ translateY: textAnims[i].descTranslateY }],
+                },
+              ]}
+            >
               {slide.description}
-            </Text>
+            </Animated.Text>
           </View>
         ))}
       </ScrollView>
