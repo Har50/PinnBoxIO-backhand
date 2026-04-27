@@ -10,6 +10,7 @@ import {
 } from "@/components/OnboardingIllustrations";
 import { router } from "expo-router";
 import {
+  AccessibilityInfo,
   ActivityIndicator,
   Animated,
   Platform,
@@ -59,7 +60,17 @@ export default function SignUpScreen() {
   const { width: SCREEN_WIDTH } = useWindowDimensions();
   const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      setReduceMotion
+    );
+    return () => subscription.remove();
+  }, []);
 
   const illustrationAnims = useRef(
     SLIDE_DATA.map(() => ({
@@ -80,6 +91,16 @@ export default function SignUpScreen() {
   useEffect(() => {
     const anim = illustrationAnims[activeIndex];
     const text = textAnims[activeIndex];
+
+    if (reduceMotion) {
+      anim.opacity.setValue(1);
+      anim.scale.setValue(1);
+      text.titleOpacity.setValue(1);
+      text.titleTranslateY.setValue(0);
+      text.descOpacity.setValue(1);
+      text.descTranslateY.setValue(0);
+      return;
+    }
 
     anim.opacity.setValue(0);
     anim.scale.setValue(0.82);
@@ -132,7 +153,7 @@ export default function SignUpScreen() {
         ]),
       ]),
     ]).start();
-  }, [activeIndex]);
+  }, [activeIndex, reduceMotion]);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
