@@ -66,7 +66,7 @@ async function collectAppearanceTokens(page: import("@playwright/test").Page) {
   );
 }
 
-test.describe("Sign-in / sign-up appearance parity", () => {
+test.describe("Sign-in / sign-up appearance parity — light mode", () => {
   test("both pages render the same auth-shell background colour", async ({
     page,
   }) => {
@@ -150,5 +150,61 @@ test.describe("Sign-in / sign-up appearance parity", () => {
 
     expect(onlyInSignIn, "classes only on sign-in card").toHaveLength(0);
     expect(onlyInSignUp, "classes only on sign-up card").toHaveLength(0);
+  });
+});
+
+/**
+ * Dark-mode parity: the same three colour tokens must be identical between
+ * /sign-in and /sign-up when the OS colour scheme is dark.
+ *
+ * Playwright emulates the media query via `colorScheme: 'dark'`, which causes
+ * `useDarkMode()` in App.tsx to return true and `buildClerkAppearance()` to
+ * switch every colour token to the dark-mode brand values.
+ *
+ * A hardcoded colour override that affects only one page in dark mode would
+ * fail these assertions, catching the regression early.
+ */
+test.describe("Sign-in / sign-up appearance parity — dark mode", () => {
+  test.use({ colorScheme: "dark" });
+
+  test("both pages render the same auth-shell background colour in dark mode", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/sign-in`);
+    const signIn = await collectAppearanceTokens(page);
+
+    await page.goto(`${BASE}/sign-up`);
+    const signUp = await collectAppearanceTokens(page);
+
+    expect(signIn.shellBackground).toBeTruthy();
+    expect(signIn.shellBackground).toEqual(signUp.shellBackground);
+  });
+
+  test("both pages render the same card background colour in dark mode", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/sign-in`);
+    const signIn = await collectAppearanceTokens(page);
+
+    await page.goto(`${BASE}/sign-up`);
+    const signUp = await collectAppearanceTokens(page);
+
+    expect(signIn.cardBackground).toBeTruthy();
+    expect(signIn.cardBackground).toEqual(signUp.cardBackground);
+  });
+
+  test("both pages render the same primary button colour in dark mode", async ({
+    page,
+  }) => {
+    await page.goto(`${BASE}/sign-in`);
+    const signIn = await collectAppearanceTokens(page);
+
+    await page.goto(`${BASE}/sign-up`);
+    const signUp = await collectAppearanceTokens(page);
+
+    expect(signIn.primaryButtonBackground).toBeTruthy();
+    expect(signIn.primaryButtonBackground).toEqual(
+      signUp.primaryButtonBackground,
+    );
   });
 });
