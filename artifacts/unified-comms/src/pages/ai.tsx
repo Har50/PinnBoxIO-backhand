@@ -235,14 +235,43 @@ function AiChat() {
     setVoiceSupported(!!SR);
   }, []);
 
-  const toggleVoice = useCallback(() => {
+  const toggleVoice = useCallback(async () => {
     if (isListening) {
-      speechRef.current?.stop();
+      try { speechRef.current?.stop(); } catch {}
       setIsListening(false);
       return;
     }
+
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) return;
+    if (!SR) {
+      alert("Voice input isn't supported in this browser. Try Chrome, Edge, or Safari on desktop / iOS.");
+      return;
+    }
+
+    // Explicitly request microphone permission so the browser prompts the user.
+    // This also surfaces a clear error if the preview iframe doesn't have mic delegated.
+    try {
+      if (navigator.mediaDevices?.getUserMedia) {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      }
+    } catch (err: any) {
+      console.error("[voice] mic permission error:", err?.name, err?.message, err);
+      const name = err?.name || "";
+      if (name === "NotAllowedError" || name === "SecurityError") {
+        alert(
+          "Microphone is blocked.\n\n" +
+            "If you're viewing in the Replit preview pane: open the app in a new tab (the popout button), then click the lock icon in the address bar and allow microphone.\n\n" +
+            "Otherwise: allow microphone access for this site in your browser settings and try again."
+        );
+      } else if (name === "NotFoundError" || name === "OverconstrainedError") {
+        alert("No microphone detected on this device.");
+      } else {
+        alert("Couldn't access the microphone: " + (err?.message || name || "unknown error"));
+      }
+      return;
+    }
+
     const recognition = new SR();
     recognition.continuous = false;
     recognition.interimResults = true;
@@ -260,13 +289,35 @@ function AiChat() {
         return base + (base ? " " : "") + (finalTranscript || interim);
       });
     };
-    recognition.onend = () => { setIsListening(false); };
-    recognition.onerror = () => { setIsListening(false); };
+    recognition.onend = () => {
+      console.log("[voice] recognition ended");
+      setIsListening(false);
+    };
+    recognition.onerror = (e: any) => {
+      console.error("[voice] recognition error:", e.error, e);
+      setIsListening(false);
+      if (e.error === "not-allowed" || e.error === "service-not-allowed") {
+        alert("Microphone permission was blocked. Allow it for this site and try again.");
+      } else if (e.error === "network") {
+        alert("Voice input needs an internet connection.");
+      } else if (e.error === "no-speech") {
+        // silent — user simply didn't speak
+      } else if (e.error !== "aborted") {
+        alert("Voice input error: " + e.error);
+      }
+    };
     speechRef.current = recognition;
     setInput("");
     finalTranscript = "";
-    recognition.start();
-    setIsListening(true);
+    try {
+      recognition.start();
+      setIsListening(true);
+      console.log("[voice] listening started");
+    } catch (err: any) {
+      console.error("[voice] start failed:", err);
+      setIsListening(false);
+      alert("Couldn't start voice input: " + (err?.message || err));
+    }
   }, [isListening]);
 
   const fetchConversations = useCallback(async () => {
