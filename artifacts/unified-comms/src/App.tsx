@@ -192,6 +192,7 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
     : undefined;
   return (
     <div
+      data-testid="auth-page-shell"
       className="min-h-screen flex flex-col items-center justify-center bg-background px-4 py-8"
       style={shellStyle}
     >
