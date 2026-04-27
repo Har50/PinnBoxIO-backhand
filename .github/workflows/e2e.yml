@@ -114,6 +114,25 @@ jobs:
               labels: ['e2e', 'regression', 'nightly'],
             });
 
+      - name: Notify Slack on nightly failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL is not set — skipping Slack notification."
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          DATE="$(date -u +%Y-%m-%d)"
+          curl -s --fail -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \":rotating_light: *Nightly E2E failure – ${DATE}*\nCommit: \`${SHORT_SHA}\`\nRun: <${RUN_URL}|View run>\nPlease investigate before the next scheduled run.\"
+            }"
+
   mobile-e2e:
     name: Mobile E2E (carousel)
     runs-on: ubuntu-latest
@@ -196,3 +215,22 @@ jobs:
               body,
               labels: ['e2e', 'regression', 'nightly', 'mobile'],
             });
+
+      - name: Notify Slack on nightly failure
+        if: failure() && github.event_name == 'schedule'
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "::warning::SLACK_WEBHOOK_URL is not set — skipping Slack notification."
+            exit 0
+          fi
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          SHORT_SHA="${{ github.sha }}"
+          SHORT_SHA="${SHORT_SHA:0:7}"
+          DATE="$(date -u +%Y-%m-%d)"
+          curl -s --fail -X POST "$SLACK_WEBHOOK_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"text\": \":rotating_light: *Nightly mobile E2E failure – ${DATE}*\nCommit: \`${SHORT_SHA}\`\nRun: <${RUN_URL}|View run>\nPlease investigate before the next scheduled run.\"
+            }"
