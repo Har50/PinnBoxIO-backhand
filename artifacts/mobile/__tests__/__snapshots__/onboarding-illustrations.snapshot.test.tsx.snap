@@ -1,0 +1,713 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`OnboardingIllustrations visual props snapshots AIIllustration dark mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#f59e0b38",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#f59e0b",
+    "opacity": 0.28,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": 0.9,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": "#f59e0b",
+    "opacity": 1,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.8,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.95",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots AIIllustration light mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#f59e0b22",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#f59e0b",
+    "opacity": 0.15,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": 0.7,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": "#f59e0b",
+    "opacity": 0.85,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": undefined,
+    "opacity": 0.6,
+    "stroke": "#f59e0b",
+    "strokeWidth": "3",
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.95",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots FreeIllustration dark mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#6366f130",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 1,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.35,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.28,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#ffffff",
+    "strokeWidth": "4",
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#ffffff",
+    "strokeWidth": "4",
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.95",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.8,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.65,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.6,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.55,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots FreeIllustration light mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#6366f118",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.85,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.25,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.18,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#ffffff",
+    "strokeWidth": "4",
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#ffffff",
+    "strokeWidth": "4",
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.95",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.6,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.45,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.4,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.35,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots InboxIllustration dark mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#6366f130",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f148",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#6366f170",
+    "strokeWidth": "1.5",
+  },
+  {
+    "fill": "#6366f142",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#6366f165",
+    "strokeWidth": "1.5",
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.35",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": undefined,
+    "stroke": "#ffffff",
+    "strokeWidth": "2.5",
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#ffffff",
+    "strokeWidth": "2.5",
+  },
+  {
+    "fill": "none",
+    "opacity": "0.5",
+    "stroke": "#ffffff",
+    "strokeWidth": "2",
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.9,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.7,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.6,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots InboxIllustration light mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#6366f118",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f130",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#6366f150",
+    "strokeWidth": "1.5",
+  },
+  {
+    "fill": "#6366f128",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#6366f145",
+    "strokeWidth": "1.5",
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": "0.35",
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": undefined,
+    "stroke": "#ffffff",
+    "strokeWidth": "2.5",
+  },
+  {
+    "fill": "none",
+    "opacity": undefined,
+    "stroke": "#ffffff",
+    "strokeWidth": "2.5",
+  },
+  {
+    "fill": "none",
+    "opacity": "0.5",
+    "stroke": "#ffffff",
+    "strokeWidth": "2",
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.7,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.5,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#6366f1",
+    "opacity": 0.4,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots SearchIllustration dark mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#10b98138",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98150",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98145",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98138",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98130",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.06,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#10b981",
+    "strokeWidth": "5",
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.35,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": "0.9",
+    "stroke": "#10b981",
+    "strokeWidth": "6",
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.7,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.6,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.55,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.45,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
+
+exports[`OnboardingIllustrations visual props snapshots SearchIllustration light mode visual props match snapshot 1`] = `
+[
+  {
+    "fill": "#10b98122",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98130",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98125",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98120",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b98115",
+    "opacity": undefined,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#ffffff",
+    "opacity": 0.12,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "none",
+    "opacity": "0.9",
+    "stroke": "#10b981",
+    "strokeWidth": "5",
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.2,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": undefined,
+    "opacity": "0.9",
+    "stroke": "#10b981",
+    "strokeWidth": "6",
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.5,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.4,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.35,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+  {
+    "fill": "#10b981",
+    "opacity": 0.3,
+    "stroke": undefined,
+    "strokeWidth": undefined,
+  },
+]
+`;
