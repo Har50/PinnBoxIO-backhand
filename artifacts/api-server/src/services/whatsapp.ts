@@ -153,6 +153,14 @@ class WhatsAppService extends EventEmitter {
       // Download fresh credentials from cloud storage (empty = fresh scan needed)
       await downloadWaAuthFromStorage(AUTH_DIR);
 
+      // Reload persisted chats from the freshly-downloaded file (the map may
+      // have been empty if the local file didn't exist before this connect).
+      const freshChats = loadPersistedChats();
+      if (freshChats.size > 0) {
+        freshChats.forEach((c, id) => this.chats.set(id, c));
+        logger.info({ count: freshChats.size }, "Reloaded WA chats from storage after download");
+      }
+
       const { version } = await fetchLatestBaileysVersion();
       const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
 

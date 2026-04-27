@@ -159,11 +159,13 @@ async function getUserContext(userId: string): Promise<string> {
   context += "1. Answer the user's specific question first. Only write an email draft if they explicitly ask for one.\n";
   context += "2. When asked to write or send an email, always produce the COMPLETE draft in the special block below — never truncate.\n";
   context += "3. Match the requested tone exactly. Default: concise, professional, human.\n";
-  context += "4. You CAN send emails. When you produce a draft the user wants sent, wrap it in an email-draft block and tell them to click Send.\n";
-  context += "5. If details are missing (recipient email, etc.), ask for them before drafting.\n";
+  context += "4. You CAN send emails AND WhatsApp messages. Use the special formats below when the user wants to send.\n";
+  context += "5. If details are missing (recipient email, phone, etc.), ask for them before drafting.\n";
   context += "6. Keep answers short unless the user asks for detail. Never pad with filler.\n\n";
   context += "EMAIL DRAFT FORMAT — use this EXACTLY when producing an email to send:\n";
   context += "<email-draft>{\"to\":\"recipient@example.com\",\"subject\":\"Subject here\",\"body\":\"Full email body here\"}</email-draft>\n\n";
+  context += "WHATSAPP MESSAGE FORMAT — use this EXACTLY when sending a WhatsApp message (use chatId from the WhatsApp Chats list above):\n";
+  context += "<wa-message>{\"chatId\":\"1234567890@s.whatsapp.net\",\"name\":\"Contact Name\",\"text\":\"Your message here\"}</wa-message>\n\n";
 
   if (recentMessages.length > 0) {
     context += "=== Recent Email Messages ===\n";
@@ -191,12 +193,20 @@ async function getUserContext(userId: string): Promise<string> {
     context += "\n";
   }
 
+  if (waChats.length > 0) {
+    context += "=== WhatsApp Chats (use chatId exactly when sending) ===\n";
+    for (const chat of waChats.slice(0, 20)) {
+      context += `chatId: ${chat.id} | name: ${chat.name ?? chat.id}\n`;
+    }
+    context += "\n";
+  }
+
   if (waMessages.length > 0) {
     context += "=== Recent WhatsApp Messages ===\n";
     for (const m of waMessages) {
       const date = m.timestamp ? new Date(m.timestamp * 1000).toLocaleDateString() : "";
       const direction = m.fromMe ? "You" : m.chatName;
-      context += `[${date}] ${direction}: ${m.text.slice(0, 150)}\n`;
+      context += `[${date}] chatId:${m.chatId} | ${direction}: ${m.text.slice(0, 150)}\n`;
     }
     context += "\n";
   }
