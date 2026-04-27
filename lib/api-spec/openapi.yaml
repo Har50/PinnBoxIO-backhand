@@ -19,6 +19,8 @@ tags:
     description: Contact management
   - name: search
     description: Search operations
+  - name: preferences
+    description: User notification preferences
 paths:
   /auth/user:
     get:
@@ -116,6 +118,36 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/LogoutSuccess'
+  /user/preferences:
+    get:
+      operationId: getUserPreferences
+      tags: [preferences]
+      summary: Get the current user's notification preferences
+      responses:
+        "200":
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+    patch:
+      operationId: updateUserPreferences
+      tags: [preferences]
+      summary: Update the current user's notification preferences
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateNotificationPreferencesBody"
+      responses:
+        "200":
+          description: Updated preferences
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NotificationPreferences"
+
   /healthz:
     get:
       operationId: healthCheck
@@ -913,3 +945,27 @@ components:
         - color
         - unread
         - total
+
+    NotificationPreferences:
+      type: object
+      properties:
+        emailSummary:
+          type: boolean
+        importantMessages:
+          type: boolean
+        weeklyDigest:
+          type: boolean
+      required:
+        - emailSummary
+        - importantMessages
+        - weeklyDigest
+
+    UpdateNotificationPreferencesBody:
+      type: object
+      properties:
+        emailSummary:
+          type: boolean
+        importantMessages:
+          type: boolean
+        weeklyDigest:
+          type: boolean

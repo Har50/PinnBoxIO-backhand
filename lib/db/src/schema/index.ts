@@ -5,3 +5,4 @@ export * from "./attachments";
 export * from "./auth";
 export * from "./conversations";
 export * from "./storage";
+export * from "./preferences";

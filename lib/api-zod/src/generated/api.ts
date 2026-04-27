@@ -87,6 +87,30 @@ export const LogoutMobileSessionResponse = zod.object({
 });
 
 /**
+ * @summary Get the current user's notification preferences
+ */
+export const GetUserPreferencesResponse = zod.object({
+  emailSummary: zod.boolean(),
+  importantMessages: zod.boolean(),
+  weeklyDigest: zod.boolean(),
+});
+
+/**
+ * @summary Update the current user's notification preferences
+ */
+export const UpdateUserPreferencesBody = zod.object({
+  emailSummary: zod.boolean().optional(),
+  importantMessages: zod.boolean().optional(),
+  weeklyDigest: zod.boolean().optional(),
+});
+
+export const UpdateUserPreferencesResponse = zod.object({
+  emailSummary: zod.boolean(),
+  importantMessages: zod.boolean(),
+  weeklyDigest: zod.boolean(),
+});
+
+/**
  * Returns server health status
  * @summary Health check
  */

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useUser, useClerk } from "@clerk/react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,12 @@ import {
   Linkedin,
 } from "lucide-react";
 import { Link } from "wouter";
-import { useGetAccounts } from "@workspace/api-client-react";
+import {
+  useGetAccounts,
+  useGetUserPreferences,
+  useUpdateUserPreferences,
+  getGetUserPreferencesQueryKey,
+} from "@workspace/api-client-react";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -44,28 +50,30 @@ function useTheme() {
 }
 
 function useNotificationPrefs() {
-  const key = "pinnboxio_notification_prefs";
-  const load = () => {
-    try {
-      return JSON.parse(localStorage.getItem(key) ?? "{}");
-    } catch {
-      return {};
-    }
+  const queryClient = useQueryClient();
+  const { data: serverPrefs } = useGetUserPreferences();
+  const { mutate: updatePrefs } = useUpdateUserPreferences();
+
+  const prefs: Record<string, boolean> = {
+    emailSummary: serverPrefs?.emailSummary ?? true,
+    importantMessages: serverPrefs?.importantMessages ?? true,
+    weeklyDigest: serverPrefs?.weeklyDigest ?? false,
   };
 
-  const [prefs, setPrefs] = useState<Record<string, boolean>>(() => ({
-    emailSummary: true,
-    importantMessages: true,
-    weeklyDigest: false,
-    ...load(),
-  }));
-
   const toggle = (key: string) => {
-    setPrefs((prev) => {
-      const next = { ...prev, [key]: !prev[key] };
-      localStorage.setItem("pinnboxio_notification_prefs", JSON.stringify(next));
-      return next;
-    });
+    const next = { ...prefs, [key]: !prefs[key] };
+    queryClient.setQueryData(getGetUserPreferencesQueryKey(), next);
+    updatePrefs(
+      { data: { [key]: next[key] } },
+      {
+        onSuccess: (updated) => {
+          queryClient.setQueryData(getGetUserPreferencesQueryKey(), updated);
+        },
+        onError: () => {
+          queryClient.invalidateQueries({ queryKey: getGetUserPreferencesQueryKey() });
+        },
+      },
+    );
   };
 
   return { prefs, toggle };

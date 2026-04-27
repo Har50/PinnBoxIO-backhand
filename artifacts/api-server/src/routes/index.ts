@@ -12,6 +12,7 @@ import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 import storageRouter from "./storage";
 import authOAuthRouter from "./auth-oauth";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
+import preferencesRouter from "./preferences";
 import { ensureUser } from "../services/tokenManager";
 
 const router: IRouter = Router();
@@ -76,5 +77,6 @@ router.use(statsRouter);
 router.use(aiRouter);
 router.use(linkedinRouter);
 router.use(storageRouter);
+router.use(preferencesRouter);
 
 export default router;

@@ -249,6 +249,18 @@ export interface OverviewStats {
   accountBreakdown: AccountStat[];
 }
 
+export interface NotificationPreferences {
+  emailSummary: boolean;
+  importantMessages: boolean;
+  weeklyDigest: boolean;
+}
+
+export interface UpdateNotificationPreferencesBody {
+  emailSummary?: boolean;
+  importantMessages?: boolean;
+  weeklyDigest?: boolean;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */
