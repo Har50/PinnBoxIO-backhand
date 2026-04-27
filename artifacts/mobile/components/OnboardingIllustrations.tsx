@@ -9,22 +9,28 @@ import Svg, {
 
 const SIZE = 140;
 
-export function InboxIllustration({ primary }: { primary: string }) {
-  const bg = primary + "18";
+export function InboxIllustration({
+  primary,
+  dark = false,
+}: {
+  primary: string;
+  dark?: boolean;
+}) {
+  const bg = primary + (dark ? "30" : "18");
   return (
     <Svg width={SIZE} height={SIZE} viewBox="0 0 140 140">
       <Rect x="0" y="0" width="140" height="140" rx="36" fill={bg} />
 
       {/* Back envelope (left) */}
       <G transform="translate(18, 42) rotate(-14, 34, 26)">
-        <Rect x="0" y="8" width="48" height="34" rx="6" fill={`${primary}30`} />
-        <Path d="M0 8 L24 26 L48 8" stroke={`${primary}50`} strokeWidth="1.5" fill="none" />
+        <Rect x="0" y="8" width="48" height="34" rx="6" fill={`${primary}${dark ? "48" : "30"}`} />
+        <Path d="M0 8 L24 26 L48 8" stroke={`${primary}${dark ? "70" : "50"}`} strokeWidth="1.5" fill="none" />
       </G>
 
       {/* Back envelope (right) */}
       <G transform="translate(76, 40) rotate(14, 34, 26)">
-        <Rect x="0" y="8" width="48" height="34" rx="6" fill={`${primary}28`} />
-        <Path d="M0 8 L24 26 L48 8" stroke={`${primary}45`} strokeWidth="1.5" fill="none" />
+        <Rect x="0" y="8" width="48" height="34" rx="6" fill={`${primary}${dark ? "42" : "28"}`} />
+        <Path d="M0 8 L24 26 L48 8" stroke={`${primary}${dark ? "65" : "45"}`} strokeWidth="1.5" fill="none" />
       </G>
 
       {/* Main (center) inbox tray */}
@@ -57,27 +63,33 @@ export function InboxIllustration({ primary }: { primary: string }) {
       />
 
       {/* Small dots representing channels */}
-      <Circle cx="38" cy="57" r="5" fill={primary} opacity="0.7" />
-      <Circle cx="102" cy="57" r="5" fill={primary} opacity="0.5" />
-      <Circle cx="70" cy="34" r="4" fill={primary} opacity="0.4" />
+      <Circle cx="38" cy="57" r="5" fill={primary} opacity={dark ? 0.9 : 0.7} />
+      <Circle cx="102" cy="57" r="5" fill={primary} opacity={dark ? 0.7 : 0.5} />
+      <Circle cx="70" cy="34" r="4" fill={primary} opacity={dark ? 0.6 : 0.4} />
     </Svg>
   );
 }
 
-export function SearchIllustration({ emerald }: { emerald: string }) {
-  const bg = emerald + "22";
+export function SearchIllustration({
+  emerald,
+  dark = false,
+}: {
+  emerald: string;
+  dark?: boolean;
+}) {
+  const bg = emerald + (dark ? "38" : "22");
   return (
     <Svg width={SIZE} height={SIZE} viewBox="0 0 140 140">
       <Rect x="0" y="0" width="140" height="140" rx="36" fill={bg} />
 
       {/* Stacked message rows */}
-      <Rect x="24" y="34" width="70" height="10" rx="5" fill={`${emerald}30`} />
-      <Rect x="24" y="50" width="55" height="10" rx="5" fill={`${emerald}25`} />
-      <Rect x="24" y="66" width="62" height="10" rx="5" fill={`${emerald}20`} />
-      <Rect x="24" y="82" width="44" height="10" rx="5" fill={`${emerald}15`} />
+      <Rect x="24" y="34" width="70" height="10" rx="5" fill={`${emerald}${dark ? "50" : "30"}`} />
+      <Rect x="24" y="50" width="55" height="10" rx="5" fill={`${emerald}${dark ? "45" : "25"}`} />
+      <Rect x="24" y="66" width="62" height="10" rx="5" fill={`${emerald}${dark ? "38" : "20"}`} />
+      <Rect x="24" y="82" width="44" height="10" rx="5" fill={`${emerald}${dark ? "30" : "15"}`} />
 
       {/* Magnifying glass */}
-      <Circle cx="86" cy="82" r="26" fill="#ffffff" opacity="0.12" />
+      <Circle cx="86" cy="82" r="26" fill="#ffffff" opacity={dark ? 0.06 : 0.12} />
       <Circle
         cx="86"
         cy="82"
@@ -88,7 +100,7 @@ export function SearchIllustration({ emerald }: { emerald: string }) {
         opacity="0.9"
       />
       {/* Highlight inside lens */}
-      <Circle cx="79" cy="75" r="5" fill={emerald} opacity="0.2" />
+      <Circle cx="79" cy="75" r="5" fill={emerald} opacity={dark ? 0.35 : 0.2} />
       {/* Handle */}
       <Line
         x1="102"
@@ -102,24 +114,30 @@ export function SearchIllustration({ emerald }: { emerald: string }) {
       />
 
       {/* Sparkle dots around glass */}
-      <Circle cx="68" cy="58" r="3" fill={emerald} opacity="0.5" />
-      <Circle cx="110" cy="66" r="2.5" fill={emerald} opacity="0.4" />
-      <Circle cx="102" cy="56" r="2" fill={emerald} opacity="0.35" />
+      <Circle cx="68" cy="58" r="3" fill={emerald} opacity={dark ? 0.7 : 0.5} />
+      <Circle cx="110" cy="66" r="2.5" fill={emerald} opacity={dark ? 0.6 : 0.4} />
+      <Circle cx="102" cy="56" r="2" fill={emerald} opacity={dark ? 0.55 : 0.35} />
 
       {/* Highlighted row */}
-      <Rect x="24" y="50" width="55" height="10" rx="5" fill={emerald} opacity="0.3" />
+      <Rect x="24" y="50" width="55" height="10" rx="5" fill={emerald} opacity={dark ? 0.45 : 0.3} />
     </Svg>
   );
 }
 
-export function AIIllustration({ amber }: { amber: string }) {
-  const bg = amber + "22";
+export function AIIllustration({
+  amber,
+  dark = false,
+}: {
+  amber: string;
+  dark?: boolean;
+}) {
+  const bg = amber + (dark ? "38" : "22");
   return (
     <Svg width={SIZE} height={SIZE} viewBox="0 0 140 140">
       <Rect x="0" y="0" width="140" height="140" rx="36" fill={bg} />
 
       {/* CPU chip body */}
-      <Rect x="42" y="42" width="56" height="56" rx="10" fill={amber} opacity="0.15" />
+      <Rect x="42" y="42" width="56" height="56" rx="10" fill={amber} opacity={dark ? 0.28 : 0.15} />
       <Rect
         x="42"
         y="42"
@@ -129,28 +147,28 @@ export function AIIllustration({ amber }: { amber: string }) {
         stroke={amber}
         strokeWidth="3"
         fill="none"
-        opacity="0.7"
+        opacity={dark ? 0.9 : 0.7}
       />
 
       {/* Inner chip core */}
-      <Rect x="57" y="57" width="26" height="26" rx="5" fill={amber} opacity="0.85" />
+      <Rect x="57" y="57" width="26" height="26" rx="5" fill={amber} opacity={dark ? 1 : 0.85} />
 
       {/* Pin lines - top */}
-      <Line x1="55" y1="42" x2="55" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="70" y1="42" x2="70" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="85" y1="42" x2="85" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <Line x1="55" y1="42" x2="55" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="70" y1="42" x2="70" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="85" y1="42" x2="85" y2="32" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
       {/* Pin lines - bottom */}
-      <Line x1="55" y1="98" x2="55" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="70" y1="98" x2="70" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="85" y1="98" x2="85" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <Line x1="55" y1="98" x2="55" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="70" y1="98" x2="70" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="85" y1="98" x2="85" y2="108" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
       {/* Pin lines - left */}
-      <Line x1="42" y1="55" x2="32" y2="55" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="42" y1="70" x2="32" y2="70" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="42" y1="85" x2="32" y2="85" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <Line x1="42" y1="55" x2="32" y2="55" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="42" y1="70" x2="32" y2="70" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="42" y1="85" x2="32" y2="85" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
       {/* Pin lines - right */}
-      <Line x1="98" y1="55" x2="108" y2="55" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="98" y1="70" x2="108" y2="70" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
-      <Line x1="98" y1="85" x2="108" y2="85" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity="0.6" />
+      <Line x1="98" y1="55" x2="108" y2="55" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="98" y1="70" x2="108" y2="70" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
+      <Line x1="98" y1="85" x2="108" y2="85" stroke={amber} strokeWidth="3" strokeLinecap="round" opacity={dark ? 0.8 : 0.6} />
 
       {/* Lightning bolt overlay on chip core */}
       <Path
@@ -162,20 +180,26 @@ export function AIIllustration({ amber }: { amber: string }) {
   );
 }
 
-export function FreeIllustration({ primary }: { primary: string }) {
-  const bg = primary + "18";
+export function FreeIllustration({
+  primary,
+  dark = false,
+}: {
+  primary: string;
+  dark?: boolean;
+}) {
+  const bg = primary + (dark ? "30" : "18");
   return (
     <Svg width={SIZE} height={SIZE} viewBox="0 0 140 140">
       <Rect x="0" y="0" width="140" height="140" rx="36" fill={bg} />
 
       {/* Gift box body */}
-      <Rect x="34" y="72" width="72" height="48" rx="8" fill={primary} opacity="0.85" />
+      <Rect x="34" y="72" width="72" height="48" rx="8" fill={primary} opacity={dark ? 1 : 0.85} />
       {/* Gift box lid */}
       <Rect x="28" y="58" width="84" height="20" rx="7" fill={primary} />
       {/* Vertical ribbon on body */}
-      <Rect x="64" y="72" width="12" height="48" rx="0" fill="#ffffff" opacity="0.25" />
+      <Rect x="64" y="72" width="12" height="48" rx="0" fill="#ffffff" opacity={dark ? 0.35 : 0.25} />
       {/* Horizontal ribbon on lid */}
-      <Rect x="28" y="64" width="84" height="8" rx="0" fill="#ffffff" opacity="0.18" />
+      <Rect x="28" y="64" width="84" height="8" rx="0" fill="#ffffff" opacity={dark ? 0.28 : 0.18} />
 
       {/* Ribbon bow - left loop */}
       <Path
@@ -203,15 +227,15 @@ export function FreeIllustration({ primary }: { primary: string }) {
       <Path
         d="M112 36 L114 30 L116 36 L122 38 L116 40 L114 46 L112 40 L106 38 Z"
         fill={primary}
-        opacity="0.6"
+        opacity={dark ? 0.8 : 0.6}
       />
       <Path
         d="M26 44 L27.5 40 L29 44 L33 45.5 L29 47 L27.5 51 L26 47 L22 45.5 Z"
         fill={primary}
-        opacity="0.45"
+        opacity={dark ? 0.65 : 0.45}
       />
-      <Circle cx="108" cy="62" r="3" fill={primary} opacity="0.4" />
-      <Circle cx="30" cy="76" r="2.5" fill={primary} opacity="0.35" />
+      <Circle cx="108" cy="62" r="3" fill={primary} opacity={dark ? 0.6 : 0.4} />
+      <Circle cx="30" cy="76" r="2.5" fill={primary} opacity={dark ? 0.55 : 0.35} />
     </Svg>
   );
 }

@@ -16,42 +16,41 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  useColorScheme,
   useWindowDimensions,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRef, useState } from "react";
 
-const c = colors.light;
-
-const SLIDES = [
+const SLIDE_DATA = [
   {
-    illustration: <InboxIllustration primary={c.primary} />,
+    key: "inbox",
     title: "All your inboxes, one place",
     description:
       "Connect Gmail, Outlook, WhatsApp, LinkedIn and more — read and reply from a single unified feed.",
   },
   {
-    illustration: <SearchIllustration emerald={c.emerald} />,
+    key: "search",
     title: "Unified search",
     description:
       "Find any message across every connected channel in seconds, no matter where it was sent.",
   },
   {
-    illustration: <AIIllustration amber={c.amber} />,
+    key: "ai",
     title: "AI-powered replies",
     description:
       "Let the built-in AI draft replies and summarise long threads so you can focus on what matters.",
   },
   {
-    illustration: <FreeIllustration primary={c.primary} />,
+    key: "free",
     title: "Free from day one",
     description:
       "Every feature unlocked the moment you sign up — no credit card, no hidden fees.",
   },
 ];
 
-const TOTAL = SLIDES.length;
+const TOTAL = SLIDE_DATA.length;
 
 export default function SignUpScreen() {
   const { signUp, signInError } = useAuth();
@@ -61,10 +60,29 @@ export default function SignUpScreen() {
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
+  const colorScheme = useColorScheme();
+  const isDark = colorScheme === "dark";
+  const c = isDark ? colors.dark : colors.light;
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   const isFinal = activeIndex === TOTAL - 1;
+
+  function renderIllustration(key: string) {
+    switch (key) {
+      case "inbox":
+        return <InboxIllustration primary={c.primary} dark={isDark} />;
+      case "search":
+        return <SearchIllustration emerald={c.emerald} dark={isDark} />;
+      case "ai":
+        return <AIIllustration amber={c.amber} dark={isDark} />;
+      case "free":
+        return <FreeIllustration primary={c.primary} dark={isDark} />;
+      default:
+        return null;
+    }
+  }
 
   async function handleContinue() {
     setIsLoading(true);
@@ -103,20 +121,25 @@ export default function SignUpScreen() {
   }
 
   return (
-    <View style={[styles.container, { paddingTop: topPad, paddingBottom: bottomPad + 16 }]}>
+    <View
+      style={[
+        styles.container,
+        { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 16 },
+      ]}
+    >
       <View style={[styles.header, { paddingTop: 8 }]}>
         <Pressable onPress={handleBack} style={styles.backButton} testID="signup-back-button">
           <Feather name="arrow-left" size={20} color={c.foreground} />
         </Pressable>
-        <Text style={styles.headerTitle}>Create account</Text>
+        <Text style={[styles.headerTitle, { color: c.foreground }]}>Create account</Text>
         <View style={styles.backButton} />
       </View>
 
       <View style={styles.heroSection}>
-        <View style={styles.logoBox}>
-          <Text style={styles.logoText}>PB</Text>
+        <View style={[styles.logoBox, { backgroundColor: c.primary, shadowColor: c.primary }]}>
+          <Text style={[styles.logoText, { color: c.primaryForeground }]}>PB</Text>
         </View>
-        <Text style={styles.heroTitle}>Welcome to {APP_NAME}</Text>
+        <Text style={[styles.heroTitle, { color: c.foreground }]}>Welcome to {APP_NAME}</Text>
       </View>
 
       <ScrollView
@@ -130,40 +153,60 @@ export default function SignUpScreen() {
         contentContainerStyle={styles.carouselContent}
         testID="signup-carousel"
       >
-        {SLIDES.map((slide, i) => (
-          <View key={i} style={[styles.slide, { width: SCREEN_WIDTH }]}>
+        {SLIDE_DATA.map((slide, i) => (
+          <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
             <View style={styles.slideIllustrationBox}>
-              {slide.illustration}
+              {renderIllustration(slide.key)}
             </View>
-            <Text style={styles.slideTitle}>{slide.title}</Text>
-            <Text style={styles.slideDescription}>{slide.description}</Text>
+            <Text style={[styles.slideTitle, { color: c.foreground }]}>{slide.title}</Text>
+            <Text style={[styles.slideDescription, { color: c.mutedForeground }]}>
+              {slide.description}
+            </Text>
           </View>
         ))}
       </ScrollView>
 
       <View style={styles.dotsRow}>
-        {SLIDES.map((_, i) => (
+        {SLIDE_DATA.map((slide, i) => (
           <Pressable
-            key={i}
+            key={slide.key}
             onPress={() => goToSlide(i)}
-            style={[styles.dot, i === activeIndex && styles.dotActive]}
+            style={[
+              styles.dot,
+              { backgroundColor: c.border },
+              i === activeIndex && { width: 22, backgroundColor: c.primary },
+            ]}
             testID={`signup-dot-${i}`}
             accessibilityLabel={`Go to slide ${i + 1}`}
           />
         ))}
       </View>
 
-      <View style={styles.footer}>
+      <View style={[styles.footer, { borderTopColor: c.border }]}>
         {signInError ? (
-          <View style={styles.errorBanner}>
-            <Feather name="alert-circle" size={14} color="#dc2626" style={{ marginTop: 2 }} />
-            <Text style={styles.errorText}>{signInError}</Text>
+          <View
+            style={[
+              styles.errorBanner,
+              isDark && { backgroundColor: "#450a0a", borderColor: "#7f1d1d" },
+            ]}
+          >
+            <Feather
+              name="alert-circle"
+              size={14}
+              color={isDark ? "#f87171" : "#dc2626"}
+              style={{ marginTop: 2 }}
+            />
+            <Text style={[styles.errorText, isDark && { color: "#f87171" }]}>{signInError}</Text>
           </View>
         ) : null}
 
         {isFinal ? (
           <Pressable
-            style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+            style={[
+              styles.continueButton,
+              { backgroundColor: c.primary },
+              isLoading && styles.continueButtonDisabled,
+            ]}
             onPress={handleContinue}
             disabled={isLoading}
             testID="signup-continue-button"
@@ -179,19 +222,19 @@ export default function SignUpScreen() {
           </Pressable>
         ) : (
           <Pressable
-            style={styles.nextButton}
+            style={[styles.nextButton, { borderColor: c.primary }]}
             onPress={handleNext}
             testID="signup-next-button"
           >
-            <Text style={styles.nextButtonText}>Next</Text>
+            <Text style={[styles.nextButtonText, { color: c.primary }]}>Next</Text>
             <Feather name="arrow-right" size={16} color={c.primary} />
           </Pressable>
         )}
 
-        <Text style={styles.footerNote}>
+        <Text style={[styles.footerNote, { color: c.mutedForeground }]}>
           By continuing you agree to our{" "}
-          <Text style={styles.footerLink}>Terms</Text> and{" "}
-          <Text style={styles.footerLink}>Privacy Policy</Text>.
+          <Text style={[styles.footerLink, { color: c.primary }]}>Terms</Text> and{" "}
+          <Text style={[styles.footerLink, { color: c.primary }]}>Privacy Policy</Text>.
         </Text>
       </View>
     </View>
@@ -201,7 +244,6 @@ export default function SignUpScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: c.background,
   },
   header: {
     flexDirection: "row",
@@ -220,7 +262,6 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 17,
     fontFamily: "Inter_600SemiBold",
-    color: c.foreground,
     letterSpacing: -0.2,
   },
   heroSection: {
@@ -233,17 +274,14 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 14,
-    backgroundColor: c.primary,
     alignItems: "center",
     justifyContent: "center",
-    shadowColor: c.primary,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.2,
     shadowRadius: 8,
     elevation: 4,
   },
   logoText: {
-    color: c.primaryForeground,
     fontSize: 20,
     fontFamily: "Inter_700Bold",
     letterSpacing: -0.5,
@@ -251,7 +289,6 @@ const styles = StyleSheet.create({
   heroTitle: {
     fontSize: 20,
     fontFamily: "Inter_700Bold",
-    color: c.foreground,
     letterSpacing: -0.4,
     textAlign: "center",
   },
@@ -278,14 +315,12 @@ const styles = StyleSheet.create({
   slideTitle: {
     fontSize: 22,
     fontFamily: "Inter_700Bold",
-    color: c.foreground,
     letterSpacing: -0.4,
     textAlign: "center",
   },
   slideDescription: {
     fontSize: 15,
     fontFamily: "Inter_400Regular",
-    color: c.mutedForeground,
     textAlign: "center",
     lineHeight: 22,
   },
@@ -300,21 +335,14 @@ const styles = StyleSheet.create({
     width: 7,
     height: 7,
     borderRadius: 4,
-    backgroundColor: c.border,
-  },
-  dotActive: {
-    width: 22,
-    backgroundColor: c.primary,
   },
   footer: {
     paddingHorizontal: 24,
     paddingTop: 12,
     gap: 12,
     borderTopWidth: 1,
-    borderTopColor: c.border,
   },
   continueButton: {
-    backgroundColor: c.primary,
     borderRadius: 12,
     paddingVertical: 15,
     alignItems: "center",
@@ -339,10 +367,8 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: 6,
     borderWidth: 1.5,
-    borderColor: c.primary,
   },
   nextButtonText: {
-    color: c.primary,
     fontSize: 15,
     fontFamily: "Inter_600SemiBold",
     letterSpacing: 0.1,
@@ -350,12 +376,10 @@ const styles = StyleSheet.create({
   footerNote: {
     fontSize: 12,
     fontFamily: "Inter_400Regular",
-    color: c.mutedForeground,
     textAlign: "center",
     lineHeight: 17,
   },
   footerLink: {
-    color: c.primary,
     fontFamily: "Inter_500Medium",
   },
   errorBanner: {
