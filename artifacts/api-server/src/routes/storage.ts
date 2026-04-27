@@ -1,4 +1,5 @@
 import { Router, type IRouter } from "express";
+import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
 import { eq, and, sql, ne } from "drizzle-orm";
@@ -367,6 +368,92 @@ router.post("/storage/revenuecat/activate", async (req: any, res) => {
 
 router.post("/storage/checkout", async (req: any, res) => {
   res.status(410).json({ error: "Web storage checkout is unavailable. Storage upgrades are managed through the mobile app." });
+});
+
+/** Enable public sharing for a file — generates a stable share token. */
+router.post("/storage/files/:id/share", async (req: any, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const [file] = await db
+      .select()
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.userId)));
+
+    if (!file) return res.status(404).json({ error: "File not found" });
+
+    const token = file.shareToken ?? randomBytes(18).toString("base64url");
+    const [updated] = await db
+      .update(storageFilesTable)
+      .set({ isPublic: true, shareToken: token })
+      .where(eq(storageFilesTable.id, fileId))
+      .returning();
+
+    res.json({ file: updated, shareToken: token });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Disable public sharing for a file. Token is cleared so old links break. */
+router.delete("/storage/files/:id/share", async (req: any, res) => {
+  try {
+    const fileId = parseInt(req.params.id);
+    const [file] = await db
+      .select()
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.id, fileId), eq(storageFilesTable.userId, req.userId)));
+
+    if (!file) return res.status(404).json({ error: "File not found" });
+
+    const [updated] = await db
+      .update(storageFilesTable)
+      .set({ isPublic: false, shareToken: null })
+      .where(eq(storageFilesTable.id, fileId))
+      .returning();
+
+    res.json({ file: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Router with no auth — must be mounted before the auth middleware. */
+export const storagePublicRouter: IRouter = Router();
+
+/** Public download endpoint — no auth, requires a valid share token.
+ *  Browsers get a 302 to the signed object URL. Pass ?meta=1 for JSON metadata. */
+storagePublicRouter.get("/storage/public/:token", async (req: any, res) => {
+  try {
+    const token = req.params.token;
+    if (!token) return res.status(400).json({ error: "Missing share token" });
+
+    const [file] = await db
+      .select()
+      .from(storageFilesTable)
+      .where(and(eq(storageFilesTable.shareToken, token), eq(storageFilesTable.isPublic, true)));
+
+    if (!file) return res.status(404).json({ error: "File not found or sharing disabled" });
+
+    const downloadUrl = await signedUrl(file.storageKey, "GET", 60 * 60);
+
+    await db
+      .update(storageFilesTable)
+      .set({ downloadCount: sql`download_count + 1` })
+      .where(eq(storageFilesTable.id, file.id));
+
+    if (req.query.meta === "1") {
+      return res.json({
+        downloadUrl,
+        fileName: file.name,
+        mimeType: file.mimeType,
+        sizeBytes: file.sizeBytes,
+      });
+    }
+
+    res.redirect(302, downloadUrl);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 export default router;

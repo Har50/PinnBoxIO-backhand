@@ -23,6 +23,7 @@ export const storageFilesTable = pgTable(
     storageKey: varchar("storage_key").notNull(),
     folder: varchar("folder").notNull().default("/"),
     isPublic: boolean("is_public").notNull().default(false),
+    shareToken: varchar("share_token"),
     downloadCount: integer("download_count").notNull().default(0),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

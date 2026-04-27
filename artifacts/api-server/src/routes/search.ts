@@ -4,6 +4,7 @@ import { db, accountsTable, messagesTable, contactsTable, attachmentsTable, user
 import { whatsappService } from "../services/whatsapp.js";
 import { listGmailMessages } from "../services/gmail";
 import { listOutlookMessages } from "../services/outlook";
+import { linkedInService } from "../services/linkedin";
 
 const router: IRouter = Router();
 
@@ -92,6 +93,7 @@ router.get("/search", async (req: any, res): Promise<void> => {
   let messages: unknown[] = [];
   let contacts: unknown[] = [];
   let whatsappMessages: unknown[] = [];
+  let linkedinMessages: unknown[] = [];
 
   if (!type || type === "messages" || type === "all") {
     const msgs = await db
@@ -225,14 +227,46 @@ router.get("/search", async (req: any, res): Promise<void> => {
     }
   }
 
+  if (userId && (!type || type === "linkedin" || type === "all")) {
+    try {
+      await linkedInService.ensureSession(userId);
+      if (linkedInService.getStatus(userId) === "connected") {
+        const lowerQ = q.toLowerCase();
+        const conversations = await linkedInService.getConversations(userId);
+        for (const conv of conversations) {
+          if (linkedinMessages.length >= 20) break;
+          const inLast = (conv.lastMessage ?? "").toLowerCase().includes(lowerQ);
+          const inName = (conv.participantName ?? "").toLowerCase().includes(lowerQ);
+          if (inLast || inName) {
+            linkedinMessages.push({
+              id: conv.id,
+              conversationId: conv.id,
+              participantName: conv.participantName,
+              participantPicture: conv.participantPicture,
+              text: conv.lastMessage ?? "",
+              timestamp: conv.lastActivityAt
+                ? new Date(conv.lastActivityAt).toISOString()
+                : null,
+              unreadCount: conv.unreadCount,
+            });
+          }
+        }
+      }
+    } catch (err) {
+      // LinkedIn messaging may require partner approval — silently skip
+    }
+  }
+
   res.json({
     query: q,
     messages,
     contacts,
     whatsappMessages,
+    linkedinMessages,
     totalMessages: messages.length,
     totalContacts: contacts.length,
     totalWhatsapp: whatsappMessages.length,
+    totalLinkedin: linkedinMessages.length,
     searchAccess: {
       isPro: access.isPro,
       usedToday: access.usedToday + 1,

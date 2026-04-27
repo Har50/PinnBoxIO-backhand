@@ -4,7 +4,7 @@ import {
   Download, Trash2, Loader2, AlertTriangle, Package,
   X, Folder, FolderPlus, ChevronRight, MoveRight, Search,
   Plus, ScanLine, Check, ChevronDown, Sparkles, Send,
-  SquareCheck, Square,
+  SquareCheck, Square, Share2, Copy, Link as LinkIcon, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNow } from "date-fns";
@@ -27,7 +27,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 interface Quota { id: number; userId: string; totalBytes: number; usedBytes: number; planName: string; }
-interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; }
+interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; isPublic?: boolean; shareToken?: string | null; }
 interface StorageFolder { path: string; name: string; }
 interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; currency: string; name?: string; }
 
@@ -327,6 +327,9 @@ export default function StoragePage() {
   const [showUpgradePlans, setShowUpgradePlans] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredFile, setHoveredFile] = useState<number | null>(null);
+  const [shareModal, setShareModal] = useState<{ file: StorageFile; link: string } | null>(null);
+  const [previewFile, setPreviewFile] = useState<StorageFile | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [hoveredFolder, setHoveredFolder] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [fileFilter, setFileFilter] = useState<FileFilter>("all");
@@ -461,6 +464,37 @@ export default function StoragePage() {
       showToast("success", `"${file.name}" deleted`);
       await loadData(currentFolder);
     } catch (err: any) { showToast("error", err.message); }
+  }, [loadData, currentFolder]);
+
+  const handleShare = useCallback(async (file: StorageFile) => {
+    try {
+      const { shareToken } = await apiFetch<{ shareToken: string; file: StorageFile }>(
+        `/storage/files/${file.id}/share`,
+        { method: "POST" }
+      );
+      const link = `${window.location.origin}${BASE}/api/storage/public/${shareToken}`;
+      try {
+        await navigator.clipboard.writeText(link);
+        showToast("success", "Share link copied to clipboard");
+      } catch {
+        showToast("success", "Share link created");
+      }
+      await loadData(currentFolder);
+      return link;
+    } catch (err: any) {
+      showToast("error", err.message);
+      return null;
+    }
+  }, [loadData, currentFolder]);
+
+  const handleUnshare = useCallback(async (file: StorageFile) => {
+    try {
+      await apiFetch(`/storage/files/${file.id}/share`, { method: "DELETE" });
+      showToast("success", "Sharing disabled");
+      await loadData(currentFolder);
+    } catch (err: any) {
+      showToast("error", err.message);
+    }
   }, [loadData, currentFolder]);
 
   const handleMoveToRoot = useCallback(async (file: StorageFile) => {
@@ -868,6 +902,32 @@ export default function StoragePage() {
                             <MoveRight className="w-3.5 h-3.5" />
                           </button>
                         )}
+                        {file.mimeType.startsWith("image/") && (
+                          <button onClick={async () => {
+                            setPreviewFile(file);
+                            setPreviewUrl(null);
+                            try {
+                              const { downloadUrl } = await apiFetch<{ downloadUrl: string }>(`/storage/files/${file.id}/download-url`);
+                              setPreviewUrl(downloadUrl);
+                            } catch (err: any) { showToast("error", err.message); setPreviewFile(null); }
+                          }}
+                            className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition" title="Preview">
+                            <Eye className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        <button onClick={async () => {
+                          const link = await handleShare(file);
+                          if (link) setShareModal({ file, link });
+                        }}
+                          className={cn(
+                            "w-7 h-7 rounded-lg flex items-center justify-center transition",
+                            file.isPublic
+                              ? "bg-emerald-500/15 text-emerald-400 hover:bg-emerald-500/25"
+                              : "hover:bg-white/10 text-gray-500 hover:text-white"
+                          )}
+                          title={file.isPublic ? "Shared — get link" : "Share"}>
+                          <Share2 className="w-3.5 h-3.5" />
+                        </button>
                         <button onClick={() => handleDownload(file)}
                           className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition" title="Download">
                           <Download className="w-3.5 h-3.5" />
@@ -930,6 +990,75 @@ export default function StoragePage() {
       {/* ── AI Panel (slides in from right) ── */}
       {showAiPanel && (
         <AiPanel files={files} onClose={() => setShowAiPanel(false)} />
+      )}
+
+      {/* Share modal */}
+      {shareModal && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => setShareModal(null)}>
+          <div className="bg-[#1a2035] border border-white/10 rounded-2xl shadow-2xl w-full max-w-md p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <LinkIcon className="w-4 h-4 text-emerald-400" /> Share file
+                </h3>
+                <p className="text-xs text-gray-500 mt-1 truncate max-w-xs">{shareModal.file.name}</p>
+              </div>
+              <button onClick={() => setShareModal(null)} className="text-gray-500 hover:text-white transition">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">Anyone with this link can download this file. Disable sharing to revoke access.</p>
+            <div className="flex items-center gap-2 bg-black/40 border border-white/10 rounded-lg px-3 py-2">
+              <input
+                readOnly
+                value={shareModal.link}
+                className="flex-1 bg-transparent text-xs text-white truncate outline-none"
+                onFocus={(e) => e.currentTarget.select()}
+              />
+              <button
+                onClick={() => { navigator.clipboard.writeText(shareModal.link); showToast("success", "Link copied"); }}
+                className="text-xs text-blue-400 hover:text-blue-300 flex items-center gap-1"
+                title="Copy"
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </button>
+            </div>
+            <div className="flex justify-between items-center mt-5">
+              <button
+                onClick={async () => { await handleUnshare(shareModal.file); setShareModal(null); }}
+                className="text-xs text-red-400 hover:text-red-300 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" /> Disable sharing
+              </button>
+              <button
+                onClick={() => setShareModal(null)}
+                className="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white transition"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Image preview modal */}
+      {previewFile && (
+        <div className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4" onClick={() => { setPreviewFile(null); setPreviewUrl(null); }}>
+          <button
+            onClick={() => { setPreviewFile(null); setPreviewUrl(null); }}
+            className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition z-10"
+          >
+            <X className="w-5 h-5" />
+          </button>
+          <div className="absolute top-4 left-4 text-sm text-white/80 max-w-[60%] truncate">{previewFile.name}</div>
+          <div className="max-w-[90vw] max-h-[85vh] flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
+            {!previewUrl ? (
+              <Loader2 className="w-8 h-8 animate-spin text-white/60" />
+            ) : (
+              <img src={previewUrl} alt={previewFile.name} className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl" />
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

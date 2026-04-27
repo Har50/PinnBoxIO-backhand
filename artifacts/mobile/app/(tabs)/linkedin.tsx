@@ -2,6 +2,7 @@ import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import { SymbolView } from "expo-symbols";
 import * as WebBrowser from "expo-web-browser";
+import { router } from "expo-router";
 import { useState, useEffect, useCallback } from "react";
 import {
   ActivityIndicator,
@@ -235,12 +236,23 @@ function ConnectedView({
         ) : (
           <View style={[styles.convList, { borderColor: colors.border }]}>
             {conversations.map((conv, i) => (
-              <View
+              <Pressable
                 key={conv.id}
-                style={[
+                onPress={() =>
+                  router.push({
+                    pathname: "/linkedin/[convId]",
+                    params: {
+                      convId: conv.id,
+                      participantName: conv.participantName,
+                      participantPicture: conv.participantPicture ?? "",
+                    },
+                  })
+                }
+                style={({ pressed }) => [
                   styles.convRow,
                   { borderBottomColor: colors.border },
                   i === conversations.length - 1 && { borderBottomWidth: 0 },
+                  pressed && { opacity: 0.6 },
                 ]}
               >
                 <ProfileAvatar src={conv.participantPicture} name={conv.participantName} size={44} />
@@ -262,7 +274,8 @@ function ConnectedView({
                     <Text style={styles.badgeText}>{conv.unreadCount}</Text>
                   </View>
                 )}
-              </View>
+                <Feather name="chevron-right" size={18} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+              </Pressable>
             ))}
           </View>
         )}

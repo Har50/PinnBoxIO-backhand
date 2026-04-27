@@ -9,7 +9,7 @@ import statsRouter from "./stats";
 import aiRouter from "./ai";
 import whatsappRouter from "./whatsapp";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
-import storageRouter from "./storage";
+import storageRouter, { storagePublicRouter } from "./storage";
 import authOAuthRouter from "./auth-oauth";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
@@ -23,6 +23,7 @@ const seenUsers = new Set<string>();
 
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
+router.use(storagePublicRouter);
 router.use(authOAuthRouter);
 router.use(mobileAuthRouter);
 // WhatsApp is a shared single-instance connection — status/events are server-wide
