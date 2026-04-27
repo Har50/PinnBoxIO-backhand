@@ -42,7 +42,7 @@ export default function LoginScreen() {
 
       <View style={styles.card}>
         {signInError ? (
-          <View style={styles.errorBanner}>
+          <View style={styles.errorBanner} accessibilityRole="alert" testID="login-error-banner">
             <Feather name="alert-circle" size={14} color="#dc2626" style={{ marginTop: 2 }} />
             <Text style={styles.errorText}>{signInError}</Text>
           </View>

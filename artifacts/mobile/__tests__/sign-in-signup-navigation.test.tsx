@@ -179,6 +179,20 @@ describe("Error message display", () => {
     expect(queryByText("Authentication failed. Please try again.")).toBeNull();
   });
 
+  it("login screen error banner has accessibilityRole alert", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: "Authentication failed. Please try again.",
+    });
+
+    const { getByTestId } = render(<LoginScreen />);
+    const banner = getByTestId("login-error-banner");
+
+    expect(banner.props.accessibilityRole).toBe("alert");
+  });
+
   it("signup screen renders the error banner when signInError is set", () => {
     const { useAuth } = require("@/contexts/AuthContext");
     useAuth.mockReturnValue({
@@ -203,6 +217,20 @@ describe("Error message display", () => {
     const { queryByText } = render(<SignUpScreen />);
 
     expect(queryByText("Sign-up failed. Please try again.")).toBeNull();
+  });
+
+  it("signup screen error banner has accessibilityRole alert", () => {
+    const { useAuth } = require("@/contexts/AuthContext");
+    useAuth.mockReturnValue({
+      signIn: jest.fn(),
+      signUp: jest.fn(),
+      signInError: "Sign-up failed. Please try again.",
+    });
+
+    const { getByTestId } = render(<SignUpScreen />);
+    const banner = getByTestId("signup-error-banner");
+
+    expect(banner.props.accessibilityRole).toBe("alert");
   });
 });
 

@@ -224,6 +224,8 @@ export default function SignUpScreen() {
               styles.errorBanner,
               isDark && { backgroundColor: "#450a0a", borderColor: "#7f1d1d" },
             ]}
+            accessibilityRole="alert"
+            testID="signup-error-banner"
           >
             <Feather
               name="alert-circle"
