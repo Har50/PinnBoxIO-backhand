@@ -113,3 +113,86 @@ jobs:
               body,
               labels: ['e2e', 'regression', 'nightly'],
             });
+
+  mobile-e2e:
+    name: Mobile E2E (carousel)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      issues: write
+
+    env:
+      CI: "true"
+      PORT: "8081"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: "10"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        id: playwright-cache-mobile
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pnpm-lock.yaml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Install Playwright Chromium browser
+        if: steps.playwright-cache-mobile.outputs.cache-hit != 'true'
+        run: pnpm --filter @workspace/mobile exec playwright install chromium --with-deps
+
+      - name: Install Playwright system dependencies (cache hit)
+        if: steps.playwright-cache-mobile.outputs.cache-hit == 'true'
+        run: pnpm --filter @workspace/mobile exec playwright install-deps chromium
+
+      - name: Run mobile E2E tests
+        run: pnpm --filter @workspace/mobile run test:e2e
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report-mobile
+          path: artifacts/mobile/playwright-report/
+          retention-days: 30
+
+      - name: Open GitHub issue on nightly failure
+        if: failure() && github.event_name == 'schedule'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const title = `🚨 Nightly mobile E2E failure – ${new Date().toISOString().slice(0, 10)}`;
+            const body = [
+              `The **nightly mobile E2E test run** failed on \`${context.sha.slice(0, 7)}\`.`,
+              ``,
+              `**Run:** [${context.runId}](${runUrl})`,
+              `**Branch:** \`${context.ref}\``,
+              `**Triggered by:** scheduled cron (daily at 00:00 UTC)`,
+              ``,
+              `Please investigate and fix any carousel regressions before the next scheduled run.`,
+            ].join('\n');
+
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title,
+              body,
+              labels: ['e2e', 'regression', 'nightly', 'mobile'],
+            });

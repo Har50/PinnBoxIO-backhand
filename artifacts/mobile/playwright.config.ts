@@ -26,4 +26,16 @@ export default defineConfig({
       },
     },
   ],
+  webServer: process.env.CI
+    ? {
+        command: "pnpm exec expo start --localhost --port 8081 --non-interactive",
+        port,
+        timeout: 120_000,
+        reuseExistingServer: false,
+        env: {
+          PORT: String(port),
+          EXPO_PUBLIC_DOMAIN: `localhost:${port}`,
+        },
+      }
+    : undefined,
 });
