@@ -49,6 +49,10 @@ function NativeTabLayout() {
         <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
         <Label>Accounts</Label>
       </NativeTabs.Trigger>
+      <NativeTabs.Trigger name="settings">
+        <Icon sf={{ default: "slider.horizontal.3", selected: "slider.horizontal.3" }} />
+        <Label>Settings</Label>
+      </NativeTabs.Trigger>
     </NativeTabs>
   );
 }
@@ -206,6 +210,18 @@ function ClassicTabLayout() {
               <SymbolView name="gearshape" tintColor={color} size={22} />
             ) : (
               <Feather name="settings" size={22} color={color} />
+            ),
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          title: "Settings",
+          tabBarIcon: ({ color }) =>
+            isIOS ? (
+              <SymbolView name="slider.horizontal.3" tintColor={color} size={22} />
+            ) : (
+              <Feather name="sliders" size={22} color={color} />
             ),
         }}
       />
