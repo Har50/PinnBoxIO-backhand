@@ -11,6 +11,7 @@ import {
 import { router } from "expo-router";
 import {
   ActivityIndicator,
+  Animated,
   Platform,
   Pressable,
   ScrollView,
@@ -21,7 +22,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useRef, useState } from "react";
+import { useRef, useState, useEffect } from "react";
 
 const SLIDE_DATA = [
   {
@@ -59,6 +60,33 @@ export default function SignUpScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
+
+  const illustrationAnims = useRef(
+    SLIDE_DATA.map(() => ({
+      opacity: new Animated.Value(0),
+      scale: new Animated.Value(0.82),
+    }))
+  ).current;
+
+  useEffect(() => {
+    const anim = illustrationAnims[activeIndex];
+    anim.opacity.setValue(0);
+    anim.scale.setValue(0.82);
+    Animated.parallel([
+      Animated.timing(anim.opacity, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: true,
+      }),
+      Animated.spring(anim.scale, {
+        toValue: 1,
+        useNativeDriver: true,
+        damping: 16,
+        stiffness: 220,
+        mass: 1,
+      }),
+    ]).start();
+  }, [activeIndex]);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -103,7 +131,6 @@ export default function SignUpScreen() {
 
   function goToSlide(index: number) {
     scrollRef.current?.scrollTo({ x: index * SCREEN_WIDTH, animated: true });
-    setActiveIndex(index);
   }
 
   function handleNext() {
@@ -155,9 +182,17 @@ export default function SignUpScreen() {
       >
         {SLIDE_DATA.map((slide, i) => (
           <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
-            <View style={styles.slideIllustrationBox}>
+            <Animated.View
+              style={[
+                styles.slideIllustrationBox,
+                {
+                  opacity: illustrationAnims[i].opacity,
+                  transform: [{ scale: illustrationAnims[i].scale }],
+                },
+              ]}
+            >
               {renderIllustration(slide.key)}
-            </View>
+            </Animated.View>
             <Text style={[styles.slideTitle, { color: c.foreground }]}>{slide.title}</Text>
             <Text style={[styles.slideDescription, { color: c.mutedForeground }]}>
               {slide.description}
