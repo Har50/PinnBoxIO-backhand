@@ -1,0 +1,101 @@
+import { test, expect } from "@playwright/test";
+import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { TEST_USER_EMAIL } from "./global-setup";
+
+/**
+ * Settings page end-to-end tests for PinnboxIO (unified-comms web app).
+ *
+ * These tests verify that:
+ *  1. All major card sections are rendered on /settings for a signed-in user.
+ *  2. The dark mode toggle applies/removes the "dark" class on <html>.
+ *  3. The "Manage connected accounts" button navigates to /accounts.
+ *
+ * Requires CLERK_SECRET_KEY to be set so @clerk/testing can programmatically
+ * create a user session. Without it the tests are skipped automatically.
+ */
+
+const BASE = process.env.BASE_PATH?.replace(/\/$/, "") ?? "";
+
+async function signIn(page: import("@playwright/test").Page) {
+  await page.goto(`${BASE}/sign-in`);
+  await setupClerkTestingToken({ page });
+  await clerk.signIn({
+    page,
+    emailAddress: TEST_USER_EMAIL,
+  });
+}
+
+test.describe("Settings page", () => {
+  test("renders all major sections for a signed-in user", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping settings test");
+    }
+
+    await signIn(page);
+    await page.goto(`${BASE}/settings`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    const heading = page.getByRole("heading", { name: "Settings" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+
+    await expect(page.getByText("Profile").first()).toBeVisible();
+    await expect(page.getByText("Appearance").first()).toBeVisible();
+    await expect(page.getByText("Notifications").first()).toBeVisible();
+    await expect(page.getByText("Connected accounts").first()).toBeVisible();
+    await expect(page.getByText("Account & security").first()).toBeVisible();
+  });
+
+  test("dark mode toggle adds and removes the dark class on <html>", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping settings dark mode test");
+    }
+
+    await signIn(page);
+    await page.goto(`${BASE}/settings`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    const heading = page.getByRole("heading", { name: "Settings" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+
+    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    await expect(toggle).toBeVisible({ timeout: 5_000 });
+
+    const isCurrentlyDark = await page.evaluate(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+
+    await toggle.click();
+
+    const isDarkAfterFirstClick = await page.evaluate(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+    expect(isDarkAfterFirstClick).toBe(!isCurrentlyDark);
+
+    await toggle.click();
+
+    const isDarkAfterSecondClick = await page.evaluate(() =>
+      document.documentElement.classList.contains("dark"),
+    );
+    expect(isDarkAfterSecondClick).toBe(isCurrentlyDark);
+  });
+
+  test("'Manage connected accounts' button navigates to /accounts", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping settings navigation test");
+    }
+
+    await signIn(page);
+    await page.goto(`${BASE}/settings`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    const heading = page.getByRole("heading", { name: "Settings" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+
+    const manageBtn = page.getByRole("button", { name: /manage connected accounts/i });
+    await expect(manageBtn).toBeVisible({ timeout: 5_000 });
+
+    await manageBtn.click();
+
+    await expect(page).toHaveURL(/\/accounts/, { timeout: 10_000 });
+  });
+});
