@@ -38,11 +38,11 @@ test.describe("Settings page", () => {
     const heading = page.getByRole("heading", { name: "Settings" });
     await expect(heading).toBeVisible({ timeout: 10_000 });
 
-    await expect(page.getByText("Profile").first()).toBeVisible();
-    await expect(page.getByText("Appearance").first()).toBeVisible();
-    await expect(page.getByText("Notifications").first()).toBeVisible();
-    await expect(page.getByText("Connected accounts").first()).toBeVisible();
-    await expect(page.getByText("Account & security").first()).toBeVisible();
+    await expect(page.getByTestId("section-profile")).toBeVisible();
+    await expect(page.getByTestId("section-appearance")).toBeVisible();
+    await expect(page.getByTestId("section-notifications")).toBeVisible();
+    await expect(page.getByTestId("section-connected-accounts")).toBeVisible();
+    await expect(page.getByTestId("section-account-security")).toBeVisible();
   });
 
   test("dark mode toggle adds and removes the dark class on <html>", async ({ page }) => {
@@ -57,7 +57,7 @@ test.describe("Settings page", () => {
     const heading = page.getByRole("heading", { name: "Settings" });
     await expect(heading).toBeVisible({ timeout: 10_000 });
 
-    const toggle = page.getByRole("switch", { name: "Dark mode" });
+    const toggle = page.getByTestId("toggle-dark-mode");
     await expect(toggle).toBeVisible({ timeout: 5_000 });
 
     const isCurrentlyDark = await page.evaluate(() =>
@@ -91,7 +91,7 @@ test.describe("Settings page", () => {
     const heading = page.getByRole("heading", { name: "Settings" });
     await expect(heading).toBeVisible({ timeout: 10_000 });
 
-    const manageBtn = page.getByRole("button", { name: /manage connected accounts/i });
+    const manageBtn = page.getByTestId("btn-manage-accounts");
     await expect(manageBtn).toBeVisible({ timeout: 5_000 });
 
     await manageBtn.click();

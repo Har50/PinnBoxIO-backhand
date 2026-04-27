@@ -119,7 +119,7 @@ export default function SettingsPage() {
       <div className="flex-1 p-4 sm:p-8 flex flex-col gap-6 max-w-2xl w-full mx-auto">
 
         {/* Profile */}
-        <Card>
+        <Card data-testid="section-profile">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <User className="w-4 h-4 text-muted-foreground" />
@@ -158,7 +158,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Appearance */}
-        <Card>
+        <Card data-testid="section-appearance">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Palette className="w-4 h-4 text-muted-foreground" />
@@ -182,6 +182,7 @@ export default function SettingsPage() {
                 </div>
               </div>
               <Switch
+                data-testid="toggle-dark-mode"
                 aria-label="Dark mode"
                 checked={theme === "dark"}
                 onCheckedChange={(checked) => setTheme(checked ? "dark" : "light")}
@@ -191,7 +192,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Notifications */}
-        <Card>
+        <Card data-testid="section-notifications">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Bell className="w-4 h-4 text-muted-foreground" />
@@ -242,7 +243,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Integrations */}
-        <Card>
+        <Card data-testid="section-connected-accounts">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Link2 className="w-4 h-4 text-muted-foreground" />
@@ -303,7 +304,7 @@ export default function SettingsPage() {
 
             <div className="mt-1">
               <Link href={`${BASE}/accounts`}>
-                <Button variant="outline" size="sm" className="w-full gap-2">
+                <Button data-testid="btn-manage-accounts" variant="outline" size="sm" className="w-full gap-2">
                   Manage connected accounts
                   <ChevronRight className="w-3.5 h-3.5" />
                 </Button>
@@ -313,7 +314,7 @@ export default function SettingsPage() {
         </Card>
 
         {/* Account & Security */}
-        <Card>
+        <Card data-testid="section-account-security">
           <CardHeader className="pb-3">
             <div className="flex items-center gap-2">
               <Shield className="w-4 h-4 text-muted-foreground" />
