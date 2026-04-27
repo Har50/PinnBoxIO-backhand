@@ -218,7 +218,7 @@
     color: var(--brand-foreground-muted);
   }
   .auth-muted-link:hover {
-    color: var(--brand-foreground);
+    color: var(--brand-foreground-subtle);
   }
 
   input[type="search"]::-webkit-search-cancel-button {

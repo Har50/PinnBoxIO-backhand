@@ -349,12 +349,14 @@ function BrandCssVars() {
       root.style.setProperty("--brand-muted", brand.dark.surface);
       root.style.setProperty("--brand-foreground", brand.dark.foreground);
       root.style.setProperty("--brand-foreground-muted", brand.dark.foregroundMuted);
+      root.style.setProperty("--brand-foreground-subtle", brand.dark.foregroundSubtle);
     } else {
       root.style.setProperty("--brand-border", brand.light.border);
       root.style.setProperty("--brand-background", brand.light.background);
       root.style.setProperty("--brand-muted", brand.light.muted);
       root.style.setProperty("--brand-foreground", brand.light.foreground);
       root.style.setProperty("--brand-foreground-muted", brand.light.mutedForeground);
+      root.style.setProperty("--brand-foreground-subtle", brand.light.foreground);
     }
   }, [isDark]);
   return null;
