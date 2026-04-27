@@ -108,6 +108,46 @@ test.describe("Signup carousel", () => {
     await expect(page).toHaveURL(/\/login/, { timeout: 10_000 });
     await expect(page.getByTestId("signup-carousel")).not.toBeVisible();
   });
+
+  /**
+   * Verify that each slide's illustration animates to full opacity (opacity: 1)
+   * when its slide becomes the active one.  The entrance animation starts at
+   * opacity 0 and runs for ~300 ms, so we allow up to 2 s for CSS to settle.
+   *
+   * testID reference:
+   *   signup-illustration-inbox  — slide 0
+   *   signup-illustration-search — slide 1
+   *   signup-illustration-ai     — slide 2
+   *   signup-illustration-free   — slide 3
+   */
+  test("each slide illustration becomes fully visible when its slide is active", async ({
+    page,
+  }) => {
+    const ILLUSTRATION_TIMEOUT = 2_000;
+
+    const slides = [
+      { key: "inbox",  title: SLIDES[0].title },
+      { key: "search", title: SLIDES[1].title },
+      { key: "ai",     title: SLIDES[2].title },
+      { key: "free",   title: SLIDES[3].title },
+    ];
+
+    for (let i = 0; i < slides.length; i++) {
+      const { key, title } = slides[i];
+
+      await expect(page.getByText(title)).toBeVisible();
+
+      await expect(page.getByTestId(`signup-illustration-${key}`)).toHaveCSS(
+        "opacity",
+        "1",
+        { timeout: ILLUSTRATION_TIMEOUT },
+      );
+
+      if (i < slides.length - 1) {
+        await page.getByTestId("signup-next-button").click();
+      }
+    }
+  });
 });
 
 test.describe("Signup flow – OAuth integration", () => {

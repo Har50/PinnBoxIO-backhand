@@ -250,6 +250,7 @@ export default function SignUpScreen() {
         {SLIDE_DATA.map((slide, i) => (
           <View key={slide.key} style={[styles.slide, { width: SCREEN_WIDTH }]}>
             <Animated.View
+              testID={`signup-illustration-${slide.key}`}
               style={[
                 styles.slideIllustrationBox,
                 {
