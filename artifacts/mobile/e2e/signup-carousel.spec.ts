@@ -188,6 +188,67 @@ test.describe("Signup flow – OAuth integration", () => {
     await expect(page.getByText("Create my free account")).not.toBeVisible();
   });
 
+  test("shows error banner when OIDC discovery endpoint returns a server error", async ({
+    page,
+  }) => {
+    await page.route(OIDC_DISCOVERY_URL, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Internal Server Error" }),
+      });
+    });
+
+    await page.getByTestId("signup-dot-3").click();
+    await expect(page.getByTestId("signup-continue-button")).toBeVisible();
+
+    await page.getByTestId("signup-continue-button").click();
+
+    await expect(page.getByTestId("signup-error-banner")).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
+  test("shows error banner when token exchange fails after OAuth callback", async ({
+    page,
+  }) => {
+    const TEST_STATE = "e2e-test-oauth-state-token-error";
+    const TEST_CODE = "e2e-test-auth-code-token-error";
+
+    await page.route("**/api/mobile-auth/token-exchange", async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Token exchange failed" }),
+      });
+    });
+
+    await page.evaluate(
+      ({ state, pkceData }) => {
+        sessionStorage.setItem("commshub_oauth_state", state);
+        sessionStorage.setItem(
+          "commshub_pkce_state",
+          JSON.stringify(pkceData),
+        );
+      },
+      {
+        state: TEST_STATE,
+        pkceData: {
+          codeVerifier: "e2e-test-verifier-string",
+          nonce: "e2e-test-nonce-string",
+        },
+      },
+    );
+
+    await page.goto(`/?code=${TEST_CODE}&state=${TEST_STATE}`);
+
+    await expect(page).toHaveURL(/\/(login|signup)/, { timeout: 15_000 });
+
+    await expect(page.getByTestId("login-error-banner")).toBeVisible({
+      timeout: 10_000,
+    });
+  });
+
   test("successful OAuth callback signs the user in and lands them on the app", async ({
     page,
   }) => {
