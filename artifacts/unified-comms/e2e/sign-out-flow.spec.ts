@@ -55,6 +55,46 @@ async function signOutAndVerify(page: import("@playwright/test").Page) {
 }
 
 test.describe("Sign-out flow", () => {
+  test("cancelling the sign-out dialog keeps the user signed in", async ({
+    page,
+  }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping sign-out test");
+    }
+
+    await signIn(page);
+
+    await page.goto(`${BASE}/`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    const urlBeforeCancel = page.url();
+
+    await expect(page.locator("nav")).toBeVisible({ timeout: 10_000 });
+
+    const userFooter = page.locator("div").filter({
+      has: page.locator("button[title='Sign out']"),
+    }).last();
+
+    await userFooter.hover();
+
+    const signOutButton = page.locator("button[title='Sign out']").last();
+    await expect(signOutButton).toBeVisible({ timeout: 5_000 });
+
+    await signOutButton.click();
+
+    const dialog = page.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 5_000 });
+    await expect(dialog.getByRole("heading", { name: "Sign out of PinnboxIO?" })).toBeVisible();
+
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+
+    await expect(dialog).not.toBeVisible({ timeout: 5_000 });
+
+    expect(page.url()).toBe(urlBeforeCancel);
+
+    await expect(page.locator("nav")).toBeVisible();
+  });
+
   test("signing out via the sidebar button redirects to /sign-in", async ({
     page,
   }) => {
