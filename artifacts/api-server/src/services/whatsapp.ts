@@ -216,10 +216,9 @@ class WhatsAppService extends EventEmitter {
           this.pairingCode = null;
           this.setStatus("disconnected");
 
-          if (isLoggedOut || isReplaced) {
-            // Session ended permanently — clear credentials so the next
-            // connection starts clean and doesn't loop on stale creds.
-            logger.info({ code, reason: isReplaced ? "replaced" : "loggedOut" }, "WA session ended, clearing credentials");
+          if (isLoggedOut) {
+            // User manually removed the device — credentials are permanently invalid.
+            logger.info({ code }, "WA logged out by user — clearing credentials");
             try {
               const files = fs.readdirSync(AUTH_DIR);
               files.forEach((f) => {
@@ -232,6 +231,11 @@ class WhatsAppService extends EventEmitter {
               });
             } catch {}
             deleteWaAuthFromStorage().catch(() => {});
+          } else if (isReplaced) {
+            // Another instance took over the session. Credentials are still valid —
+            // just wait a moment and reconnect with the same creds.
+            logger.info("WA connection replaced — reconnecting in 8s");
+            this.reconnectTimer = setTimeout(() => this.connect(), 8000);
           } else if (!this.pendingPairingPhone) {
             this.reconnectTimer = setTimeout(() => this.connect(), 5000);
           }
