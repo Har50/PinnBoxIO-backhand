@@ -275,6 +275,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const appCallbackUri = Linking.createURL("callback");
 
+      // Encode the app's deep-link callback URI inside the OAuth `state` parameter so
+      // the server's `/api/mobile-auth/callback` knows where to bounce the user back to.
+      // This is essential for Expo Go (where the scheme is `exp://<dev-host>/--/...`)
+      // and also works for the standalone build (`pinnboxio://callback`).
+      const composedStateObj = { n: state, cb: appCallbackUri };
+      const composedState = btoa(unescape(encodeURIComponent(JSON.stringify(composedStateObj))))
+        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+
       const authUrl = new URL(authEndpoint);
       authUrl.searchParams.set("client_id", CLIENT_ID);
       authUrl.searchParams.set("redirect_uri", MOBILE_OIDC_REDIRECT_URI);
@@ -282,7 +290,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("scope", "openid email profile offline_access");
       authUrl.searchParams.set("code_challenge", codeChallenge);
       authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
-      authUrl.searchParams.set("state", state);
+      authUrl.searchParams.set("state", composedState);
       authUrl.searchParams.set("nonce", nonce);
       if (screenHint) authUrl.searchParams.set("screen_hint", screenHint);
 
@@ -292,9 +300,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const resultUrl = new URL(result.url);
       const code = resultUrl.searchParams.get("code");
-      const returnedState = resultUrl.searchParams.get("state");
+      const returnedComposedState = resultUrl.searchParams.get("state");
 
-      if (!code || returnedState !== state) {
+      // Decode the composed state and verify the inner CSRF nonce matches.
+      let returnedNonce: string | null = null;
+      if (returnedComposedState) {
+        try {
+          const padded = returnedComposedState.replace(/-/g, "+").replace(/_/g, "/");
+          const json = decodeURIComponent(escape(atob(padded + "===".slice((padded.length + 3) % 4))));
+          const obj = JSON.parse(json);
+          returnedNonce = obj?.n ?? null;
+        } catch {
+          returnedNonce = null;
+        }
+      }
+
+      if (!code || returnedNonce !== state) {
         setSignInError("Authentication was cancelled or the response was invalid. Please try again.");
         return;
       }

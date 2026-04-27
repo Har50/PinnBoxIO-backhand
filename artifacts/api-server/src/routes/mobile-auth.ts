@@ -115,22 +115,60 @@ router.get("/logout", (req: Request, res: Response) => {
   res.redirect(`${base}/sign-in`);
 });
 
+/**
+ * Decide where to bounce the user after Replit's OAuth completes.
+ *
+ * The mobile client encodes its actual deep-link callback (e.g. `exp://<host>/--/callback`
+ * in Expo Go, or `pinnboxio://callback` in a standalone build) inside the OAuth `state`
+ * parameter as base64url-encoded JSON: `{ n: <csrf-nonce>, cb: <deep-link-url> }`.
+ *
+ * If decoding fails, or the URL doesn't look like a safe app deep link, fall back to
+ * the hardcoded standalone scheme so we never become an open redirector.
+ */
+function resolveAppCallbackUri(state: string | undefined): string {
+  const fallback = `${APP_SCHEME}://callback`;
+  if (!state) return fallback;
+  try {
+    const padded = state.replace(/-/g, "+").replace(/_/g, "/");
+    const json = Buffer.from(padded + "===".slice((padded.length + 3) % 4), "base64").toString("utf8");
+    const obj = JSON.parse(json);
+    const cb: string = obj?.cb;
+    if (typeof cb !== "string") return fallback;
+
+    // Whitelist: must be one of our known app schemes. `exp://` and `exps://` cover
+    // Expo Go in dev; `pinnboxio://` covers the production standalone build.
+    if (
+      cb.startsWith(`${APP_SCHEME}://`) ||
+      cb.startsWith("exp://") ||
+      cb.startsWith("exps://")
+    ) {
+      return cb;
+    }
+    return fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 router.get("/mobile-auth/callback", (req: Request, res: Response) => {
   const { code, state, error } = req.query as Record<string, string>;
 
+  const baseCallback = resolveAppCallbackUri(state);
+  const sep = baseCallback.includes("?") ? "&" : "?";
+
   if (error) {
-    const redirectUrl = `${APP_SCHEME}://callback?error=${encodeURIComponent(error)}`;
-    res.redirect(redirectUrl);
+    res.redirect(`${baseCallback}${sep}error=${encodeURIComponent(error)}`);
     return;
   }
 
   if (!code) {
-    res.redirect(`${APP_SCHEME}://callback?error=missing_code`);
+    res.redirect(`${baseCallback}${sep}error=missing_code`);
     return;
   }
 
-  const redirectUrl = `${APP_SCHEME}://callback?code=${encodeURIComponent(code)}${state ? `&state=${encodeURIComponent(state)}` : ""}`;
-  res.redirect(redirectUrl);
+  const params = new URLSearchParams({ code });
+  if (state) params.set("state", state);
+  res.redirect(`${baseCallback}${sep}${params.toString()}`);
 });
 
 router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) => {
