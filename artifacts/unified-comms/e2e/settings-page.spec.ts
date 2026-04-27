@@ -98,4 +98,79 @@ test.describe("Settings page", () => {
 
     await expect(page).toHaveURL(/\/accounts/, { timeout: 10_000 });
   });
+
+  test("notification preferences persist across page reloads and are reflected by the API", async ({ page }) => {
+    if (!process.env.CLERK_SECRET_KEY) {
+      test.skip(true, "CLERK_SECRET_KEY is not set — skipping notification preferences persistence test");
+    }
+
+    await signIn(page);
+    await page.goto(`${BASE}/settings`);
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    const heading = page.getByRole("heading", { name: "Settings" });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+
+    // Use the Weekly digest switch (defaults to false) so we can reliably test both directions.
+    const weeklyDigestSwitch = page.getByTestId("switch-weekly-digest");
+    await expect(weeklyDigestSwitch).toBeVisible({ timeout: 8_000 });
+
+    // Record initial checked state.
+    const initialChecked = await weeklyDigestSwitch.getAttribute("aria-checked");
+    const wasOn = initialChecked === "true";
+    const expectedAfterToggle = !wasOn;
+
+    // Toggle the preference and wait for the PATCH to complete before reloading.
+    const [patchResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/user/preferences") && r.request().method() === "PATCH",
+        { timeout: 10_000 },
+      ),
+      weeklyDigestSwitch.click(),
+    ]);
+    expect(patchResponse.ok()).toBe(true);
+
+    // Confirm the optimistic update already reflected in the UI.
+    await expect(weeklyDigestSwitch).toHaveAttribute(
+      "aria-checked",
+      String(expectedAfterToggle),
+      { timeout: 5_000 },
+    );
+
+    // Reload and verify the toggled state persisted.
+    await page.reload();
+    await expect(page).not.toHaveURL(/\/sign-in/, { timeout: 15_000 });
+    await expect(heading).toBeVisible({ timeout: 10_000 });
+
+    const switchAfterReload = page.getByTestId("switch-weekly-digest");
+    await expect(switchAfterReload).toBeVisible({ timeout: 8_000 });
+    await expect(switchAfterReload).toHaveAttribute(
+      "aria-checked",
+      String(expectedAfterToggle),
+      { timeout: 8_000 },
+    );
+
+    // Verify the API also reflects the updated state using Playwright's request context
+    // (which shares the page's auth cookies automatically).
+    const apiBase = process.env.API_BASE_URL ?? `${BASE}/api`;
+    const apiRes = await page.request.get(`${apiBase}/user/preferences`);
+    expect(apiRes.ok()).toBe(true);
+    const apiBody = await apiRes.json();
+    expect(apiBody.weeklyDigest).toBe(expectedAfterToggle);
+
+    // Restore original state so subsequent runs start from a known baseline.
+    const [cleanupResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes("/api/user/preferences") && r.request().method() === "PATCH",
+        { timeout: 10_000 },
+      ),
+      switchAfterReload.click(),
+    ]);
+    expect(cleanupResponse.ok()).toBe(true);
+    await expect(switchAfterReload).toHaveAttribute(
+      "aria-checked",
+      String(wasOn),
+      { timeout: 5_000 },
+    );
+  });
 });

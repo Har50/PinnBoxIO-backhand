@@ -206,6 +206,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">Receive a morning digest of your inbox activity</p>
               </div>
               <Switch
+                data-testid="switch-email-summary"
+                aria-label="Daily email summary"
                 checked={prefs.emailSummary}
                 onCheckedChange={() => toggle("emailSummary")}
               />
@@ -217,6 +219,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">Get notified when high-priority messages arrive</p>
               </div>
               <Switch
+                data-testid="switch-important-messages"
+                aria-label="Important message alerts"
                 checked={prefs.importantMessages}
                 onCheckedChange={() => toggle("importantMessages")}
               />
@@ -228,6 +232,8 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground">A weekly summary of your communication trends</p>
               </div>
               <Switch
+                data-testid="switch-weekly-digest"
+                aria-label="Weekly digest"
                 checked={prefs.weeklyDigest}
                 onCheckedChange={() => toggle("weeklyDigest")}
               />
