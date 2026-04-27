@@ -17,6 +17,7 @@ import { TEST_USER_EMAIL } from "./global-setup";
 const BASE = process.env.BASE_PATH?.replace(/\/$/, "") ?? "";
 
 const PROTECTED_ROUTES = [
+  "/",
   "/inbox",
   "/contacts",
   "/accounts",
@@ -54,12 +55,15 @@ test.describe("Protected routes — no content flash before redirect", () => {
    * for a signed-out user — not even for a single frame.
    */
   const SAMPLED_ROUTES = [
+    "/",
     "/whatsapp",
     "/linkedin",
     "/ai",
     "/storage",
     "/inbox",
     "/contacts",
+    "/accounts",
+    "/search",
     "/settings",
   ] as const;
 
