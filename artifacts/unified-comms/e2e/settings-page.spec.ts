@@ -25,6 +25,20 @@ async function signIn(page: import("@playwright/test").Page) {
   });
 }
 
+test.describe("Settings page — unauthenticated access", () => {
+  test("unauthenticated visitor navigating to /settings is redirected to /sign-in", async ({ page }) => {
+    await page.goto(`${BASE}/settings`);
+
+    await expect(page).toHaveURL(/\/sign-in/, { timeout: 15_000 });
+
+    await expect(
+      page.getByRole("textbox", { name: /email/i }),
+    ).toBeVisible({ timeout: 10_000 });
+
+    await expect(page.locator("nav")).not.toBeVisible();
+  });
+});
+
 test.describe("Settings page", () => {
   test("renders all major sections for a signed-in user", async ({ page }) => {
     if (!process.env.CLERK_SECRET_KEY) {
