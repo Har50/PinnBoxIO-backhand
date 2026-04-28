@@ -1,5 +1,6 @@
 import { Router, type Request, type Response } from "express";
 import QRCode from "qrcode";
+import { downloadMediaMessage } from "@whiskeysockets/baileys";
 import { whatsappService } from "../services/whatsapp";
 
 const router = Router();
@@ -8,18 +9,54 @@ function jidToPhone(jid: string): string {
   return jid.split("@")[0] ?? jid;
 }
 
-function getMessageText(msg: any): string {
+type MediaType = "image" | "video" | "audio" | "document" | "sticker" | null;
+
+/** Unwrap nested message containers (viewOnce, ephemeral, etc.) */
+function unwrapMessage(msg: any): any {
+  const m = msg?.message;
+  if (!m) return m;
   return (
-    msg?.message?.conversation ??
-    msg?.message?.extendedTextMessage?.text ??
-    msg?.message?.imageMessage?.caption ??
-    msg?.message?.videoMessage?.caption ??
-    msg?.message?.documentMessage?.fileName ??
-    (msg?.message?.imageMessage ? "[Image]" : null) ??
-    (msg?.message?.videoMessage ? "[Video]" : null) ??
-    (msg?.message?.audioMessage ? "[Audio]" : null) ??
-    (msg?.message?.stickerMessage ? "[Sticker]" : null) ??
-    (msg?.message?.documentMessage ? "[Document]" : null) ??
+    m.viewOnceMessageV2?.message ??
+    m.viewOnceMessage?.message ??
+    m.ephemeralMessage?.message ??
+    m.documentWithCaptionMessage?.message ??
+    m
+  );
+}
+
+function getMediaType(msg: any): MediaType {
+  const m = unwrapMessage(msg);
+  if (!m) return null;
+  if (m.imageMessage) return "image";
+  if (m.videoMessage) return "video";
+  if (m.audioMessage) return "audio";
+  if (m.stickerMessage) return "sticker";
+  if (m.documentMessage) return "document";
+  return null;
+}
+
+function getMediaMimetype(msg: any): string | null {
+  const m = unwrapMessage(msg);
+  if (!m) return null;
+  return (
+    m.imageMessage?.mimetype ??
+    m.videoMessage?.mimetype ??
+    m.audioMessage?.mimetype ??
+    m.stickerMessage?.mimetype ??
+    m.documentMessage?.mimetype ??
+    null
+  );
+}
+
+function getMessageText(msg: any): string {
+  const m = unwrapMessage(msg);
+  if (!m) return "";
+  return (
+    m.conversation ??
+    m.extendedTextMessage?.text ??
+    m.imageMessage?.caption ??
+    m.videoMessage?.caption ??
+    m.documentMessage?.fileName ??
     ""
   );
 }
@@ -122,11 +159,50 @@ router.get("/whatsapp/chats/:chatId/messages", async (req: Request, res: Respons
     id: m.key.id,
     fromMe: m.key.fromMe ?? false,
     text: getMessageText(m),
+    mediaType: getMediaType(m),
     timestamp: m.messageTimestamp ? Number(m.messageTimestamp) * 1000 : null,
     status: m.status ?? null,
   }));
 
   res.json({ messages: serialized });
+});
+
+/** Stream the binary media for a specific message */
+router.get("/whatsapp/chats/:chatId/messages/:msgId/media", async (req: Request, res: Response) => {
+  const { chatId, msgId } = req.params;
+  const decoded = decodeURIComponent(chatId);
+
+  const msg = whatsappService.getMessage(decoded, msgId);
+  if (!msg) {
+    res.status(404).json({ error: "Message not found" });
+    return;
+  }
+
+  const mediaType = getMediaType(msg);
+  if (!mediaType) {
+    res.status(400).json({ error: "Message has no media" });
+    return;
+  }
+
+  try {
+    const buffer = await downloadMediaMessage(
+      msg,
+      "buffer",
+      {},
+    ) as Buffer;
+
+    const mime = getMediaMimetype(msg) ?? "application/octet-stream";
+    res.setHeader("Content-Type", mime);
+    res.setHeader("Cache-Control", "private, max-age=3600");
+    if (mediaType === "document") {
+      const m = unwrapMessage(msg);
+      const fileName = m?.documentMessage?.fileName ?? "file";
+      res.setHeader("Content-Disposition", `attachment; filename="${fileName}"`);
+    }
+    res.send(buffer);
+  } catch (err: any) {
+    res.status(502).json({ error: "Failed to download media: " + (err?.message ?? String(err)) });
+  }
 });
 
 router.post("/whatsapp/chats/:chatId/messages", async (req: Request, res: Response) => {

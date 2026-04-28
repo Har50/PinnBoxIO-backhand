@@ -5,7 +5,7 @@ import {
   QrCode, Smartphone, RefreshCw, AlertCircle,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { apiFetch } from "@/lib/api-client";
+import { apiFetch, getAuthHeaders } from "@/lib/api-client";
 
 const WA_GREEN = "#25D366";
 const WA_DARK_HEADER = "#128C7E";
@@ -22,10 +22,13 @@ type Chat = {
   isGroup: boolean;
 };
 
+type MediaType = "image" | "video" | "audio" | "document" | "sticker" | null;
+
 type Message = {
   id: string;
   fromMe: boolean;
   text: string;
+  mediaType: MediaType;
   timestamp: number | null;
   status: number | null;
 };
@@ -48,6 +51,99 @@ function formatTime(ts: number | null): string {
   if (diff < 24 * 60 * 60 * 1000) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (diff < 7 * 24 * 60 * 60 * 1000) return date.toLocaleDateString([], { weekday: "short" });
   return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+}
+
+/** Fetches media from the authenticated API and renders it as an <img>, <video>, <audio>, or download link */
+function useMediaBlobUrl(chatId: string, msgId: string, enabled: boolean) {
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    if (!enabled) return;
+    let url: string | null = null;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+        const res = await fetch(
+          `${base}/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${msgId}/media`,
+          { credentials: "include", headers: headers as HeadersInit },
+        );
+        if (!res.ok) { setFailed(true); return; }
+        const blob = await res.blob();
+        url = URL.createObjectURL(blob);
+        setBlobUrl(url);
+      } catch { setFailed(true); }
+    })();
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [chatId, msgId, enabled]);
+
+  return { blobUrl, failed };
+}
+
+function MediaImage({ chatId, msgId, caption }: { chatId: string; msgId: string; caption?: string }) {
+  const { blobUrl, failed } = useMediaBlobUrl(chatId, msgId, true);
+  if (failed) return <p className="text-sm italic text-gray-400 dark:text-[#8696a0]">📷 Image unavailable</p>;
+  if (!blobUrl) return <div className="w-48 h-28 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />;
+  return (
+    <div>
+      <img
+        src={blobUrl}
+        alt={caption ?? ""}
+        className="max-w-[260px] rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
+        onClick={() => window.open(blobUrl)}
+      />
+      {caption && <p className="text-sm text-gray-800 dark:text-[#e9edef] mt-1 leading-relaxed">{caption}</p>}
+    </div>
+  );
+}
+
+function MediaVideo({ chatId, msgId, caption }: { chatId: string; msgId: string; caption?: string }) {
+  const { blobUrl, failed } = useMediaBlobUrl(chatId, msgId, true);
+  if (failed) return <p className="text-sm italic text-gray-400 dark:text-[#8696a0]">🎥 Video unavailable</p>;
+  if (!blobUrl) return <div className="w-48 h-28 rounded-lg bg-gray-200 dark:bg-gray-700 animate-pulse" />;
+  return (
+    <div>
+      <video src={blobUrl} controls className="max-w-[260px] rounded-lg" />
+      {caption && <p className="text-sm text-gray-800 dark:text-[#e9edef] mt-1 leading-relaxed">{caption}</p>}
+    </div>
+  );
+}
+
+function MediaAudio({ chatId, msgId }: { chatId: string; msgId: string }) {
+  const { blobUrl, failed } = useMediaBlobUrl(chatId, msgId, true);
+  if (failed) return <p className="text-sm italic text-gray-400 dark:text-[#8696a0]">🎵 Audio unavailable</p>;
+  if (!blobUrl) return <div className="w-48 h-10 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />;
+  return <audio src={blobUrl} controls className="max-w-[260px]" />;
+}
+
+function MediaDocument({ chatId, msgId, fileName }: { chatId: string; msgId: string; fileName?: string }) {
+  const { blobUrl, failed } = useMediaBlobUrl(chatId, msgId, true);
+  const label = fileName ?? "Document";
+  if (failed) return <p className="text-sm italic text-gray-400 dark:text-[#8696a0]">📄 {label} — unavailable</p>;
+  if (!blobUrl) return <div className="w-48 h-10 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />;
+  return (
+    <a href={blobUrl} download={label} className="flex items-center gap-2 text-sm underline text-blue-600 dark:text-blue-400">
+      📄 {label}
+    </a>
+  );
+}
+
+function MessageContent({ msg, chatId }: { msg: Message; chatId: string }) {
+  switch (msg.mediaType) {
+    case "image":
+    case "sticker":
+      return <MediaImage chatId={chatId} msgId={msg.id} caption={msg.text || undefined} />;
+    case "video":
+      return <MediaVideo chatId={chatId} msgId={msg.id} caption={msg.text || undefined} />;
+    case "audio":
+      return <MediaAudio chatId={chatId} msgId={msg.id} />;
+    case "document":
+      return <MediaDocument chatId={chatId} msgId={msg.id} fileName={msg.text || undefined} />;
+    default:
+      if (!msg.text) return <p className="text-sm italic text-gray-400 dark:text-[#8696a0]">Message</p>;
+      return <p className="text-sm text-gray-800 dark:text-[#e9edef] leading-relaxed whitespace-pre-wrap">{msg.text}</p>;
+  }
 }
 
 function ConnectPanel({
@@ -546,9 +642,7 @@ export default function WhatsApp() {
                   <style>{`
                     .dark { --wa-bubble-me: #005c4b; --wa-bubble-them: #202c33; }
                   `}</style>
-                  <p className="text-sm text-gray-800 dark:text-[#e9edef] leading-relaxed">
-                    {msg.text || <span className="italic text-gray-400 dark:text-[#8696a0]">[media]</span>}
-                  </p>
+                  <MessageContent msg={msg} chatId={selectedChat.id} />
                   <div className="flex items-center justify-end gap-1 mt-1">
                     <span className="text-[11px] text-gray-400 dark:text-[#8696a0]">
                       {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}

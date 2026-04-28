@@ -70,10 +70,13 @@ type Chat = {
   isGroup: boolean;
 };
 
+type MediaType = "image" | "video" | "audio" | "document" | "sticker" | null;
+
 type Message = {
   id: string;
   fromMe: boolean;
   text: string;
+  mediaType: MediaType;
   timestamp: number | null;
   status: number | null;
 };
@@ -85,6 +88,66 @@ function formatTime(ts: number | null): string {
   if (diff < 24 * 60 * 60 * 1000) return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   if (diff < 7 * 24 * 60 * 60 * 1000) return date.toLocaleDateString([], { weekday: "short" });
   return date.toLocaleDateString([], { day: "2-digit", month: "2-digit" });
+}
+
+function MobileMediaContent({ msg, chatId }: { msg: Message; chatId: string }) {
+  const [blobUri, setBlobUri] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+  const hasMedia = !!msg.mediaType;
+
+  useEffect(() => {
+    if (!hasMedia) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const res = await fetch(
+          `${API_BASE}/api/whatsapp/chats/${encodeURIComponent(chatId)}/messages/${encodeURIComponent(msg.id)}/media`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {} },
+        );
+        if (!res.ok || cancelled) { setFailed(true); return; }
+        const blob = await res.blob();
+        const reader = new FileReader();
+        reader.onload = () => { if (!cancelled) setBlobUri(reader.result as string); };
+        reader.readAsDataURL(blob);
+      } catch { setFailed(true); }
+    })();
+    return () => { cancelled = true; };
+  }, [chatId, msg.id, hasMedia]);
+
+  if (!hasMedia) {
+    if (!msg.text) return <Text style={{ color: "#999", fontStyle: "italic", fontSize: 14 }}>Message</Text>;
+    return <Text style={{ fontSize: 14, color: "#111", lineHeight: 20 }}>{msg.text}</Text>;
+  }
+
+  if (failed) {
+    const label = msg.mediaType === "image" ? "📷 Image" : msg.mediaType === "video" ? "🎥 Video" : msg.mediaType === "audio" ? "🎵 Audio" : "📄 " + (msg.text || "Document");
+    return <Text style={{ color: "#999", fontStyle: "italic", fontSize: 14 }}>{label} — unavailable</Text>;
+  }
+
+  if (!blobUri) {
+    const h = msg.mediaType === "audio" ? 36 : 150;
+    return <View style={{ width: 200, height: h, borderRadius: 8, backgroundColor: "#ddd" }} />;
+  }
+
+  if (msg.mediaType === "image" || msg.mediaType === "sticker") {
+    return (
+      <View>
+        <Image source={{ uri: blobUri }} style={{ width: 220, height: 160, borderRadius: 8 }} resizeMode="cover" />
+        {!!msg.text && <Text style={{ fontSize: 13, color: "#111", marginTop: 4 }}>{msg.text}</Text>}
+      </View>
+    );
+  }
+
+  if (msg.mediaType === "video") {
+    return <Text style={{ fontSize: 14, color: "#444", fontStyle: "italic" }}>🎥 {msg.text || "Video"} (tap to play)</Text>;
+  }
+
+  if (msg.mediaType === "audio") {
+    return <Text style={{ fontSize: 14, color: "#444", fontStyle: "italic" }}>🎵 Voice message</Text>;
+  }
+
+  return <Text style={{ fontSize: 14, color: "#0070f3" }}>📄 {msg.text || "Document"}</Text>;
 }
 
 function ChatRow({ chat, onPress }: { chat: Chat; onPress: () => void }) {
@@ -199,9 +262,7 @@ function ConversationView({ chat, onBack }: { chat: Chat; onBack: () => void }) 
                   : [styles.bubbleThem, { backgroundColor: "#fff" }],
               ]}
             >
-              <Text style={{ fontSize: 14, color: "#111", lineHeight: 20 }}>
-                {msg.text || <Text style={{ color: "#aaa", fontStyle: "italic" }}>[media]</Text>}
-              </Text>
+              <MobileMediaContent msg={msg} chatId={chat.id} />
               <View style={styles.bubbleMeta}>
                 <Text style={styles.bubbleTime}>
                   {msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : ""}

@@ -72,6 +72,14 @@ class WhatsAppService extends EventEmitter {
     return this.messages.get(chatId) ?? [];
   }
 
+  getMessage(chatId: string, msgId: string): WAMessage | undefined {
+    return this.messages.get(chatId)?.find((m) => m.key.id === msgId);
+  }
+
+  getSocket(): WASocket | null {
+    return this.sock;
+  }
+
   private scheduleSaveChats() {
     if (this.saveTimer) clearTimeout(this.saveTimer);
     this.saveTimer = setTimeout(() => {
