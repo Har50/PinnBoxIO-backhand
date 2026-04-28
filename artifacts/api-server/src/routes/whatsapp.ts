@@ -137,9 +137,9 @@ router.get("/whatsapp/events", (req: Request, res: Response) => {
 
 router.get("/whatsapp/chats", (req: Request, res: Response) => {
   const chats = whatsappService.getChats();
-  const serialized = chats.slice(0, 50).map((c: any) => ({
+  const serialized = chats.slice(0, 100).map((c: any) => ({
     id: c.id,
-    name: c.name ?? jidToPhone(c.id),
+    name: whatsappService.getContactName(c.id, c.name),
     unreadCount: c.unreadCount ?? 0,
     timestamp: c.conversationTimestamp ? Number(c.conversationTimestamp) * 1000 : null,
     lastMessage: c.messages?.first ? getMessageText(c.messages.first) : null,
@@ -151,11 +151,21 @@ router.get("/whatsapp/chats", (req: Request, res: Response) => {
 router.get("/whatsapp/chats/:chatId/messages", async (req: Request, res: Response) => {
   const { chatId } = req.params;
   const decoded = decodeURIComponent(chatId);
+  // `before` = timestamp ms — return messages older than this for pagination
+  const beforeTs = req.query.before ? Number(req.query.before) : null;
+  const limit = Math.min(Number(req.query.limit ?? 50), 100);
 
   await whatsappService.loadMessages(decoded);
-  const msgs = whatsappService.getMessages(decoded);
+  let msgs = whatsappService.getMessages(decoded);
 
-  const serialized = msgs.map((m: any) => ({
+  if (beforeTs) {
+    msgs = msgs.filter((m: any) => Number(m.messageTimestamp ?? 0) * 1000 < beforeTs);
+  }
+
+  // Return the most recent `limit` messages (or the window before `before`)
+  const page = msgs.slice(-limit);
+
+  const serialized = page.map((m: any) => ({
     id: m.key.id,
     fromMe: m.key.fromMe ?? false,
     text: getMessageText(m),
@@ -164,7 +174,7 @@ router.get("/whatsapp/chats/:chatId/messages", async (req: Request, res: Respons
     status: m.status ?? null,
   }));
 
-  res.json({ messages: serialized });
+  res.json({ messages: serialized, hasMore: msgs.length > limit });
 });
 
 /** Stream the binary media for a specific message */

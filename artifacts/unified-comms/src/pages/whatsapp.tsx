@@ -340,8 +340,11 @@ export default function WhatsApp() {
   const [searchQuery, setSearchQuery] = useState("");
   const [loadingChats, setLoadingChats] = useState(false);
   const [loadingMessages, setLoadingMessages] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
   const [sending, setSending] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesTopRef = useRef<HTMLDivElement>(null);
   const sseRef = useRef<EventSource | null>(null);
 
   const loadChats = useCallback(async () => {
@@ -357,12 +360,39 @@ export default function WhatsApp() {
   const loadMessages = useCallback(async (chatId: string) => {
     setLoadingMessages(true);
     try {
-      const data = await apiGet<{ messages: Message[] }>(`/whatsapp/chats/${encodeURIComponent(chatId)}/messages`);
+      const data = await apiGet<{ messages: Message[]; hasMore: boolean }>(`/whatsapp/chats/${encodeURIComponent(chatId)}/messages`);
       setMessages(data.messages);
+      setHasMore(data.hasMore ?? false);
     } catch {} finally {
       setLoadingMessages(false);
     }
   }, []);
+
+  const loadOlderMessages = useCallback(async () => {
+    if (!selectedChat || loadingMore || messages.length === 0) return;
+    const oldest = messages[0];
+    if (!oldest?.timestamp) return;
+    setLoadingMore(true);
+    try {
+      const data = await apiGet<{ messages: Message[]; hasMore: boolean }>(
+        `/whatsapp/chats/${encodeURIComponent(selectedChat.id)}/messages?before=${oldest.timestamp}`
+      );
+      if (data.messages.length > 0) {
+        setMessages((prev) => {
+          const existingIds = new Set(prev.map((m) => m.id));
+          const newOnes = data.messages.filter((m) => !existingIds.has(m.id));
+          return [...newOnes, ...prev];
+        });
+        setHasMore(data.hasMore ?? false);
+        // Keep scroll position — don't jump to bottom after prepending
+        setTimeout(() => messagesTopRef.current?.scrollIntoView(), 50);
+      } else {
+        setHasMore(false);
+      }
+    } catch {} finally {
+      setLoadingMore(false);
+    }
+  }, [selectedChat, loadingMore, messages]);
 
   const pollStatus = useCallback(async () => {
     try {
@@ -447,7 +477,11 @@ export default function WhatsApp() {
   }, [loadChats, loadMessages, pollStatus, selectedChat]);
 
   useEffect(() => {
-    if (selectedChat) loadMessages(selectedChat.id);
+    if (selectedChat) {
+      setMessages([]);
+      setHasMore(false);
+      loadMessages(selectedChat.id);
+    }
   }, [selectedChat, loadMessages]);
 
   useEffect(() => {
@@ -619,6 +653,23 @@ export default function WhatsApp() {
             {loadingMessages && (
               <div className="flex justify-center py-8">
                 <Loader2 className="animate-spin text-gray-400 dark:text-[#8696a0]" size={22} />
+              </div>
+            )}
+            {!loadingMessages && hasMore && (
+              <div ref={messagesTopRef} className="flex justify-center py-2">
+                <button
+                  onClick={loadOlderMessages}
+                  disabled={loadingMore}
+                  className="text-xs px-4 py-1.5 rounded-full bg-white dark:bg-[#202c33] text-gray-600 dark:text-[#8696a0] shadow hover:shadow-md transition-shadow disabled:opacity-50 flex items-center gap-1.5"
+                >
+                  {loadingMore ? <Loader2 size={12} className="animate-spin" /> : null}
+                  Load older messages
+                </button>
+              </div>
+            )}
+            {!loadingMessages && !hasMore && messages.length > 0 && (
+              <div ref={messagesTopRef} className="flex justify-center py-2">
+                <span className="text-[11px] text-gray-400 dark:text-[#8696a0]">Beginning of conversation</span>
               </div>
             )}
             {!loadingMessages && messages.length === 0 && (

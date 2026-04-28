@@ -21,12 +21,25 @@ import {
 
 const AUTH_DIR = path.join(process.cwd(), "wa-auth");
 const CHATS_FILE = path.join(AUTH_DIR, "chats.json");
+const CONTACTS_FILE = path.join(AUTH_DIR, "contacts.json");
+const MSGS_DIR = path.join(AUTH_DIR, "msgs");
 
 export type WAStatus = "disconnected" | "connecting" | "qr" | "pairing" | "connected";
 
 export interface WAEvent {
   type: "status" | "qr" | "pairing_code" | "chats" | "message";
   data: unknown;
+}
+
+export interface WAContact {
+  id: string;
+  name?: string;
+  notify?: string;
+}
+
+/** Encode a chat JID into a safe filename */
+function jidToFilename(jid: string): string {
+  return jid.replace(/[^a-zA-Z0-9._-]/g, "_");
 }
 
 function loadPersistedChats(): Map<string, WAChat> {
@@ -44,6 +57,45 @@ function loadPersistedChats(): Map<string, WAChat> {
   return new Map();
 }
 
+function loadPersistedContacts(): Map<string, WAContact> {
+  try {
+    if (fs.existsSync(CONTACTS_FILE)) {
+      const raw = fs.readFileSync(CONTACTS_FILE, "utf-8");
+      const arr: WAContact[] = JSON.parse(raw);
+      const map = new Map<string, WAContact>();
+      arr.forEach((c) => map.set(c.id, c));
+      return map;
+    }
+  } catch (err) {
+    logger.warn({ err }, "Could not load persisted WhatsApp contacts");
+  }
+  return new Map();
+}
+
+function loadPersistedMessages(chatId: string): WAMessage[] {
+  try {
+    fs.mkdirSync(MSGS_DIR, { recursive: true });
+    const file = path.join(MSGS_DIR, `${jidToFilename(chatId)}.json`);
+    if (fs.existsSync(file)) {
+      const raw = fs.readFileSync(file, "utf-8");
+      return JSON.parse(raw);
+    }
+  } catch (err) {
+    logger.warn({ err, chatId }, "Could not load persisted messages");
+  }
+  return [];
+}
+
+function saveMessagesToFile(chatId: string, msgs: WAMessage[]) {
+  try {
+    fs.mkdirSync(MSGS_DIR, { recursive: true });
+    const file = path.join(MSGS_DIR, `${jidToFilename(chatId)}.json`);
+    fs.writeFileSync(file, JSON.stringify(msgs));
+  } catch (err) {
+    logger.warn({ err, chatId }, "Could not persist messages");
+  }
+}
+
 class WhatsAppService extends EventEmitter {
   private sock: WASocket | null = null;
   private status: WAStatus = "disconnected";
@@ -51,7 +103,9 @@ class WhatsAppService extends EventEmitter {
   private pairingCode: string | null = null;
   private pendingPairingPhone: string | null = null;
   private chats: Map<string, WAChat> = loadPersistedChats();
+  private contacts: Map<string, WAContact> = loadPersistedContacts();
   private messages: Map<string, WAMessage[]> = new Map();
+  private msgSaveTimers: Map<string, NodeJS.Timeout> = new Map();
   private reconnectTimer: NodeJS.Timeout | null = null;
   private saveTimer: NodeJS.Timeout | null = null;
   private connectInProgress = false;
@@ -68,12 +122,22 @@ class WhatsAppService extends EventEmitter {
     });
   }
 
+  /** Resolve the best display name for a JID */
+  getContactName(jid: string, pushName?: string | null): string {
+    const contact = this.contacts.get(jid);
+    return contact?.name ?? contact?.notify ?? pushName ?? jid.split("@")[0] ?? jid;
+  }
+
   getMessages(chatId: string): WAMessage[] {
+    if (!this.messages.has(chatId)) {
+      const persisted = loadPersistedMessages(chatId);
+      this.messages.set(chatId, persisted);
+    }
     return this.messages.get(chatId) ?? [];
   }
 
   getMessage(chatId: string, msgId: string): WAMessage | undefined {
-    return this.messages.get(chatId)?.find((m) => m.key.id === msgId);
+    return this.getMessages(chatId).find((m) => m.key.id === msgId);
   }
 
   getSocket(): WASocket | null {
@@ -86,7 +150,6 @@ class WhatsAppService extends EventEmitter {
       try {
         fs.mkdirSync(AUTH_DIR, { recursive: true });
         fs.writeFileSync(CHATS_FILE, JSON.stringify(Array.from(this.chats.values())));
-        // Upload chats to cloud storage so they survive deployments
         uploadWaAuthDirToStorage(AUTH_DIR).catch(() => {});
       } catch (err) {
         logger.warn({ err }, "Could not persist WhatsApp chats");
@@ -94,13 +157,52 @@ class WhatsAppService extends EventEmitter {
     }, 2000);
   }
 
+  private scheduleSaveContacts() {
+    setTimeout(() => {
+      try {
+        fs.mkdirSync(AUTH_DIR, { recursive: true });
+        fs.writeFileSync(CONTACTS_FILE, JSON.stringify(Array.from(this.contacts.values())));
+      } catch (err) {
+        logger.warn({ err }, "Could not persist WhatsApp contacts");
+      }
+    }, 3000);
+  }
+
+  private scheduleSaveMessages(chatId: string) {
+    const existing = this.msgSaveTimers.get(chatId);
+    if (existing) clearTimeout(existing);
+    const t = setTimeout(() => {
+      const msgs = this.messages.get(chatId);
+      if (msgs) saveMessagesToFile(chatId, msgs);
+      this.msgSaveTimers.delete(chatId);
+    }, 1500);
+    this.msgSaveTimers.set(chatId, t);
+  }
+
+  private upsertMessages(chatId: string, incoming: WAMessage[], prepend = false) {
+    const existing = this.getMessages(chatId);
+    for (const msg of incoming) {
+      const idx = existing.findIndex((m) => m.key.id === msg.key.id);
+      if (idx >= 0) {
+        existing[idx] = msg;
+      } else if (prepend) {
+        existing.unshift(msg);
+      } else {
+        existing.push(msg);
+      }
+    }
+    existing.sort((a, b) => Number(a.messageTimestamp ?? 0) - Number(b.messageTimestamp ?? 0));
+    // Keep up to 500 messages per chat
+    const trimmed = existing.slice(-500);
+    this.messages.set(chatId, trimmed);
+    this.scheduleSaveMessages(chatId);
+    return trimmed;
+  }
+
   /** Returns true when valid saved credentials exist in cloud storage (source of truth). */
   async hasCredentials(): Promise<boolean> {
-    // Only trust cloud storage — local disk may hold stale/invalidated creds
-    // from a previous session that was logged out or replaced.
     const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
     if (!bucketId) {
-      // No cloud storage configured: fall back to local disk (dev/local mode)
       return fs.existsSync(path.join(AUTH_DIR, "creds.json"));
     }
     try {
@@ -123,7 +225,6 @@ class WhatsAppService extends EventEmitter {
   }
 
   async connect() {
-    // Prevent simultaneous connect calls from racing each other
     if (this.connectInProgress) {
       logger.info("connect() already in progress — skipping duplicate call");
       return;
@@ -142,31 +243,35 @@ class WhatsAppService extends EventEmitter {
 
       this.setStatus("connecting");
 
-      // Always clear local auth dir first so stale/invalidated creds from a
-      // previous session never get accidentally reused by Baileys.
       try {
         if (fs.existsSync(AUTH_DIR)) {
           const entries = fs.readdirSync(AUTH_DIR);
           for (const entry of entries) {
             const fp = path.join(AUTH_DIR, entry);
-            if (fs.lstatSync(fp).isDirectory()) {
-              fs.rmSync(fp, { recursive: true, force: true });
-            } else {
-              fs.unlinkSync(fp);
+            // Only clear auth credential files — preserve chats, contacts, and msgs
+            if (!["chats.json", "contacts.json", "msgs"].includes(entry)) {
+              if (fs.lstatSync(fp).isDirectory()) {
+                fs.rmSync(fp, { recursive: true, force: true });
+              } else {
+                fs.unlinkSync(fp);
+              }
             }
           }
         }
       } catch {}
 
-      // Download fresh credentials from cloud storage (empty = fresh scan needed)
       await downloadWaAuthFromStorage(AUTH_DIR);
 
-      // Reload persisted chats from the freshly-downloaded file (the map may
-      // have been empty if the local file didn't exist before this connect).
       const freshChats = loadPersistedChats();
       if (freshChats.size > 0) {
         freshChats.forEach((c, id) => this.chats.set(id, c));
         logger.info({ count: freshChats.size }, "Reloaded WA chats from storage after download");
+      }
+
+      const freshContacts = loadPersistedContacts();
+      if (freshContacts.size > 0) {
+        freshContacts.forEach((c, id) => this.contacts.set(id, c));
+        logger.info({ count: freshContacts.size }, "Reloaded WA contacts");
       }
 
       const { version } = await fetchLatestBaileysVersion();
@@ -187,7 +292,6 @@ class WhatsAppService extends EventEmitter {
 
       this.sock.ev.on("creds.update", async () => {
         await saveCreds();
-        // Persist updated credentials to cloud storage so they survive deploys
         uploadWaAuthDirToStorage(AUTH_DIR).catch(() => {});
       });
 
@@ -233,23 +337,22 @@ class WhatsAppService extends EventEmitter {
           this.setStatus("disconnected");
 
           if (isLoggedOut) {
-            // User manually removed the device — credentials are permanently invalid.
             logger.info({ code }, "WA logged out by user — clearing credentials");
             try {
               const files = fs.readdirSync(AUTH_DIR);
               files.forEach((f) => {
                 const fp = path.join(AUTH_DIR, f);
-                if (fs.lstatSync(fp).isDirectory()) {
-                  fs.rmSync(fp, { recursive: true, force: true });
-                } else {
-                  fs.unlinkSync(fp);
+                if (!["chats.json", "contacts.json", "msgs"].includes(f)) {
+                  if (fs.lstatSync(fp).isDirectory()) {
+                    fs.rmSync(fp, { recursive: true, force: true });
+                  } else {
+                    fs.unlinkSync(fp);
+                  }
                 }
               });
             } catch {}
             deleteWaAuthFromStorage().catch(() => {});
           } else if (isReplaced) {
-            // Another instance took over the session. Credentials are still valid —
-            // just wait a moment and reconnect with the same creds.
             logger.info("WA connection replaced — reconnecting in 8s");
             this.reconnectTimer = setTimeout(() => this.connect(), 8000);
           } else if (!this.pendingPairingPhone) {
@@ -279,14 +382,54 @@ class WhatsAppService extends EventEmitter {
         this.emit("event", { type: "chats", data: null } as WAEvent);
       });
 
+      // Contacts
+      this.sock.ev.on("contacts.set", ({ contacts: list }) => {
+        list.forEach((c: any) => {
+          if (!c.id) return;
+          const existing = this.contacts.get(c.id) ?? { id: c.id };
+          this.contacts.set(c.id, {
+            ...existing,
+            id: c.id,
+            name: c.name ?? existing.name,
+            notify: c.notify ?? existing.notify,
+          });
+        });
+        logger.info({ count: this.contacts.size }, "WA contacts set");
+        this.scheduleSaveContacts();
+      });
+
+      this.sock.ev.on("contacts.upsert", (list: any[]) => {
+        list.forEach((c: any) => {
+          if (!c.id) return;
+          const existing = this.contacts.get(c.id) ?? { id: c.id };
+          this.contacts.set(c.id, {
+            ...existing,
+            id: c.id,
+            name: c.name ?? existing.name,
+            notify: c.notify ?? existing.notify,
+          });
+        });
+        this.scheduleSaveContacts();
+      });
+
+      this.sock.ev.on("contacts.update", (updates: any[]) => {
+        updates.forEach((u: any) => {
+          if (!u.id) return;
+          const existing = this.contacts.get(u.id) ?? { id: u.id };
+          this.contacts.set(u.id, {
+            ...existing,
+            name: u.name ?? existing.name,
+            notify: u.notify ?? existing.notify,
+          });
+        });
+        this.scheduleSaveContacts();
+      });
+
+      // Messages
       this.sock.ev.on("messages.set", ({ messages: msgs }) => {
         msgs.forEach((msg) => {
           if (!msg.key.remoteJid) return;
-          const chatId = msg.key.remoteJid;
-          const existing = this.messages.get(chatId) ?? [];
-          const idx = existing.findIndex((m) => m.key.id === msg.key.id);
-          if (idx === -1) existing.push(msg);
-          this.messages.set(chatId, existing);
+          this.upsertMessages(msg.key.remoteJid, [msg]);
         });
       });
 
@@ -295,36 +438,51 @@ class WhatsAppService extends EventEmitter {
           if (!msg.key.remoteJid) return;
           const chatId = msg.key.remoteJid;
 
-          // Always create/refresh the chat entry so it shows up in the list
           const existingChat = this.chats.get(chatId) ?? ({ id: chatId } as WAChat);
+          const contactName = this.contacts.get(chatId)?.name
+            ?? this.contacts.get(chatId)?.notify
+            ?? (msg.key.fromMe ? undefined : (msg.pushName ?? undefined))
+            ?? existingChat.name;
+
           const updatedChat: WAChat = {
             ...existingChat,
             id: chatId,
+            name: contactName ?? existingChat.name,
             conversationTimestamp: msg.messageTimestamp ?? existingChat.conversationTimestamp,
-            // Use push name from incoming messages (contact's display name)
-            name: existingChat.name ?? (msg.key.fromMe ? undefined : (msg.pushName ?? undefined)),
             messages: { first: msg } as any,
             unreadCount: msg.key.fromMe ? (existingChat.unreadCount ?? 0) : ((existingChat.unreadCount ?? 0) + 1),
           };
           this.chats.set(chatId, updatedChat);
           this.scheduleSaveChats();
 
-          // Update message history
-          const existing = this.messages.get(chatId) ?? [];
-          const idx = existing.findIndex((m) => m.key.id === msg.key.id);
-          if (idx >= 0) {
-            existing[idx] = msg;
-          } else {
-            existing.push(msg);
-          }
-          existing.sort((a, b) => {
-            const ta = Number(a.messageTimestamp ?? 0);
-            const tb = Number(b.messageTimestamp ?? 0);
-            return ta - tb;
-          });
-          this.messages.set(chatId, existing.slice(-100));
+          this.upsertMessages(chatId, [msg]);
           this.emit("event", { type: "message", data: { chatId, msg } } as WAEvent);
         });
+      });
+
+      // Historical messages from history sync
+      this.sock.ev.on("messaging-history.set", ({ messages: msgs, chats: histChats, contacts: histContacts, isLatest }) => {
+        if (histContacts) {
+          histContacts.forEach((c: any) => {
+            if (!c.id) return;
+            const existing = this.contacts.get(c.id) ?? { id: c.id };
+            this.contacts.set(c.id, { ...existing, id: c.id, name: c.name ?? existing.name, notify: c.notify ?? existing.notify });
+          });
+          this.scheduleSaveContacts();
+        }
+        if (histChats) {
+          histChats.forEach((c: any) => {
+            if (c.id) this.chats.set(c.id, { ...(this.chats.get(c.id) ?? {}), ...c });
+          });
+          this.scheduleSaveChats();
+        }
+        if (msgs) {
+          msgs.forEach((msg: any) => {
+            if (!msg.key?.remoteJid) return;
+            this.upsertMessages(msg.key.remoteJid, [msg]);
+          });
+          logger.info({ count: msgs.length }, "WA history sync messages loaded");
+        }
       });
 
     } catch (err) {
@@ -357,13 +515,30 @@ class WhatsAppService extends EventEmitter {
     this.pairingCode = null;
     this.pendingPairingPhone = null;
     try { fs.unlinkSync(CHATS_FILE); } catch {}
-    // Remove credentials from cloud storage so auto-connect doesn't fire next start
     deleteWaAuthFromStorage().catch(() => {});
     this.setStatus("disconnected");
   }
 
-  async loadMessages(_chatId: string) {
-    // Messages are populated in real-time via messages.upsert events
+  async loadMessages(chatId: string) {
+    // Messages are loaded from disk on first access (via getMessages).
+    // Bail if no socket — just return persisted data.
+    if (!this.sock || this.status !== "connected") return;
+
+    // Ensure in-memory cache is populated from disk
+    this.getMessages(chatId);
+
+    // Request older history from WhatsApp for this chat
+    try {
+      const msgs = this.messages.get(chatId) ?? [];
+      if (msgs.length > 0) {
+        const oldest = msgs[0];
+        if (oldest?.key) {
+          await (this.sock as any).fetchMessageHistory?.(50, chatId, oldest.key);
+        }
+      }
+    } catch {
+      // fetchMessageHistory may not be available in all Baileys versions — ignore
+    }
   }
 
   private setStatus(s: WAStatus) {
