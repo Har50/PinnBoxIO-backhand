@@ -9,6 +9,7 @@ const SECURE_STORE_KEY = "commshub_session_token";
 const PKCE_STORAGE_KEY = "commshub_pkce_state";
 const ISSUER = "https://replit.com/oidc";
 const CLIENT_ID = process.env.EXPO_PUBLIC_REPL_ID ?? "";
+const APP_SCHEME = "pinnboxio";
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const AUTH_REDIRECT_DOMAIN = process.env.EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN ?? API_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
@@ -273,15 +274,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      const appCallbackUri = Linking.createURL("callback");
+      // --- NEW: Server-side token exchange via polling ---
+      // Pre-register the PKCE session with the server so it can exchange the
+      // code itself on the callback, eliminating deep-link dependency in Expo Go.
+      const prepareRes = await fetch(`${API_BASE}/api/mobile-auth/prepare`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          state,
+          code_verifier: codeVerifier,
+          nonce,
+          redirect_uri: MOBILE_OIDC_REDIRECT_URI,
+        }),
+      });
+      if (!prepareRes.ok) {
+        setSignInError("Could not start authentication. Please try again.");
+        return;
+      }
 
-      // Encode the app's deep-link callback URI inside the OAuth `state` parameter so
-      // the server's `/api/mobile-auth/callback` knows where to bounce the user back to.
-      // This is essential for Expo Go (where the scheme is `exp://<dev-host>/--/...`)
-      // and also works for the standalone build (`pinnboxio://callback`).
-      const composedStateObj = { n: state, cb: appCallbackUri };
-      const composedState = btoa(unescape(encodeURIComponent(JSON.stringify(composedStateObj))))
-        .replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "");
+      // Use the registered app scheme as the session-close trigger.
+      // ASWebAuthenticationSession (iOS) closes the browser when it sees
+      // a redirect to this scheme — even inside Expo Go, since it only
+      // monitors for the scheme rather than routing to the app.
+      // The actual auth result comes via polling, not this URL.
+      const appCallbackUri = `${APP_SCHEME}://callback`;
 
       const authUrl = new URL(authEndpoint);
       authUrl.searchParams.set("client_id", CLIENT_ID);
@@ -290,59 +306,67 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       authUrl.searchParams.set("scope", "openid email profile offline_access");
       authUrl.searchParams.set("code_challenge", codeChallenge);
       authUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
-      authUrl.searchParams.set("state", composedState);
+      authUrl.searchParams.set("state", state);
       authUrl.searchParams.set("nonce", nonce);
       if (screenHint) authUrl.searchParams.set("screen_hint", screenHint);
 
-      const result = await WebBrowser.openAuthSessionAsync(authUrl.toString(), appCallbackUri);
+      // Poll for the session token.
+      // The server exchanges the code on its callback route and stores the result;
+      // polling retrieves it without requiring a working deep link.
+      let pollToken: string | null = null;
+      let pollError: string | null = null;
+      let forceStop = false; // set after browser closes + grace period
 
-      if (result.type !== "success") return;
-
-      const resultUrl = new URL(result.url);
-      const code = resultUrl.searchParams.get("code");
-      const returnedComposedState = resultUrl.searchParams.get("state");
-
-      // Decode the composed state and verify the inner CSRF nonce matches.
-      let returnedNonce: string | null = null;
-      if (returnedComposedState) {
-        try {
-          const padded = returnedComposedState.replace(/-/g, "+").replace(/_/g, "/");
-          const json = decodeURIComponent(escape(atob(padded + "===".slice((padded.length + 3) % 4))));
-          const obj = JSON.parse(json);
-          returnedNonce = obj?.n ?? null;
-        } catch {
-          returnedNonce = null;
+      const pollPromise = new Promise<void>((resolve) => {
+        const MAX_POLLS = 150; // 5 min hard limit
+        let count = 0;
+        async function poll() {
+          if (forceStop || count >= MAX_POLLS) { resolve(); return; }
+          count++;
+          try {
+            const r = await fetch(`${API_BASE}/api/mobile-auth/poll/${encodeURIComponent(state)}`);
+            if (r.ok) {
+              const data = await r.json();
+              if (data.status === "complete" && data.token) {
+                pollToken = data.token;
+                resolve();
+                return;
+              }
+              if (data.status === "error") {
+                pollError = data.error ?? "sign_in_failed";
+                resolve();
+                return;
+              }
+            }
+          } catch { /* network hiccup — retry */ }
+          setTimeout(poll, 2000);
         }
-      }
-
-      if (!code || returnedNonce !== state) {
-        setSignInError("Authentication was cancelled or the response was invalid. Please try again.");
-        return;
-      }
-
-      const exchangeRes = await fetch(`${API_BASE}/api/mobile-auth/token-exchange`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          code_verifier: codeVerifier,
-          redirect_uri: MOBILE_OIDC_REDIRECT_URI,
-          state,
-          nonce,
-        }),
+        setTimeout(poll, 2000);
       });
 
-      if (!exchangeRes.ok) {
-        setSignInError("Could not complete authentication. Please try again.");
+      // Open the browser — for standalone builds the JS deep link closes it instantly.
+      // For Expo Go the user must close manually after seeing "You're signed in!".
+      await WebBrowser.openAuthSessionAsync(authUrl.toString(), appCallbackUri);
+
+      // Browser is closed. Give the server up to 15s to process the callback and
+      // for the poll to pick it up (the callback may still be in-flight).
+      await Promise.race([
+        pollPromise,
+        new Promise<void>((resolve) => setTimeout(() => { forceStop = true; resolve(); }, 15000)),
+      ]);
+
+      if (pollError || !pollToken) {
+        setSignInError(
+          pollError === "session_expired"
+            ? "Session expired. Please try again."
+            : pollError
+              ? "Could not complete sign-in. Please try again."
+              : "Sign-in was cancelled. If you approved access, wait a moment and try again."
+        );
         return;
       }
 
-      const { token: newToken } = await exchangeRes.json();
-      if (!newToken) {
-        setSignInError("No session token received. Please try again.");
-        return;
-      }
-
+      const newToken = pollToken;
       const u = await fetchCurrentUser(newToken);
       if (!u) {
         setSignInError("Could not load your profile. Please try again.");

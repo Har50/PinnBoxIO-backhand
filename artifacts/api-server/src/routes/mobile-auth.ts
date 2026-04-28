@@ -12,6 +12,38 @@ const REPLIT_OIDC_USERINFO_URL = "https://replit.com/oidc/userinfo";
 const APP_SCHEME = "pinnboxio";
 const SESSION_TTL_DAYS = 90;
 
+// ---------------------------------------------------------------------------
+// In-memory PKCE session store
+// Before opening the OAuth browser, the mobile client POSTs its code_verifier +
+// redirect_uri keyed by state. The callback route looks this up to do the token
+// exchange server-side, which avoids any deep-link dependency in Expo Go.
+// ---------------------------------------------------------------------------
+interface PkceEntry {
+  codeVerifier: string;
+  nonce: string;
+  redirectUri: string;
+  createdAt: number;
+}
+
+type TokenEntry =
+  | { status: "complete"; token: string }
+  | { status: "error"; error: string };
+
+const pkceStore = new Map<string, PkceEntry>();
+const tokenStore = new Map<string, TokenEntry>();
+
+setInterval(() => {
+  const cutoff = Date.now() - 15 * 60 * 1000;
+  for (const [k, v] of pkceStore) {
+    if (v.createdAt < cutoff) pkceStore.delete(k);
+  }
+  // Drain token store entries older than 15 min (shouldn't accumulate, just safety)
+  if (tokenStore.size > 500) {
+    const keys = [...tokenStore.keys()].slice(0, 250);
+    keys.forEach((k) => tokenStore.delete(k));
+  }
+}, 5 * 60 * 1000);
+
 function generateToken(): string {
   return crypto.randomBytes(48).toString("hex");
 }
@@ -116,59 +148,144 @@ router.get("/logout", (req: Request, res: Response) => {
 });
 
 /**
- * Decide where to bounce the user after Replit's OAuth completes.
+ * POST /mobile-auth/prepare
  *
- * The mobile client encodes its actual deep-link callback (e.g. `exp://<host>/--/callback`
- * in Expo Go, or `pinnboxio://callback` in a standalone build) inside the OAuth `state`
- * parameter as base64url-encoded JSON: `{ n: <csrf-nonce>, cb: <deep-link-url> }`.
- *
- * If decoding fails, or the URL doesn't look like a safe app deep link, fall back to
- * the hardcoded standalone scheme so we never become an open redirector.
+ * Called by the mobile app BEFORE opening the OAuth browser.
+ * Stores the PKCE code_verifier + redirect_uri keyed by the OAuth state so
+ * the server can do the token exchange itself when the callback fires,
+ * without the app needing a working deep link.
  */
-function resolveAppCallbackUri(state: string | undefined): string {
-  const fallback = `${APP_SCHEME}://callback`;
-  if (!state) return fallback;
-  try {
-    const padded = state.replace(/-/g, "+").replace(/_/g, "/");
-    const json = Buffer.from(padded + "===".slice((padded.length + 3) % 4), "base64").toString("utf8");
-    const obj = JSON.parse(json);
-    const cb: string = obj?.cb;
-    if (typeof cb !== "string") return fallback;
+router.post("/mobile-auth/prepare", (req: Request, res: Response) => {
+  const { state, code_verifier, nonce, redirect_uri } = req.body as {
+    state?: string;
+    code_verifier?: string;
+    nonce?: string;
+    redirect_uri?: string;
+  };
 
-    // Whitelist: must be one of our known app schemes. `exp://` and `exps://` cover
-    // Expo Go in dev; `pinnboxio://` covers the production standalone build.
-    if (
-      cb.startsWith(`${APP_SCHEME}://`) ||
-      cb.startsWith("exp://") ||
-      cb.startsWith("exps://")
-    ) {
-      return cb;
-    }
-    return fallback;
-  } catch {
-    return fallback;
+  if (!state || !code_verifier || !nonce || !redirect_uri) {
+    res.status(400).json({ error: "state, code_verifier, nonce, redirect_uri required" });
+    return;
   }
-}
 
-router.get("/mobile-auth/callback", (req: Request, res: Response) => {
+  pkceStore.set(state, { codeVerifier: code_verifier, nonce, redirectUri: redirect_uri, createdAt: Date.now() });
+  res.json({ ok: true });
+});
+
+/**
+ * GET /mobile-auth/poll/:state
+ *
+ * Long-poll endpoint: the mobile app calls this every 2 s after opening the
+ * OAuth browser.  Returns `{status:"pending"}` until the callback fires, then
+ * `{status:"complete", token}` or `{status:"error", error}`.
+ * Token is consumed on first read.
+ */
+router.get("/mobile-auth/poll/:state", (req: Request, res: Response) => {
+  const { state } = req.params;
+  const entry = tokenStore.get(state);
+  if (!entry) {
+    res.json({ status: "pending" });
+    return;
+  }
+  tokenStore.delete(state); // one-time consume
+  res.json(entry);
+});
+
+/**
+ * GET /mobile-auth/callback
+ *
+ * Replit redirects here after the user approves OAuth.
+ * We look up the pre-registered PKCE session, exchange the code server-side,
+ * create a mobile session, store it for polling, then try a deep-link redirect
+ * so standalone builds get an instant return to the app.
+ */
+router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
   const { code, state, error } = req.query as Record<string, string>;
 
-  const baseCallback = resolveAppCallbackUri(state);
-  const sep = baseCallback.includes("?") ? "&" : "?";
+  const deepLinkBase = `${APP_SCHEME}://callback`;
+
+  // Helper: serve a simple in-browser HTML page (Expo Go users will see this)
+  function serveBrowserPage(title: string, message: string, isSuccess: boolean) {
+    const color = isSuccess ? "#2563eb" : "#dc2626";
+    res.setHeader("Content-Type", "text/html");
+    res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;margin:0;background:#f9fafb;padding:24px;box-sizing:border-box}h1{font-size:22px;font-weight:700;color:${color};margin-bottom:12px}p{font-size:15px;color:#374151;text-align:center;line-height:1.5}a{display:inline-block;margin-top:24px;padding:12px 28px;background:${color};color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px}</style></head><body><h1>${title}</h1><p>${message}</p><a href="${deepLinkBase}">Return to PinnboxIO</a></body></html>`);
+  }
 
   if (error) {
-    res.redirect(`${baseCallback}${sep}error=${encodeURIComponent(error)}`);
+    if (state) tokenStore.set(state, { status: "error", error });
+    serveBrowserPage("Sign-in cancelled", "The sign-in was cancelled or an error occurred. You can close this window.", false);
     return;
   }
 
-  if (!code) {
-    res.redirect(`${baseCallback}${sep}error=missing_code`);
+  if (!code || !state) {
+    serveBrowserPage("Sign-in error", "Missing authorization code. Please try again.", false);
     return;
   }
 
-  const params = new URLSearchParams({ code });
-  if (state) params.set("state", state);
-  res.redirect(`${baseCallback}${sep}${params.toString()}`);
+  // Look up the pre-registered PKCE session
+  const pkce = pkceStore.get(state);
+  if (!pkce) {
+    tokenStore.set(state, { status: "error", error: "session_expired" });
+    serveBrowserPage("Session expired", "Your sign-in session expired. Please return to the app and try again.", false);
+    return;
+  }
+  pkceStore.delete(state); // consume
+
+  const clientId = process.env.REPL_ID;
+  if (!clientId) {
+    tokenStore.set(state, { status: "error", error: "server_misconfiguration" });
+    serveBrowserPage("Server error", "The server is misconfigured. Please try again later.", false);
+    return;
+  }
+
+  // Exchange the code using the stored code_verifier and redirect_uri
+  const tokens = await exchangeOidcCode({
+    code,
+    codeVerifier: pkce.codeVerifier,
+    redirectUri: pkce.redirectUri,
+    clientId,
+  });
+
+  if (!tokens) {
+    tokenStore.set(state, { status: "error", error: "exchange_failed" });
+    serveBrowserPage("Sign-in failed", "Could not verify your identity with Replit. Please try again.", false);
+    return;
+  }
+
+  const userInfo = await fetchReplitUserInfo(tokens.accessToken);
+  if (!userInfo) {
+    tokenStore.set(state, { status: "error", error: "userinfo_failed" });
+    serveBrowserPage("Sign-in failed", "Could not retrieve your profile. Please try again.", false);
+    return;
+  }
+
+  const userId = userInfo.sub;
+  const email = userInfo.email ?? null;
+  const firstName = userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
+  const lastName = userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
+  const profileImageUrl = userInfo.picture ?? null;
+
+  await ensureUser(userId, { email: email ?? undefined });
+  await db.update(usersTable).set({
+    ...(email ? { email } : {}),
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(profileImageUrl ? { profileImageUrl } : {}),
+  }).where(eq(usersTable.id, userId));
+
+  const sessionToken = await createMobileSession(userId);
+
+  // Store for polling — the mobile app will pick this up
+  tokenStore.set(state, { status: "complete", token: sessionToken });
+  logger.info({ userId }, "Mobile OAuth session created, stored for polling");
+
+  // Serve a success page that also attempts a deep-link redirect via JS.
+  // • Standalone builds: JS `window.location` opens the app immediately.
+  // • Expo Go: the deep link won't open anything useful, but polling will
+  //   have already completed auth. The user can close this browser tab.
+  const returnUrl = `${deepLinkBase}?state=${encodeURIComponent(state)}`;
+  res.setHeader("Content-Type", "text/html");
+  res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;margin:0;background:#f9fafb;padding:24px;box-sizing:border-box}h1{font-size:22px;font-weight:700;color:#2563eb;margin-bottom:12px}p{font-size:15px;color:#374151;text-align:center;line-height:1.5}a{display:inline-block;margin-top:24px;padding:12px 28px;background:#2563eb;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px}</style><script>window.location="${returnUrl}";</script></head><body><h1>You're signed in!</h1><p>Returning you to PinnboxIO…</p><a href="${returnUrl}">Open PinnboxIO</a></body></html>`);
 });
 
 router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) => {
