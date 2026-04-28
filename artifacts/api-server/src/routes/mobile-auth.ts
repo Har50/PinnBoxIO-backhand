@@ -1,7 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import crypto from "crypto";
-import { db, usersTable, mobileSessionsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, usersTable, mobileSessionsTable, mobilePkceSessionsTable, mobileTokenResultsTable } from "@workspace/db";
+import { eq, lt } from "drizzle-orm";
 import { ensureUser } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
@@ -11,48 +11,20 @@ const REPLIT_OIDC_TOKEN_URL = "https://replit.com/oidc/token";
 const REPLIT_OIDC_USERINFO_URL = "https://replit.com/oidc/userinfo";
 const APP_SCHEME = "pinnboxio";
 const SESSION_TTL_DAYS = 90;
+const PKCE_TTL_MINUTES = 15;
+const TOKEN_RESULT_TTL_MINUTES = 15;
 
-// ---------------------------------------------------------------------------
-// In-memory PKCE session store
-// Before opening the OAuth browser, the mobile client POSTs its code_verifier +
-// redirect_uri keyed by state. The callback route looks this up to do the token
-// exchange server-side, which avoids any deep-link dependency in Expo Go.
-// ---------------------------------------------------------------------------
-interface PkceEntry {
-  codeVerifier: string;
-  nonce: string;
-  redirectUri: string;
-  createdAt: number;
-}
-
-type TokenEntry =
-  | { status: "complete"; token: string }
-  | { status: "error"; error: string };
-
-const pkceStore = new Map<string, PkceEntry>();
-const tokenStore = new Map<string, TokenEntry>();
-
-setInterval(() => {
-  const cutoff = Date.now() - 15 * 60 * 1000;
-  for (const [k, v] of pkceStore) {
-    if (v.createdAt < cutoff) pkceStore.delete(k);
-  }
-  // Drain token store entries older than 15 min (shouldn't accumulate, just safety)
-  if (tokenStore.size > 500) {
-    const keys = [...tokenStore.keys()].slice(0, 250);
-    keys.forEach((k) => tokenStore.delete(k));
-  }
+// Periodically clean up expired DB rows (fire and forget)
+setInterval(async () => {
+  try {
+    const now = new Date();
+    await db.delete(mobilePkceSessionsTable).where(lt(mobilePkceSessionsTable.expiresAt, now));
+    await db.delete(mobileTokenResultsTable).where(lt(mobileTokenResultsTable.expiresAt, now));
+  } catch { /* best-effort */ }
 }, 5 * 60 * 1000);
 
 function generateToken(): string {
   return crypto.randomBytes(48).toString("hex");
-}
-
-function getPublicBase(req: Request): string {
-  if (process.env.PUBLIC_URL) return process.env.PUBLIC_URL.replace(/\/$/, "");
-  const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = (req.headers["x-forwarded-host"] || req.headers.host || "localhost").toString().replace(/:\d+$/, "");
-  return `${proto}://${host}`;
 }
 
 async function exchangeOidcCode(params: {
@@ -113,7 +85,6 @@ async function createMobileSession(userId: string): Promise<string> {
   const token = generateToken();
   const expiresAt = new Date();
   expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS);
-
   await db.insert(mobileSessionsTable).values({ token, userId, expiresAt });
   return token;
 }
@@ -138,7 +109,6 @@ export async function getMobileSessionUser(token: string): Promise<string | null
 
 router.get("/login", (req: Request, res: Response) => {
   const base = process.env.PUBLIC_URL?.replace(/\/$/, "") ?? "";
-  const returnTo = (req.query.returnTo as string) ?? "/";
   res.redirect(`${base}/sign-in`);
 });
 
@@ -151,11 +121,11 @@ router.get("/logout", (req: Request, res: Response) => {
  * POST /mobile-auth/prepare
  *
  * Called by the mobile app BEFORE opening the OAuth browser.
- * Stores the PKCE code_verifier + redirect_uri keyed by the OAuth state so
- * the server can do the token exchange itself when the callback fires,
- * without the app needing a working deep link.
+ * Persists the PKCE code_verifier + redirect_uri keyed by state to the
+ * database so the server can exchange the code on callback without relying
+ * on in-memory state that would be lost on a server restart.
  */
-router.post("/mobile-auth/prepare", (req: Request, res: Response) => {
+router.post("/mobile-auth/prepare", async (req: Request, res: Response) => {
   const { state, code_verifier, nonce, redirect_uri } = req.body as {
     state?: string;
     code_verifier?: string;
@@ -168,43 +138,69 @@ router.post("/mobile-auth/prepare", (req: Request, res: Response) => {
     return;
   }
 
-  pkceStore.set(state, { codeVerifier: code_verifier, nonce, redirectUri: redirect_uri, createdAt: Date.now() });
-  res.json({ ok: true });
+  const expiresAt = new Date(Date.now() + PKCE_TTL_MINUTES * 60 * 1000);
+
+  try {
+    await db
+      .insert(mobilePkceSessionsTable)
+      .values({ state, codeVerifier: code_verifier, nonce, redirectUri: redirect_uri, expiresAt })
+      .onConflictDoUpdate({
+        target: mobilePkceSessionsTable.state,
+        set: { codeVerifier: code_verifier, nonce, redirectUri: redirect_uri, expiresAt },
+      });
+    res.json({ ok: true });
+  } catch (err) {
+    logger.error({ err }, "Failed to store PKCE session");
+    res.status(500).json({ error: "Failed to prepare auth session" });
+  }
 });
 
 /**
  * GET /mobile-auth/poll/:state
  *
- * Long-poll endpoint: the mobile app calls this every 2 s after opening the
- * OAuth browser.  Returns `{status:"pending"}` until the callback fires, then
- * `{status:"complete", token}` or `{status:"error", error}`.
- * Token is consumed on first read.
+ * The mobile app polls this every 2 s after opening the OAuth browser.
+ * Returns {status:"pending"} until the callback fires, then
+ * {status:"complete", token} or {status:"error", error}.
+ * Token entry is consumed on first read.
  */
-router.get("/mobile-auth/poll/:state", (req: Request, res: Response) => {
+router.get("/mobile-auth/poll/:state", async (req: Request, res: Response) => {
   const { state } = req.params;
-  const entry = tokenStore.get(state);
-  if (!entry) {
+
+  try {
+    const [entry] = await db
+      .select()
+      .from(mobileTokenResultsTable)
+      .where(eq(mobileTokenResultsTable.state, state));
+
+    if (!entry) {
+      res.json({ status: "pending" });
+      return;
+    }
+
+    // Consume the entry (one-time read)
+    await db.delete(mobileTokenResultsTable).where(eq(mobileTokenResultsTable.state, state));
+
+    res.json(entry.status === "complete"
+      ? { status: "complete", token: entry.token }
+      : { status: "error", error: entry.error ?? "sign_in_failed" });
+  } catch (err) {
+    logger.error({ err }, "Poll DB error");
     res.json({ status: "pending" });
-    return;
   }
-  tokenStore.delete(state); // one-time consume
-  res.json(entry);
 });
 
 /**
  * GET /mobile-auth/callback
  *
  * Replit redirects here after the user approves OAuth.
- * We look up the pre-registered PKCE session, exchange the code server-side,
- * create a mobile session, store it for polling, then try a deep-link redirect
- * so standalone builds get an instant return to the app.
+ * Looks up the pre-registered PKCE session from the DB, exchanges the code
+ * server-side, creates a mobile session, persists the result for polling,
+ * then serves an HTML page that the user sees in the browser.
  */
 router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
   const { code, state, error } = req.query as Record<string, string>;
-
   const deepLinkBase = `${APP_SCHEME}://callback`;
 
-  // Helper: serve a simple in-browser HTML page (Expo Go users will see this)
   function serveBrowserPage(title: string, message: string, isSuccess: boolean) {
     const color = isSuccess ? "#2563eb" : "#dc2626";
     res.setHeader("Content-Type", "text/html");
@@ -212,7 +208,13 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
   }
 
   if (error) {
-    if (state) tokenStore.set(state, { status: "error", error });
+    if (state) {
+      const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+      await db.insert(mobileTokenResultsTable)
+        .values({ state, status: "error", error, expiresAt })
+        .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "error", error, expiresAt } })
+        .catch(() => {});
+    }
     serveBrowserPage("Sign-in cancelled", "The sign-in was cancelled or an error occurred. You can close this window.", false);
     return;
   }
@@ -222,23 +224,42 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  // Look up the pre-registered PKCE session
-  const pkce = pkceStore.get(state);
-  if (!pkce) {
-    tokenStore.set(state, { status: "error", error: "session_expired" });
+  // Look up the pre-registered PKCE session from DB
+  let pkce: { codeVerifier: string; nonce: string; redirectUri: string; expiresAt: Date } | null = null;
+  try {
+    const [row] = await db
+      .select()
+      .from(mobilePkceSessionsTable)
+      .where(eq(mobilePkceSessionsTable.state, state));
+    if (row) {
+      pkce = { codeVerifier: row.codeVerifier, nonce: row.nonce, redirectUri: row.redirectUri, expiresAt: row.expiresAt };
+      await db.delete(mobilePkceSessionsTable).where(eq(mobilePkceSessionsTable.state, state));
+    }
+  } catch (err) {
+    logger.error({ err }, "DB error looking up PKCE session");
+  }
+
+  if (!pkce || pkce.expiresAt < new Date()) {
+    const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+    await db.insert(mobileTokenResultsTable)
+      .values({ state, status: "error", error: "session_expired", expiresAt })
+      .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "error", error: "session_expired", expiresAt } })
+      .catch(() => {});
     serveBrowserPage("Session expired", "Your sign-in session expired. Please return to the app and try again.", false);
     return;
   }
-  pkceStore.delete(state); // consume
 
   const clientId = process.env.REPL_ID;
   if (!clientId) {
-    tokenStore.set(state, { status: "error", error: "server_misconfiguration" });
+    const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+    await db.insert(mobileTokenResultsTable)
+      .values({ state, status: "error", error: "server_misconfiguration", expiresAt })
+      .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "error", error: "server_misconfiguration", expiresAt } })
+      .catch(() => {});
     serveBrowserPage("Server error", "The server is misconfigured. Please try again later.", false);
     return;
   }
 
-  // Exchange the code using the stored code_verifier and redirect_uri
   const tokens = await exchangeOidcCode({
     code,
     codeVerifier: pkce.codeVerifier,
@@ -247,14 +268,22 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
   });
 
   if (!tokens) {
-    tokenStore.set(state, { status: "error", error: "exchange_failed" });
+    const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+    await db.insert(mobileTokenResultsTable)
+      .values({ state, status: "error", error: "exchange_failed", expiresAt })
+      .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "error", error: "exchange_failed", expiresAt } })
+      .catch(() => {});
     serveBrowserPage("Sign-in failed", "Could not verify your identity with Replit. Please try again.", false);
     return;
   }
 
   const userInfo = await fetchReplitUserInfo(tokens.accessToken);
   if (!userInfo) {
-    tokenStore.set(state, { status: "error", error: "userinfo_failed" });
+    const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+    await db.insert(mobileTokenResultsTable)
+      .values({ state, status: "error", error: "userinfo_failed", expiresAt })
+      .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "error", error: "userinfo_failed", expiresAt } })
+      .catch(() => {});
     serveBrowserPage("Sign-in failed", "Could not retrieve your profile. Please try again.", false);
     return;
   }
@@ -275,26 +304,25 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
 
   const sessionToken = await createMobileSession(userId);
 
-  // Store for polling — the mobile app will pick this up
-  tokenStore.set(state, { status: "complete", token: sessionToken });
+  // Persist for polling
+  const resultExpiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
+  await db.insert(mobileTokenResultsTable)
+    .values({ state, status: "complete", token: sessionToken, expiresAt: resultExpiresAt })
+    .onConflictDoUpdate({ target: mobileTokenResultsTable.state, set: { status: "complete", token: sessionToken, expiresAt: resultExpiresAt } })
+    .catch((err) => logger.error({ err }, "Failed to store token result"));
+
   logger.info({ userId }, "Mobile OAuth session created, stored for polling");
 
-  // Serve a success page that also attempts a deep-link redirect via JS.
-  // • Standalone builds: JS `window.location` opens the app immediately.
-  // • Expo Go: the deep link won't open anything useful, but polling will
-  //   have already completed auth. The user can close this browser tab.
   const returnUrl = `${deepLinkBase}?state=${encodeURIComponent(state)}`;
   res.setHeader("Content-Type", "text/html");
   res.send(`<!DOCTYPE html><html><head><meta name="viewport" content="width=device-width,initial-scale=1"><style>body{font-family:-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100dvh;margin:0;background:#f9fafb;padding:24px;box-sizing:border-box}h1{font-size:22px;font-weight:700;color:#2563eb;margin-bottom:12px}p{font-size:15px;color:#374151;text-align:center;line-height:1.5}a{display:inline-block;margin-top:24px;padding:12px 28px;background:#2563eb;color:#fff;border-radius:10px;text-decoration:none;font-weight:600;font-size:15px}</style><script>window.location="${returnUrl}";</script></head><body><h1>You're signed in!</h1><p>Returning you to PinnboxIO…</p><a href="${returnUrl}">Open PinnboxIO</a></body></html>`);
 });
 
 router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) => {
-  const { code, code_verifier, redirect_uri, state, nonce } = req.body as {
+  const { code, code_verifier, redirect_uri } = req.body as {
     code?: string;
     code_verifier?: string;
     redirect_uri?: string;
-    state?: string;
-    nonce?: string;
   };
 
   if (!code || !code_verifier || !redirect_uri) {
@@ -328,19 +356,14 @@ router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) =
   const profileImageUrl = userInfo.picture ?? null;
 
   await ensureUser(userId, { email: email ?? undefined });
-
-  await db
-    .update(usersTable)
-    .set({
-      ...(email ? { email } : {}),
-      ...(firstName ? { firstName } : {}),
-      ...(lastName ? { lastName } : {}),
-      ...(profileImageUrl ? { profileImageUrl } : {}),
-    })
-    .where(eq(usersTable.id, userId));
+  await db.update(usersTable).set({
+    ...(email ? { email } : {}),
+    ...(firstName ? { firstName } : {}),
+    ...(lastName ? { lastName } : {}),
+    ...(profileImageUrl ? { profileImageUrl } : {}),
+  }).where(eq(usersTable.id, userId));
 
   const sessionToken = await createMobileSession(userId);
-
   res.json({
     token: sessionToken,
     user: { id: userId, email, firstName, lastName, profileImageUrl },

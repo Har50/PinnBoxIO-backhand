@@ -15,6 +15,27 @@ args = ["pnpm", "store", "prune"]
 env = { "CI" = "true" }
 
 [workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Mobile Production Build"
+
+[[workflows.workflow]]
+name = "Mobile Production Build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/artifacts/mobile && EXPO_PUBLIC_DOMAIN=pinn-box-io.replit.app EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN=pinn-box-io.replit.app EXPO_PUBLIC_REPL_ID=$REPL_ID BASE_PATH=/mobile node scripts/build.js"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"

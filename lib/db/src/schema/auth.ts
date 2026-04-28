@@ -57,3 +57,25 @@ export const mobileSessionsTable = pgTable(
 );
 
 export type MobileSession = typeof mobileSessionsTable.$inferSelect;
+
+export const mobilePkceSessionsTable = pgTable("mobile_pkce_sessions", {
+  state: varchar("state", { length: 128 }).primaryKey(),
+  codeVerifier: text("code_verifier").notNull(),
+  nonce: varchar("nonce", { length: 128 }).notNull(),
+  redirectUri: text("redirect_uri").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export type MobilePkceSession = typeof mobilePkceSessionsTable.$inferSelect;
+
+export const mobileTokenResultsTable = pgTable("mobile_token_results", {
+  state: varchar("state", { length: 128 }).primaryKey(),
+  status: varchar("status", { length: 16 }).notNull(),
+  token: text("token"),
+  error: varchar("error", { length: 64 }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export type MobileTokenResult = typeof mobileTokenResultsTable.$inferSelect;

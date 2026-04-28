@@ -274,10 +274,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // --- NEW: Server-side token exchange via polling ---
+      // --- Server-side token exchange via polling ---
       // Pre-register the PKCE session with the server so it can exchange the
       // code itself on the callback, eliminating deep-link dependency in Expo Go.
-      const prepareRes = await fetch(`${API_BASE}/api/mobile-auth/prepare`, {
+      // Always route auth through AUTH_REDIRECT_BASE (production) so the PKCE
+      // session and poll live on the same stable server as the OAuth callback.
+      const AUTH_BASE = AUTH_REDIRECT_BASE || API_BASE;
+      const prepareRes = await fetch(`${AUTH_BASE}/api/mobile-auth/prepare`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -324,7 +327,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (forceStop || count >= MAX_POLLS) { resolve(); return; }
           count++;
           try {
-            const r = await fetch(`${API_BASE}/api/mobile-auth/poll/${encodeURIComponent(state)}`);
+            const r = await fetch(`${AUTH_BASE}/api/mobile-auth/poll/${encodeURIComponent(state)}`);
             if (r.ok) {
               const data = await r.json();
               if (data.status === "complete" && data.token) {
