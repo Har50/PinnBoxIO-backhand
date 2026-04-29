@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useSearch } from "wouter";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Input } from "@/components/ui/input";
-import { Search as SearchIcon, Mail, Users, FileText, MessageCircle, ExternalLink, Zap, ZapOff, Linkedin } from "lucide-react";
+import { Search as SearchIcon, Mail, Users, FileText, ExternalLink, Zap, ZapOff } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -16,12 +16,8 @@ interface SearchResults {
   query: string;
   messages: any[];
   contacts: any[];
-  whatsappMessages: any[];
-  linkedinMessages: any[];
   totalMessages: number;
   totalContacts: number;
-  totalWhatsapp: number;
-  totalLinkedin: number;
   searchAccess?: { isPro: boolean; usedToday: number; limit: number | null };
 }
 
@@ -98,9 +94,7 @@ export default function SearchPage() {
   const { data: results, isLoading, limitReached, error } = useUnifiedSearch(debouncedQuery);
   const hasResults = results && (
     results.messages.length > 0 ||
-    results.contacts.length > 0 ||
-    results.whatsappMessages.length > 0 ||
-    (results.linkedinMessages?.length ?? 0) > 0
+    results.contacts.length > 0
   );
   const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(debouncedQuery)}`;
 
@@ -109,7 +103,7 @@ export default function SearchPage() {
       <div className="space-y-4 shrink-0">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-foreground">Search</h1>
-          <p className="text-muted-foreground mt-1">Find database records, emails, messages, contacts, and WhatsApp conversations.</p>
+          <p className="text-muted-foreground mt-1">Find database records, emails, messages, and contacts.</p>
         </div>
 
         <div className="relative max-w-2xl">
@@ -179,7 +173,7 @@ export default function SearchPage() {
             <FileText className="h-12 w-12 mb-4 opacity-30" />
             <p className="font-medium text-foreground">No local results found for "{debouncedQuery}"</p>
             <p className="text-sm mt-2 max-w-md">
-              I searched stored messages, live connected emails, contacts, and WhatsApp messages.
+              I searched stored messages, live connected emails, and contacts.
             </p>
             <Button asChild className="mt-5 gap-2">
               <a href={googleSearchUrl} target="_blank" rel="noreferrer">
@@ -249,71 +243,6 @@ export default function SearchPage() {
               </div>
             )}
 
-            {results!.whatsappMessages.length > 0 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2 tracking-tight">
-                  <MessageCircle className="h-5 w-5 text-[#25D366]" />
-                  WhatsApp ({results!.totalWhatsapp})
-                </h2>
-                <div className="border rounded-xl divide-y bg-background shadow-sm overflow-hidden">
-                  {results!.whatsappMessages.map((m: any) => (
-                    <Link
-                      key={m.id}
-                      href="/whatsapp"
-                      className="p-4 hover:bg-muted/30 flex flex-col gap-1 transition-colors block group cursor-pointer border-l-2 border-l-transparent hover:border-l-[#25D366]"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="font-semibold text-sm group-hover:text-[#25D366] transition-colors"><Highlight text={m.chatName} q={debouncedQuery} /></div>
-                        {m.timestamp && (
-                          <div className="text-xs text-muted-foreground">{formatDistanceToNow(new Date(m.timestamp))} ago</div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {m.fromMe ? <span className="font-medium text-foreground/80">You</span> : null}
-                      </div>
-                      <div className="text-sm text-muted-foreground line-clamp-2"><Highlight text={m.text} q={debouncedQuery} /></div>
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {(results!.linkedinMessages?.length ?? 0) > 0 && (
-              <div className="space-y-4">
-                <h2 className="text-lg font-semibold flex items-center gap-2 tracking-tight">
-                  <Linkedin className="h-5 w-5 text-[#0A66C2]" />
-                  LinkedIn ({results!.totalLinkedin})
-                </h2>
-                <div className="border rounded-xl divide-y bg-background shadow-sm overflow-hidden">
-                  {results!.linkedinMessages.map((m: any) => (
-                    <Link
-                      key={m.id}
-                      href="/linkedin"
-                      className="p-4 hover:bg-muted/30 flex items-center gap-3 transition-colors group cursor-pointer border-l-2 border-l-transparent hover:border-l-[#0A66C2]"
-                    >
-                      <Avatar className="h-10 w-10 border bg-muted shrink-0">
-                        <AvatarImage src={m.participantPicture || ""} />
-                        <AvatarFallback className="text-xs font-medium text-[#0A66C2] bg-[#0A66C2]/10">
-                          {(m.participantName || "??").substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <div className="font-semibold text-sm group-hover:text-[#0A66C2] transition-colors truncate"><Highlight text={m.participantName} q={debouncedQuery} /></div>
-                          {m.timestamp && (
-                            <div className="text-xs text-muted-foreground shrink-0 ml-2">{formatDistanceToNow(new Date(m.timestamp))} ago</div>
-                          )}
-                        </div>
-                        <div className="text-sm text-muted-foreground line-clamp-1 mt-0.5"><Highlight text={m.text} q={debouncedQuery} /></div>
-                      </div>
-                      {m.unreadCount > 0 && (
-                        <span className="inline-flex items-center justify-center bg-[#0A66C2] text-white text-[10px] font-bold rounded-full h-5 min-w-5 px-1.5">{m.unreadCount}</span>
-                      )}
-                    </Link>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>

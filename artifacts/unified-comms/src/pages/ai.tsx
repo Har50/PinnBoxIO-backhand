@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown, Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle, Mic, MicOff, MessageCircle } from "lucide-react";
+import { MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown, Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle, Mic, MicOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
 
@@ -133,79 +133,6 @@ function EmailDraftCard({ draft }: { draft: EmailDraft }) {
   );
 }
 
-interface WaMessage { chatId: string; name: string; text: string }
-
-function parseWaMessage(text: string): { waDraft: WaMessage | null; clean: string } {
-  const match = text.match(/<wa-message>([\s\S]*?)<\/wa-message>/);
-  if (!match) return { waDraft: null, clean: text };
-  try {
-    const waDraft = JSON.parse(match[1]) as WaMessage;
-    const clean = text.replace(match[0], "").trim();
-    return { waDraft, clean };
-  } catch {
-    return { waDraft: null, clean: text };
-  }
-}
-
-function WaMessageCard({ draft }: { draft: WaMessage }) {
-  const [sending, setSending] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const handleSend = async () => {
-    setSending(true);
-    setError(null);
-    try {
-      const authHeaders = await getAuthHeaders();
-      const res = await fetch(`/api/whatsapp/chats/${encodeURIComponent(draft.chatId)}/messages`, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", ...authHeaders },
-        body: JSON.stringify({ text: draft.text }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        setError((data as any).error ?? "Failed to send");
-      } else {
-        setSent(true);
-      }
-    } catch {
-      setError("Network error");
-    } finally {
-      setSending(false);
-    }
-  };
-
-  return (
-    <div className="mt-3 rounded-xl border bg-background text-foreground overflow-hidden">
-      <div className="flex items-center gap-2 px-3 py-2 bg-[#25d36614] border-b">
-        <MessageCircle className="w-3.5 h-3.5 text-[#25d366]" />
-        <span className="text-xs font-semibold">WhatsApp Message</span>
-      </div>
-      <div className="p-3 space-y-1.5 text-xs">
-        <div><span className="text-muted-foreground">To: </span><span className="font-medium">{draft.name}</span></div>
-        <div className="border-t pt-1.5 mt-1.5 whitespace-pre-wrap text-foreground/80">{draft.text}</div>
-      </div>
-      {sent ? (
-        <div className="flex items-center gap-1.5 px-3 py-2 text-xs text-[#25d366] border-t">
-          <CheckCircle className="w-3.5 h-3.5" /> Sent on WhatsApp
-        </div>
-      ) : (
-        <div className="flex items-center gap-2 px-3 py-2 border-t flex-wrap">
-          <Button size="sm" className="h-7 text-xs gap-1.5 bg-[#25d366] hover:bg-[#128c7e] text-white" onClick={handleSend} disabled={sending}>
-            {sending ? <Loader2 className="w-3 h-3 animate-spin" /> : <MessageCircle className="w-3 h-3" />}
-            {sending ? "Sending…" : "Send on WhatsApp"}
-          </Button>
-          {error && (
-            <div className="flex items-center gap-1 text-xs text-destructive">
-              <AlertCircle className="w-3 h-3" /> {error}
-            </div>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 export default function AiPage() {
   return <AiChat />;
@@ -680,13 +607,11 @@ function AiChat() {
                   </div>
                 )}
                 {(() => {
-                  const { draft, clean: clean1 } = parseEmailDraft(msg.content);
-                  const { waDraft, clean } = parseWaMessage(clean1);
+                  const { draft, clean } = parseEmailDraft(msg.content);
                   return (
                     <>
                       <div className="whitespace-pre-wrap">{clean || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
                       {draft && !msg.streaming && <EmailDraftCard draft={draft} />}
-                      {waDraft && !msg.streaming && <WaMessageCard draft={waDraft} />}
                     </>
                   );
                 })()}

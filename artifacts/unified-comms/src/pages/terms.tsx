@@ -33,7 +33,7 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">2. Description of Service</h2>
               <p className="text-muted-foreground leading-relaxed mb-3">
-                PinnboxIO is a unified communications platform that allows users to manage messages across multiple channels including email, WhatsApp, and LinkedIn in one place. The Service also provides cloud file storage, an AI assistant, and contact management tools.
+                PinnboxIO is a unified communications platform that allows users to manage messages across multiple channels including email in one place. The Service also provides cloud file storage, an AI assistant, contact management tools, and LinkedIn verification for professional identity.
               </p>
               <p className="text-muted-foreground leading-relaxed">
                 We reserve the right to modify, suspend, or discontinue any part of the Service at any time with reasonable notice.

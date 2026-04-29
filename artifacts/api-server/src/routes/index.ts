@@ -7,7 +7,6 @@ import contactsRouter from "./contacts";
 import searchRouter from "./search";
 import statsRouter from "./stats";
 import aiRouter from "./ai";
-import whatsappRouter from "./whatsapp";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 import storageRouter, { storagePublicRouter } from "./storage";
 import authOAuthRouter from "./auth-oauth";
@@ -26,8 +25,6 @@ router.use(linkedinPublicRouter);
 router.use(storagePublicRouter);
 router.use(authOAuthRouter);
 router.use(mobileAuthRouter);
-// WhatsApp is a shared single-instance connection — status/events are server-wide
-router.use(whatsappRouter);
 
 function requireAuth(req: Request, res: Response, next: NextFunction) {
   // First try Clerk (web app)

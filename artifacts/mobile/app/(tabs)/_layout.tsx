@@ -5,14 +5,11 @@ import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
 import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
-
-const WA_GREEN = "#25D366";
-const LI_BLUE = "#0A66C2";
 
 function NativeTabLayout() {
   return (
@@ -24,14 +21,6 @@ function NativeTabLayout() {
       <NativeTabs.Trigger name="inbox">
         <Icon sf={{ default: "tray", selected: "tray.fill" }} />
         <Label>Inbox</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="whatsapp">
-        <Icon sf={{ default: "bubble.left.and.bubble.right", selected: "bubble.left.and.bubble.right.fill" }} />
-        <Label>WhatsApp</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="linkedin">
-        <Icon sf={{ default: "person.crop.square", selected: "person.crop.square.fill" }} />
-        <Label>LinkedIn</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="storage">
         <Icon sf={{ default: "externaldrive", selected: "externaldrive.fill" }} />
@@ -120,23 +109,6 @@ function ClassicTabLayout() {
         }}
       />
       <Tabs.Screen
-        name="whatsapp"
-        options={{
-          title: "WhatsApp",
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView
-                name="bubble.left.and.bubble.right.fill"
-                tintColor={focused ? WA_GREEN : color}
-                size={22}
-              />
-            ) : (
-              <Feather name="message-circle" size={22} color={focused ? WA_GREEN : color} />
-            ),
-          tabBarActiveTintColor: WA_GREEN,
-        }}
-      />
-      <Tabs.Screen
         name="storage"
         options={{
           title: "Storage",
@@ -146,34 +118,6 @@ function ClassicTabLayout() {
             ) : (
               <Feather name="hard-drive" size={22} color={color} />
             ),
-        }}
-      />
-      <Tabs.Screen
-        name="linkedin"
-        options={{
-          title: "LinkedIn",
-          tabBarIcon: ({ color, focused }) =>
-            isIOS ? (
-              <SymbolView
-                name="person.crop.square.fill"
-                tintColor={focused ? LI_BLUE : color}
-                size={22}
-              />
-            ) : (
-              <View style={{
-                width: 22, height: 22, borderRadius: 4,
-                backgroundColor: focused ? LI_BLUE : "transparent",
-                alignItems: "center", justifyContent: "center",
-                borderWidth: focused ? 0 : 1.5,
-                borderColor: color,
-              }}>
-                <Text style={{
-                  color: focused ? "#fff" : color,
-                  fontSize: 12, fontFamily: "Inter_700Bold", lineHeight: 14,
-                }}>in</Text>
-              </View>
-            ),
-          tabBarActiveTintColor: LI_BLUE,
         }}
       />
       <Tabs.Screen

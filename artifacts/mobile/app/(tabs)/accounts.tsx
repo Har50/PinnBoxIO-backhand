@@ -35,7 +35,6 @@ const PROVIDER_LABELS: Record<string, string> = {
   yahoo: "Yahoo Mail",
   imap: "IMAP",
   other: "Email",
-  whatsapp: "WhatsApp",
   phone: "Phone",
 };
 
@@ -43,8 +42,6 @@ type FeatherName = ComponentProps<typeof Feather>["name"];
 
 function providerIcon(provider: string): FeatherName {
   switch (provider) {
-    case "whatsapp":
-      return "message-circle";
     case "phone":
       return "phone";
     default:
@@ -54,7 +51,6 @@ function providerIcon(provider: string): FeatherName {
 
 function AccountCard({ account }: { account: Account }) {
   const colors = useColors();
-  const isWhatsApp = account.provider === "whatsapp";
   const isPhone = account.provider === "phone";
 
   return (
@@ -101,7 +97,7 @@ function AccountCard({ account }: { account: Account }) {
           </Text>
         </View>
 
-        {!isWhatsApp && !isPhone && (
+        {!isPhone && (
           <View style={[styles.unreadRow, { backgroundColor: colors.muted }]}>
             <Text style={[styles.unreadLabel, { color: colors.mutedForeground }]}>Unread</Text>
             <Text style={[styles.unreadCount, { color: account.unreadCount > 0 ? "#ef4444" : colors.foreground }]}>

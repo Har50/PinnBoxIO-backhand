@@ -19,10 +19,8 @@ import {
   Moon,
   Sun,
   Mail,
-  MessageCircle,
   ChevronRight,
   ExternalLink,
-  Linkedin,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -102,7 +100,6 @@ export default function SettingsPage() {
       : userEmail.slice(0, 2).toUpperCase() || "U";
 
   const emailAccounts = accounts?.filter((a) => a.type === "email") ?? [];
-  const whatsappAccounts = accounts?.filter((a) => a.type === "whatsapp") ?? [];
 
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-background">
@@ -269,37 +266,6 @@ export default function SettingsPage() {
                   {emailAccounts.length}
                 </Badge>
               )}
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center gap-3 py-1">
-              <div className="w-8 h-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/30 flex items-center justify-center shrink-0">
-                <MessageCircle className="w-4 h-4 text-emerald-500" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">WhatsApp</p>
-                <p className="text-xs text-muted-foreground">
-                  {whatsappAccounts.length > 0 ? "Connected" : "Not connected"}
-                </p>
-              </div>
-              {whatsappAccounts.length > 0 && (
-                <Badge variant="secondary" className="text-xs shrink-0 bg-emerald-100 dark:bg-emerald-900/40 text-emerald-700 dark:text-emerald-400">
-                  Active
-                </Badge>
-              )}
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center gap-3 py-1">
-              <div className="w-8 h-8 rounded-lg bg-blue-50 dark:bg-blue-950/30 flex items-center justify-center shrink-0">
-                <Linkedin className="w-4 h-4 text-blue-600" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">LinkedIn</p>
-                <p className="text-xs text-muted-foreground">Manage LinkedIn messages in your inbox</p>
-              </div>
             </div>
 
             <div className="mt-1">

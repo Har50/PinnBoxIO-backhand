@@ -8,7 +8,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Mail, Plus, Trash2, ShieldCheck, CheckCircle2, AlertCircle, MessageCircle, Phone, ExternalLink, ChevronRight, Link2, Link2Off } from "lucide-react";
+import { Mail, Plus, Trash2, ShieldCheck, CheckCircle2, AlertCircle, Phone, ChevronRight, Link2, Link2Off } from "lucide-react";
+
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,7 +17,7 @@ import { useLocation } from "wouter";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
-type AccountType = "email" | "whatsapp" | "phone";
+type AccountType = "email" | "phone";
 
 const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   gmail: <Mail className="w-5 h-5 text-red-500" />,
@@ -24,7 +25,6 @@ const PROVIDER_ICONS: Record<string, React.ReactNode> = {
   yahoo: <Mail className="w-5 h-5 text-purple-500" />,
   imap: <Mail className="w-5 h-5 text-muted-foreground" />,
   other: <Mail className="w-5 h-5 text-muted-foreground" />,
-  whatsapp: <MessageCircle className="w-5 h-5 text-emerald-500" />,
   phone: <Phone className="w-5 h-5 text-blue-500" />,
 };
 
@@ -34,14 +34,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   yahoo: "Yahoo Mail",
   imap: "IMAP Custom",
   other: "Other Email",
-  whatsapp: "WhatsApp",
   phone: "Phone Number",
 };
 
 function AccountTypeCard({ type, selected, onClick }: { type: AccountType; selected: boolean; onClick: () => void }) {
   const config = {
     email: { icon: <Mail className="w-7 h-7 text-primary" />, label: "Email Account", desc: "Gmail, Outlook, Yahoo, IMAP" },
-    whatsapp: { icon: <MessageCircle className="w-7 h-7 text-emerald-500" />, label: "WhatsApp", desc: "Link via WhatsApp Web (optional)" },
     phone: { icon: <Phone className="w-7 h-7 text-blue-500" />, label: "Phone Number", desc: "SMS & call tracking" },
   }[type];
 
@@ -117,14 +115,12 @@ export default function Accounts() {
   const [accountType, setAccountType] = useState<AccountType>("email");
 
   const [emailForm, setEmailForm] = useState({ name: "", email: "", provider: "gmail", color: "#0ea5e9" });
-  const [waForm, setWaForm] = useState({ name: "WhatsApp", phone: "" });
   const [phoneForm, setPhoneForm] = useState({ name: "", phone: "", color: "#3b82f6" });
 
   function openAdd() {
     setStep("type");
     setAccountType("email");
     setEmailForm({ name: "", email: "", provider: "gmail", color: "#0ea5e9" });
-    setWaForm({ name: "WhatsApp", phone: "" });
     setPhoneForm({ name: "", phone: "", color: "#3b82f6" });
     setIsAddOpen(true);
   }
@@ -135,8 +131,6 @@ export default function Accounts() {
     let payload: any;
     if (accountType === "email") {
       payload = { name: emailForm.name, email: emailForm.email, provider: emailForm.provider, color: emailForm.color };
-    } else if (accountType === "whatsapp") {
-      payload = { name: waForm.name, phone: waForm.phone || null, provider: "whatsapp", color: "#25D366" };
     } else {
       payload = { name: phoneForm.name, phone: phoneForm.phone, provider: "phone", color: phoneForm.color };
     }
@@ -164,7 +158,7 @@ export default function Accounts() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Connected Accounts</h1>
-          <p className="text-muted-foreground mt-1">Manage email, WhatsApp, and phone accounts in your workspace.</p>
+          <p className="text-muted-foreground mt-1">Manage email and phone accounts in your workspace.</p>
         </div>
         <Button className="gap-2 shadow-sm" onClick={openAdd}>
           <Plus className="w-4 h-4" />
@@ -261,12 +255,11 @@ export default function Accounts() {
           <div className="col-span-full p-12 border-2 border-dashed rounded-xl flex flex-col items-center justify-center text-muted-foreground">
             <Mail className="h-12 w-12 mb-4 opacity-20" />
             <h3 className="font-medium text-lg text-foreground mb-1">No accounts connected</h3>
-            <p className="text-sm mb-4">Connect an email, WhatsApp, or phone account to get started.</p>
+            <p className="text-sm mb-4">Connect an email or phone account to get started.</p>
             <Button variant="outline" onClick={openAdd}>Add Account</Button>
           </div>
         ) : (
           accounts?.map(acc => {
-            const isWhatsApp = acc.provider === "whatsapp";
             const isPhone = acc.provider === "phone";
             return (
               <Card key={acc.id} className="relative overflow-hidden group hover:border-primary/30 transition-colors shadow-sm">
@@ -297,29 +290,15 @@ export default function Accounts() {
                   <div>
                     {acc.email && <div className="text-sm font-medium">{acc.email}</div>}
                     {acc.phone && <div className="text-sm font-medium">{acc.phone}</div>}
-                    {isWhatsApp && !acc.phone && (
-                      <div className="text-xs text-muted-foreground italic">No phone number linked</div>
-                    )}
                     <div className="text-xs text-muted-foreground mt-1">
                       Connected on {format(new Date(acc.createdAt), "MMM d, yyyy")}
                     </div>
                   </div>
-                  {!isWhatsApp && !isPhone && (
+                  {!isPhone && (
                     <div className="bg-muted/40 rounded-md p-3 flex items-center justify-between">
                       <div className="text-xs font-medium text-muted-foreground">Unread Messages</div>
                       <div className="font-semibold">{acc.unreadCount}</div>
                     </div>
-                  )}
-                  {isWhatsApp && (
-                    <a
-                      href="https://web.whatsapp.com"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="flex items-center gap-2 text-xs text-emerald-600 hover:text-emerald-700 font-medium"
-                    >
-                      <ExternalLink className="w-3.5 h-3.5" />
-                      Open WhatsApp Web
-                    </a>
                   )}
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between border-t p-4 bg-muted/10">
@@ -360,7 +339,6 @@ export default function Accounts() {
               <p className="text-sm text-muted-foreground">Choose the type of account you want to connect.</p>
               <div className="flex flex-col gap-3">
                 <AccountTypeCard type="email" selected={accountType === "email"} onClick={() => setAccountType("email")} />
-                <AccountTypeCard type="whatsapp" selected={accountType === "whatsapp"} onClick={() => setAccountType("whatsapp")} />
                 <AccountTypeCard type="phone" selected={accountType === "phone"} onClick={() => setAccountType("phone")} />
               </div>
               <div className="pt-2 flex justify-end">
@@ -409,56 +387,6 @@ export default function Accounts() {
               <div className="pt-4 flex justify-end gap-2 border-t">
                 <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
                 <Button type="submit" disabled={createAccount.isPending}>Connect Account</Button>
-              </div>
-            </form>
-          )}
-
-          {step === "form" && accountType === "whatsapp" && (
-            <form onSubmit={handleSubmit} className="space-y-4 pt-2">
-              <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-50 border border-emerald-200 mb-2">
-                <MessageCircle className="w-5 h-5 text-emerald-600" />
-                <span className="text-sm font-medium text-emerald-700">WhatsApp</span>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Display Name</Label>
-                <Input
-                  required
-                  value={waForm.name}
-                  onChange={e => setWaForm({ ...waForm, name: e.target.value })}
-                  placeholder="e.g. My WhatsApp"
-                />
-              </div>
-
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Phone Number</Label>
-                  <span className="text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded-full">Optional</span>
-                </div>
-                <Input
-                  type="tel"
-                  value={waForm.phone}
-                  onChange={e => setWaForm({ ...waForm, phone: e.target.value })}
-                  placeholder="+1 555 000 0000"
-                />
-                <p className="text-xs text-muted-foreground">
-                  You can link a phone number later. WhatsApp Web is always accessible from the sidebar.
-                </p>
-              </div>
-
-              <div className="rounded-lg border bg-muted/30 p-3 text-xs text-muted-foreground space-y-1">
-                <div className="font-medium text-foreground text-sm flex items-center gap-1.5">
-                  <ExternalLink className="w-3.5 h-3.5" /> WhatsApp Web integration
-                </div>
-                <p>WhatsApp messages are accessible through the embedded WhatsApp Web panel in the sidebar. Scan the QR code there to link your device.</p>
-              </div>
-
-              <div className="pt-4 flex justify-end gap-2 border-t">
-                <Button type="button" variant="ghost" onClick={() => setIsAddOpen(false)}>Cancel</Button>
-                <Button type="submit" disabled={createAccount.isPending} className="bg-emerald-600 hover:bg-emerald-700 text-white">
-                  <MessageCircle className="w-4 h-4 mr-2" />
-                  Add WhatsApp
-                </Button>
               </div>
             </form>
           )}

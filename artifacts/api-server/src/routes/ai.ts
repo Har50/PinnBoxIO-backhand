@@ -12,7 +12,6 @@ import { and, count, desc, eq, gte } from "drizzle-orm";
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { ai as geminiAi } from "@workspace/integrations-gemini-ai";
-import { whatsappService } from "../services/whatsapp.js";
 import { listGmailMessages } from "../services/gmail";
 import { listOutlookMessages } from "../services/outlook";
 import { objectStorageClient } from "../lib/objectStorage";
@@ -134,38 +133,17 @@ async function getUserContext(userId: string): Promise<string> {
     listOutlookMessages("Inbox", 10).catch(() => null),
   ]);
 
-  const waChats = whatsappService.getChats();
-  const waMessages: Array<{ chatId: string; chatName: string; text: string; fromMe: boolean; timestamp: number }> = [];
-  for (const chat of waChats.slice(0, 5)) {
-    const msgs = whatsappService.getMessages(chat.id);
-    for (const m of msgs.slice(-5)) {
-      const text = (m.message?.conversation ?? m.message?.extendedTextMessage?.text ?? "").trim();
-      if (text) {
-        waMessages.push({
-          chatId: chat.id,
-          chatName: chat.name ?? chat.id,
-          text,
-          fromMe: m.key?.fromMe ?? false,
-          timestamp: Number(m.messageTimestamp ?? 0),
-        });
-      }
-    }
-  }
-  waMessages.sort((a, b) => b.timestamp - a.timestamp);
-
   let context = "You are a smart communications assistant for PinnboxIO. Answer EXACTLY what the user asks — do not add unsolicited drafts or generic advice.\n";
-  context += "You help users manage email, WhatsApp, contacts, and cloud storage.\n\n";
+  context += "You help users manage email, contacts, and cloud storage.\n\n";
   context += "RULES (follow strictly):\n";
   context += "1. Answer the user's specific question first. Only write an email draft if they explicitly ask for one.\n";
   context += "2. When asked to write or send an email, always produce the COMPLETE draft in the special block below — never truncate.\n";
   context += "3. Match the requested tone exactly. Default: concise, professional, human.\n";
-  context += "4. You CAN send emails AND WhatsApp messages. Use the special formats below when the user wants to send.\n";
-  context += "5. If details are missing (recipient email, phone, etc.), ask for them before drafting.\n";
+  context += "4. You CAN send emails. Use the special format below when the user wants to send.\n";
+  context += "5. If details are missing (recipient email, etc.), ask for them before drafting.\n";
   context += "6. Keep answers short unless the user asks for detail. Never pad with filler.\n\n";
   context += "EMAIL DRAFT FORMAT — use this EXACTLY when producing an email to send:\n";
   context += "<email-draft>{\"to\":\"recipient@example.com\",\"subject\":\"Subject here\",\"body\":\"Full email body here\"}</email-draft>\n\n";
-  context += "WHATSAPP MESSAGE FORMAT — use this EXACTLY when sending a WhatsApp message (use chatId from the WhatsApp Chats list above):\n";
-  context += "<wa-message>{\"chatId\":\"1234567890@s.whatsapp.net\",\"name\":\"Contact Name\",\"text\":\"Your message here\"}</wa-message>\n\n";
 
   if (recentMessages.length > 0) {
     context += "=== Recent Email Messages ===\n";
@@ -189,24 +167,6 @@ async function getUserContext(userId: string): Promise<string> {
       context += `[${date}] ${m.accountName} - From: ${m.fromName} <${m.fromEmail}> | Subject: ${m.subject}`;
       if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 300)}`;
       context += "\n";
-    }
-    context += "\n";
-  }
-
-  if (waChats.length > 0) {
-    context += "=== WhatsApp Chats (use chatId exactly when sending) ===\n";
-    for (const chat of waChats.slice(0, 20)) {
-      context += `chatId: ${chat.id} | name: ${chat.name ?? chat.id}\n`;
-    }
-    context += "\n";
-  }
-
-  if (waMessages.length > 0) {
-    context += "=== Recent WhatsApp Messages ===\n";
-    for (const m of waMessages) {
-      const date = m.timestamp ? new Date(m.timestamp * 1000).toLocaleDateString() : "";
-      const direction = m.fromMe ? "You" : m.chatName;
-      context += `[${date}] chatId:${m.chatId} | ${direction}: ${m.text.slice(0, 150)}\n`;
     }
     context += "\n";
   }
@@ -242,7 +202,7 @@ async function getUserContext(userId: string): Promise<string> {
   }
 
   context +=
-    "You can help with: summarizing emails, drafting replies, writing tailored new emails, finding contacts, managing priorities, searching WhatsApp conversations, referencing stored files, and anything related to communications.";
+    "You can help with: summarizing emails, drafting replies, writing tailored new emails, finding contacts, managing priorities, referencing stored files, and anything related to communications.";
 
   return context;
 }
@@ -341,7 +301,7 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
     const access = await getUserAiAccess(req.userId);
     if (!access.allowed) {
       res.status(402).json({
-        error: "Daily free AI limit reached. Upgrade to Pro for unlimited AI with email, contact, WhatsApp, and storage context.",
+        error: "Daily free AI limit reached. Upgrade to Pro for unlimited AI with email, contact, and storage context.",
         code: "AI_DAILY_LIMIT_REACHED",
         limit: access.limit,
         usedToday: access.usedToday,

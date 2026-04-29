@@ -28,8 +28,6 @@ import Inbox from "./pages/inbox";
 import Contacts from "./pages/contacts";
 import SearchPage from "./pages/search";
 import Accounts from "./pages/accounts";
-import WhatsApp from "./pages/whatsapp";
-import LinkedInPage from "./pages/linkedin";
 import AiPage from "./pages/ai";
 import StoragePage from "./pages/storage";
 import SettingsPage from "./pages/settings";
@@ -278,8 +276,6 @@ function Router() {
               <Route path="/contacts" component={Contacts} />
               <Route path="/search" component={SearchPage} />
               <Route path="/accounts" component={Accounts} />
-              <Route path="/whatsapp" component={WhatsApp} />
-              <Route path="/linkedin" component={LinkedInPage} />
               <Route path="/ai" component={AiPage} />
               <Route path="/storage" component={StoragePage} />
               <Route path="/settings" component={SettingsPage} />

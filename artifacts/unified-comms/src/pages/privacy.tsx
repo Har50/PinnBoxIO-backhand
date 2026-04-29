@@ -34,7 +34,7 @@ export default function PrivacyPolicy() {
               <h2 className="text-lg font-semibold text-foreground mb-3">Information We Collect</h2>
               <ul className="list-disc pl-5 space-y-2 text-muted-foreground">
                 <li><strong className="text-foreground">Account information:</strong> Your name and email address when you sign in.</li>
-                <li><strong className="text-foreground">Message data:</strong> Content of messages you send and receive through connected accounts (e.g. WhatsApp, email, LinkedIn). This data is processed solely to deliver the service and is never sold to third parties.</li>
+                <li><strong className="text-foreground">Message data:</strong> Content of messages you send and receive through connected accounts (e.g. email). This data is processed solely to deliver the service and is never sold to third parties.</li>
                 <li><strong className="text-foreground">Connected account credentials:</strong> OAuth tokens or session credentials for third-party services you link. These are stored encrypted and used only to fetch your messages on your behalf.</li>
                 <li><strong className="text-foreground">File storage data:</strong> Files you upload to PinnboxIO Storage are stored securely in our cloud and are accessible only to you.</li>
                 <li><strong className="text-foreground">Usage data:</strong> Basic analytics such as feature usage and error logs to help us improve the app.</li>
@@ -64,7 +64,7 @@ export default function PrivacyPolicy() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">Third-Party Services</h2>
               <p className="text-muted-foreground leading-relaxed">
-                PinnboxIO integrates with third-party services (WhatsApp and LinkedIn) on your behalf. Your use of those platforms is governed by their own privacy policies. We only access the data needed to provide the requested features.
+                PinnboxIO integrates with third-party services (Gmail, Outlook, and LinkedIn for identity verification) on your behalf. Your use of those platforms is governed by their own privacy policies. We only access the data needed to provide the requested features.
               </p>
             </section>
 

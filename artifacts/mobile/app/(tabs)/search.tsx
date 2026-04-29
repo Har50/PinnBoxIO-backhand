@@ -27,10 +27,8 @@ interface SearchResults {
   query: string;
   messages: any[];
   contacts: any[];
-  whatsappMessages: any[];
   totalMessages: number;
   totalContacts: number;
-  totalWhatsapp: number;
   searchAccess?: { isPro: boolean; usedToday: number; limit: number | null };
 }
 
@@ -97,7 +95,7 @@ export default function SearchScreen() {
   const { data, isLoading, limitReached } = useUnifiedSearch(query);
 
   const enabled = query.trim().length >= 2;
-  const hasResults = data && (data.messages.length > 0 || data.contacts.length > 0 || data.whatsappMessages.length > 0);
+  const hasResults = data && (data.messages.length > 0 || data.contacts.length > 0);
   const openGoogleSearch = () => {
     Linking.openURL(`https://www.google.com/search?q=${encodeURIComponent(query.trim())}`);
   };
@@ -111,7 +109,7 @@ export default function SearchScreen() {
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder="Search emails, messages, WhatsApp, contacts..."
+            placeholder="Search emails, messages, contacts..."
             placeholderTextColor={colors.mutedForeground}
             style={[styles.searchInput, { color: colors.foreground, fontFamily: "Inter_400Regular" }]}
             returnKeyType="search"
@@ -131,7 +129,7 @@ export default function SearchScreen() {
           <Feather name="search" size={48} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>Search everything</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Enter at least 2 characters to search emails, messages, WhatsApp, and contacts
+            Enter at least 2 characters to search emails, messages, and contacts
           </Text>
           <View style={[styles.limitBadge, { backgroundColor: colors.muted, borderColor: colors.border }]}>
             <Feather name="zap" size={13} color={colors.mutedForeground} />
@@ -169,7 +167,7 @@ export default function SearchScreen() {
           <Feather name="file-text" size={40} color={colors.mutedForeground} />
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No results</Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            Nothing local found for "{query}". I checked stored messages, live connected emails, contacts, and WhatsApp.
+            Nothing local found for "{query}". I checked stored messages, live connected emails, and contacts.
           </Text>
           <TouchableOpacity
             onPress={openGoogleSearch}
@@ -207,26 +205,6 @@ export default function SearchScreen() {
                       {msg.bodyText}
                     </Text>
                   )}
-                </View>
-              ))}
-            </View>
-          )}
-
-          {data!.whatsappMessages.length > 0 && (
-            <View>
-              <SectionHeader icon="message-circle" label={`WhatsApp (${data!.totalWhatsapp})`} color="#25D366" />
-              {data!.whatsappMessages.map((m: any) => (
-                <View key={m.id} style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border, borderLeftColor: "#25D366", borderLeftWidth: 3 }]}>
-                  <View style={styles.cardHeader}>
-                    <Text style={[styles.cardTitle, { color: colors.foreground }]} numberOfLines={1}>{m.chatName}</Text>
-                    {m.timestamp && (
-                      <Text style={[styles.cardTime, { color: colors.mutedForeground }]}>
-                        {formatDistanceToNow(new Date(m.timestamp), { addSuffix: false })} ago
-                      </Text>
-                    )}
-                  </View>
-                  {m.fromMe && <Text style={[styles.cardSub, { color: "#25D366" }]}>You</Text>}
-                  <Text style={[styles.cardPreview, { color: colors.mutedForeground }]} numberOfLines={2}>{m.text}</Text>
                 </View>
               ))}
             </View>

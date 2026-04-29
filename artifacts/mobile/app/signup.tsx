@@ -30,7 +30,7 @@ const SLIDE_DATA = [
     key: "inbox",
     title: "All your inboxes, one place",
     description:
-      "Connect Gmail, Outlook, WhatsApp, LinkedIn and more — read and reply from a single unified feed.",
+      "Connect Gmail, Outlook and more — read and reply from a single unified feed.",
   },
   {
     key: "search",

@@ -1,10 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, count, max, desc, and } from "drizzle-orm";
 import { db, accountsTable, messagesTable, contactsTable, attachmentsTable, usersTable } from "@workspace/db";
-import { whatsappService } from "../services/whatsapp.js";
 import { listGmailMessages } from "../services/gmail";
 import { listOutlookMessages } from "../services/outlook";
-import { linkedInService } from "../services/linkedin";
 
 const router: IRouter = Router();
 
@@ -92,8 +90,6 @@ router.get("/search", async (req: any, res): Promise<void> => {
 
   let messages: unknown[] = [];
   let contacts: unknown[] = [];
-  let whatsappMessages: unknown[] = [];
-  let linkedinMessages: unknown[] = [];
 
   if (!type || type === "messages" || type === "all") {
     const msgs = await db
@@ -198,75 +194,12 @@ router.get("/search", async (req: any, res): Promise<void> => {
     });
   }
 
-  if (!type || type === "whatsapp" || type === "all") {
-    const lowerQ = q.toLowerCase();
-    const chats = whatsappService.getChats();
-    for (const chat of chats) {
-      const msgs = whatsappService.getMessages(chat.id);
-      for (const m of msgs) {
-        const text = (
-          m.message?.conversation ??
-          m.message?.extendedTextMessage?.text ??
-          ""
-        ).trim();
-        if (text.toLowerCase().includes(lowerQ)) {
-          whatsappMessages.push({
-            id: m.key?.id ?? "",
-            chatId: chat.id,
-            chatName: chat.name ?? chat.id,
-            text,
-            fromMe: m.key?.fromMe ?? false,
-            timestamp: m.messageTimestamp
-              ? new Date(Number(m.messageTimestamp) * 1000).toISOString()
-              : null,
-          });
-          if (whatsappMessages.length >= 20) break;
-        }
-      }
-      if (whatsappMessages.length >= 20) break;
-    }
-  }
-
-  if (userId && (!type || type === "linkedin" || type === "all")) {
-    try {
-      await linkedInService.ensureSession(userId);
-      if (linkedInService.getStatus(userId) === "connected") {
-        const lowerQ = q.toLowerCase();
-        const conversations = await linkedInService.getConversations(userId);
-        for (const conv of conversations) {
-          if (linkedinMessages.length >= 20) break;
-          const inLast = (conv.lastMessage ?? "").toLowerCase().includes(lowerQ);
-          const inName = (conv.participantName ?? "").toLowerCase().includes(lowerQ);
-          if (inLast || inName) {
-            linkedinMessages.push({
-              id: conv.id,
-              conversationId: conv.id,
-              participantName: conv.participantName,
-              participantPicture: conv.participantPicture,
-              text: conv.lastMessage ?? "",
-              timestamp: conv.lastActivityAt
-                ? new Date(conv.lastActivityAt).toISOString()
-                : null,
-              unreadCount: conv.unreadCount,
-            });
-          }
-        }
-      }
-    } catch (err) {
-      // LinkedIn messaging may require partner approval — silently skip
-    }
-  }
-
   res.json({
     query: q,
     messages,
     contacts,
-    whatsappMessages,
-    linkedinMessages,
     totalMessages: messages.length,
     totalContacts: contacts.length,
-    totalWhatsapp: whatsappMessages.length,
-    totalLinkedin: linkedinMessages.length,
     searchAccess: {
       isPro: access.isPro,
       usedToday: access.usedToday + 1,

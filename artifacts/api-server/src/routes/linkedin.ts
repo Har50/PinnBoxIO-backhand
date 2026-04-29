@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { getAuth } from "@clerk/express";
 import { linkedInService } from "../services/linkedin";
+import { getOAuthToken } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
 export const linkedinPublicRouter = Router();
@@ -28,7 +29,7 @@ linkedinPublicRouter.get("/linkedin/connect", (req: Request, res: Response) => {
   const userId = auth.userId;
   const baseUrl = getBaseUrl(req);
   if (!process.env.LINKEDIN_CLIENT_ID || !process.env.LINKEDIN_CLIENT_SECRET) {
-    res.redirect(`${baseUrl}/linkedin?error=not_configured`);
+    res.redirect(`${baseUrl}/settings?error=linkedin_not_configured`);
     return;
   }
   try {
@@ -36,7 +37,7 @@ linkedinPublicRouter.get("/linkedin/connect", (req: Request, res: Response) => {
     res.redirect(authUrl);
   } catch (err: any) {
     logger.error({ err }, "LinkedIn connect error");
-    res.redirect(`${getBaseUrl(req)}/linkedin?error=not_configured`);
+    res.redirect(`${getBaseUrl(req)}/settings?error=linkedin_not_configured`);
   }
 });
 
@@ -46,7 +47,7 @@ linkedinPublicRouter.get("/linkedin/callback", async (req: Request, res: Respons
 
   if (error || !code) {
     logger.warn({ error }, "LinkedIn OAuth denied or errored");
-    res.redirect(`${baseUrl}/linkedin?error=${error ?? "cancelled"}`);
+    res.redirect(`${baseUrl}/settings?error=${error ?? "cancelled"}`);
     return;
   }
 
@@ -54,10 +55,10 @@ linkedinPublicRouter.get("/linkedin/callback", async (req: Request, res: Respons
 
   try {
     await linkedInService.handleCallback(code, userId, baseUrl);
-    res.redirect(`${baseUrl}/linkedin?connected=1`);
+    res.redirect(`${baseUrl}/settings?linkedin_connected=1`);
   } catch (err: any) {
     logger.error({ err }, "LinkedIn callback failed");
-    res.redirect(`${baseUrl}/linkedin?error=auth_failed`);
+    res.redirect(`${baseUrl}/settings?error=linkedin_auth_failed`);
   }
 });
 
@@ -65,9 +66,8 @@ linkedinRouter.get("/linkedin/status", async (req: Request, res: Response) => {
   const userId = getUserId(req);
   await linkedInService.ensureSession(userId);
   const status = linkedInService.getStatus(userId);
-  const profile = linkedInService.getProfile(userId);
   const configured = !!(process.env.LINKEDIN_CLIENT_ID && process.env.LINKEDIN_CLIENT_SECRET);
-  res.json({ status, profile, configured });
+  res.json({ status, configured });
 });
 
 linkedinRouter.post("/linkedin/disconnect", async (req: Request, res: Response) => {
@@ -76,88 +76,17 @@ linkedinRouter.post("/linkedin/disconnect", async (req: Request, res: Response) 
   res.json({ ok: true });
 });
 
-linkedinRouter.get("/linkedin/profile", async (req: Request, res: Response) => {
-  const userId = getUserId(req);
-  await linkedInService.ensureSession(userId);
-  if (linkedInService.getStatus(userId) !== "connected") {
-    res.status(401).json({ error: "Not connected to LinkedIn" });
-    return;
-  }
+/**
+ * Check if any PinnboxIO user has verified their LinkedIn account.
+ * Used to show the "LinkedIn Verified" badge on contacts and profiles.
+ */
+linkedinRouter.get("/linkedin/verified/:userId", async (req: Request, res: Response) => {
+  const { userId } = req.params;
   try {
-    const profile = await linkedInService.fetchProfile(userId);
-    res.json({ profile });
-  } catch (err: any) {
-    logger.error({ err }, "LinkedIn profile fetch failed");
-    res.status(500).json({ error: err.message ?? "Failed to fetch profile" });
-  }
-});
-
-linkedinRouter.get("/linkedin/conversations", async (req: Request, res: Response) => {
-  const userId = getUserId(req);
-  await linkedInService.ensureSession(userId);
-  if (linkedInService.getStatus(userId) !== "connected") {
-    res.status(401).json({ error: "Not connected to LinkedIn" });
-    return;
-  }
-  try {
-    const conversations = await linkedInService.getConversations(userId);
-    res.json({ conversations });
-  } catch (err: any) {
-    if (err.message === "MESSAGING_ACCESS_REQUIRED") {
-      res.status(403).json({ error: "MESSAGING_ACCESS_REQUIRED" });
-      return;
-    }
-    logger.error({ err }, "LinkedIn conversations fetch failed");
-    res.status(500).json({ error: err.message ?? "Failed to fetch conversations" });
-  }
-});
-
-linkedinRouter.get("/linkedin/conversations/:convId/messages", async (req: Request, res: Response) => {
-  const userId = getUserId(req);
-  const { convId } = req.params;
-  await linkedInService.ensureSession(userId);
-  if (linkedInService.getStatus(userId) !== "connected") {
-    res.status(401).json({ error: "Not connected to LinkedIn" });
-    return;
-  }
-  try {
-    const messages = await linkedInService.getMessages(userId, convId);
-    res.json({ messages });
-  } catch (err: any) {
-    if (err.message === "MESSAGING_ACCESS_REQUIRED") {
-      res.status(403).json({ error: "MESSAGING_ACCESS_REQUIRED" });
-      return;
-    }
-    logger.error({ err }, "LinkedIn messages fetch failed");
-    res.status(500).json({ error: err.message ?? "Failed to fetch messages" });
-  }
-});
-
-linkedinRouter.post("/linkedin/conversations/:convId/messages", async (req: Request, res: Response) => {
-  const userId = getUserId(req);
-  const { convId } = req.params;
-  const { text } = req.body as { text?: string };
-
-  if (!text?.trim()) {
-    res.status(400).json({ error: "text is required" });
-    return;
-  }
-
-  await linkedInService.ensureSession(userId);
-  if (linkedInService.getStatus(userId) !== "connected") {
-    res.status(401).json({ error: "Not connected to LinkedIn" });
-    return;
-  }
-
-  try {
-    await linkedInService.sendMessage(userId, convId, text.trim());
-    res.json({ ok: true });
-  } catch (err: any) {
-    if (err.message === "MESSAGING_ACCESS_REQUIRED") {
-      res.status(403).json({ error: "MESSAGING_ACCESS_REQUIRED" });
-      return;
-    }
-    logger.error({ err }, "LinkedIn send message failed");
-    res.status(500).json({ error: err.message ?? "Failed to send message" });
+    const token = await getOAuthToken(userId, "linkedin");
+    const verified = !!(token && token.expiresAt && token.expiresAt.getTime() > Date.now());
+    res.json({ verified });
+  } catch {
+    res.json({ verified: false });
   }
 });
