@@ -327,7 +327,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           if (forceStop || count >= MAX_POLLS) { resolve(); return; }
           count++;
           try {
-            const r = await fetch(`${AUTH_BASE}/api/mobile-auth/poll/${encodeURIComponent(state)}`);
+            const r = await fetch(`${AUTH_BASE}/api/mobile-auth/poll/${encodeURIComponent(state)}`, {
+              headers: { "Cache-Control": "no-cache", Pragma: "no-cache" },
+            });
             if (r.ok) {
               const data = await r.json();
               if (data.status === "complete" && data.token) {

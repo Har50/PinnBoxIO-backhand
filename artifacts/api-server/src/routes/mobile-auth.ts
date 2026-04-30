@@ -166,6 +166,11 @@ router.post("/mobile-auth/prepare", async (req: Request, res: Response) => {
 router.get("/mobile-auth/poll/:state", async (req: Request, res: Response) => {
   const { state } = req.params;
 
+  // Prevent Express ETag / 304 caching — every poll must return a fresh response
+  // so the client can detect the transition from "pending" → "complete".
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+
   try {
     const [entry] = await db
       .select()
