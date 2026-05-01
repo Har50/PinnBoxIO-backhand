@@ -1,8 +1,5 @@
 import { BlurView } from "expo-blur";
-import { isLiquidGlassAvailable } from "expo-glass-effect";
 import { Tabs } from "expo-router";
-import { Icon, Label, NativeTabs } from "expo-router/unstable-native-tabs";
-import { SymbolView } from "expo-symbols";
 import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { Platform, Pressable, StyleSheet, View } from "react-native";
@@ -11,39 +8,14 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
 
-function NativeTabLayout() {
-  return (
-    <NativeTabs>
-      <NativeTabs.Trigger name="index">
-        <Icon sf={{ default: "house", selected: "house.fill" }} />
-        <Label>Dashboard</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="inbox">
-        <Icon sf={{ default: "tray", selected: "tray.fill" }} />
-        <Label>Inbox</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="storage">
-        <Icon sf={{ default: "externaldrive", selected: "externaldrive.fill" }} />
-        <Label>Storage</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="ai">
-        <Icon sf={{ default: "sparkles", selected: "sparkles" }} />
-        <Label>AI</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="search">
-        <Icon sf={{ default: "magnifyingglass", selected: "magnifyingglass" }} />
-        <Label>Search</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="accounts">
-        <Icon sf={{ default: "gearshape", selected: "gearshape.fill" }} />
-        <Label>Accounts</Label>
-      </NativeTabs.Trigger>
-      <NativeTabs.Trigger name="settings">
-        <Icon sf={{ default: "slider.horizontal.3", selected: "slider.horizontal.3" }} />
-        <Label>Settings</Label>
-      </NativeTabs.Trigger>
-    </NativeTabs>
-  );
+function TabIcon({
+  name,
+  color,
+}: {
+  name: React.ComponentProps<typeof Feather>["name"];
+  color: string;
+}) {
+  return <Feather name={name} size={22} color={color} />;
 }
 
 function ClassicTabLayout() {
@@ -88,48 +60,28 @@ function ClassicTabLayout() {
         name="index"
         options={{
           title: "Dashboard",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="house" tintColor={color} size={22} />
-            ) : (
-              <Feather name="home" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="home" color={color} />,
         }}
       />
       <Tabs.Screen
         name="inbox"
         options={{
           title: "Inbox",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="tray" tintColor={color} size={22} />
-            ) : (
-              <Feather name="inbox" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="inbox" color={color} />,
         }}
       />
       <Tabs.Screen
         name="storage"
         options={{
           title: "Storage",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="externaldrive.fill" tintColor={color} size={22} />
-            ) : (
-              <Feather name="hard-drive" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="hard-drive" color={color} />,
         }}
       />
       <Tabs.Screen
         name="ai"
         options={{
           title: "AI",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="sparkles" tintColor={color} size={22} />
-            ) : (
-              <Feather name="zap" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="zap" color={color} />,
         }}
       />
       <Tabs.Screen name="contacts" options={{ href: null }} />
@@ -137,36 +89,21 @@ function ClassicTabLayout() {
         name="search"
         options={{
           title: "Search",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="magnifyingglass" tintColor={color} size={22} />
-            ) : (
-              <Feather name="search" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="search" color={color} />,
         }}
       />
       <Tabs.Screen
         name="accounts"
         options={{
           title: "Accounts",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="gearshape" tintColor={color} size={22} />
-            ) : (
-              <Feather name="settings" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="layers" color={color} />,
         }}
       />
       <Tabs.Screen
         name="settings"
         options={{
           title: "Settings",
-          tabBarIcon: ({ color }) =>
-            isIOS ? (
-              <SymbolView name="slider.horizontal.3" tintColor={color} size={22} />
-            ) : (
-              <Feather name="sliders" size={22} color={color} />
-            ),
+          tabBarIcon: ({ color }) => <TabIcon name="sliders" color={color} />,
         }}
       />
     </Tabs>
@@ -201,7 +138,7 @@ function ThemeToggleOverlay() {
 export default function TabLayout() {
   return (
     <View style={{ flex: 1 }}>
-      {isLiquidGlassAvailable() ? <NativeTabLayout /> : <ClassicTabLayout />}
+      <ClassicTabLayout />
       <ThemeToggleOverlay />
     </View>
   );

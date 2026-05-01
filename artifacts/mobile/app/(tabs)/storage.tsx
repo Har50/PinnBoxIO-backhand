@@ -1,6 +1,5 @@
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
-import { SymbolView } from "expo-symbols";
 import * as DocumentPicker from "expo-document-picker";
 import { useState, useCallback, useEffect } from "react";
 import {
@@ -351,9 +350,7 @@ export default function StorageScreen() {
           <Pressable onPress={handleUpload} disabled={uploading} style={styles.iconBtn}>
             {uploading
               ? <ActivityIndicator size="small" color={colors.primary} />
-              : Platform.OS === "ios"
-                ? <SymbolView name="icloud.and.arrow.up" tintColor={colors.primary} size={20} />
-                : <Feather name="upload-cloud" size={20} color={colors.primary} />}
+              : <Feather name="upload-cloud" size={20} color={colors.primary} />}
           </Pressable>
         </View>
       </View>

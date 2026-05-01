@@ -5,12 +5,16 @@ import { ErrorFallback, ErrorFallbackProps } from "@/components/ErrorFallback";
 export type ErrorBoundaryProps = PropsWithChildren<{
   FallbackComponent?: ComponentType<ErrorFallbackProps>;
   onError?: (error: Error, stackTrace: string) => void;
+  label?: string;
 }>;
 
 type ErrorBoundaryState = { error: Error | null };
 
 /**
- * This is a special case for for using the class components. Error boundaries must be class components because React only provides error boundary functionality through lifecycle methods (componentDidCatch and getDerivedStateFromError) which are not available in functional components.
+ * This is a special case for using class components. Error boundaries must be
+ * class components because React only provides error boundary functionality
+ * through lifecycle methods (componentDidCatch and getDerivedStateFromError)
+ * which are not available in functional components.
  * https://react.dev/reference/react/Component#catching-rendering-errors-with-an-error-boundary
  */
 export class ErrorBoundary extends Component<
@@ -30,6 +34,12 @@ export class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, info: { componentStack: string }): void {
+    const label = this.props.label ?? "ErrorBoundary";
+    console.error(`[${label}] Caught render error:`, error.message);
+    console.error(`[${label}] Component stack:`, info.componentStack);
+    if (error.stack) {
+      console.error(`[${label}] Stack trace:`, error.stack);
+    }
     if (typeof this.props.onError === "function") {
       this.props.onError(error, info.componentStack);
     }

@@ -12,7 +12,7 @@ import React, { useEffect } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
-import { ActivityIndicator, Platform, Text, View, Alert as RNAlert } from "react-native";
+import { ActivityIndicator, Platform, Text, View } from "react-native";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
@@ -43,9 +43,33 @@ setAuthTokenGetter(async () => {
 
 SplashScreen.preventAutoHideAsync();
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: (failureCount, error) => {
+        console.warn("[QueryClient] Query failed:", error);
+        return failureCount < 2;
+      },
+    },
+    mutations: {
+      onError: (error) => {
+        console.warn("[QueryClient] Mutation failed:", error);
+      },
+    },
+  },
+});
 
 const ALLOWED_UNAUTHED_PATHS = ["/login", "/signup", "/callback"];
+
+function AuthedStack() {
+  return (
+    <ErrorBoundary label="TabsErrorBoundary">
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+      </Stack>
+    </ErrorBoundary>
+  );
+}
 
 function RootLayoutNav() {
   const { user, isLoading } = useAuth();
@@ -73,11 +97,7 @@ function RootLayoutNav() {
     );
   }
 
-  return (
-    <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Screen name="(tabs)" />
-    </Stack>
-  );
+  return <AuthedStack />;
 }
 
 export default function RootLayout() {
@@ -114,7 +134,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
+      <ErrorBoundary label="RootErrorBoundary">
         <QueryClientProvider client={queryClient}>
           <AuthProvider>
             <ThemeProvider>
