@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useGetAccounts } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
@@ -5,6 +6,7 @@ import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import {
   ActivityIndicator,
+  Alert,
   Linking,
   Platform,
   Pressable,
@@ -16,6 +18,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { format } from "date-fns";
+import * as WebBrowser from "expo-web-browser";
 
 type Account = {
   id: number;
@@ -42,16 +45,27 @@ type FeatherName = ComponentProps<typeof Feather>["name"];
 
 function providerIcon(provider: string): FeatherName {
   switch (provider) {
-    case "phone":
-      return "phone";
-    default:
-      return "mail";
+    case "phone": return "phone";
+    default: return "mail";
   }
 }
 
-function AccountCard({ account }: { account: Account }) {
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "https://pinn-box-io.replit.app";
+
+async function getAuthToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+  }
+  const SecureStore = await import("expo-secure-store");
+  return SecureStore.getItemAsync("commshub_session_token");
+}
+
+function AccountCard({ account, onDisconnect }: { account: Account; onDisconnect: (acc: Account) => void }) {
   const colors = useColors();
   const isPhone = account.provider === "phone";
+  const canDisconnect = account.provider === "gmail" || account.provider === "outlook";
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -71,11 +85,13 @@ function AccountCard({ account }: { account: Account }) {
               </Text>
             </View>
           </View>
-          <View style={[styles.statusBadge, { backgroundColor: account.isActive ? "#f0fdf4" : "#fffbeb" }]}>
-            <View style={[styles.statusDot, { backgroundColor: account.isActive ? "#22c55e" : "#f59e0b" }]} />
-            <Text style={[styles.statusText, { color: account.isActive ? "#16a34a" : "#d97706" }]}>
-              {account.isActive ? "Active" : "Issue"}
-            </Text>
+          <View style={styles.cardRight}>
+            <View style={[styles.statusBadge, { backgroundColor: account.isActive ? "#f0fdf4" : "#fffbeb" }]}>
+              <View style={[styles.statusDot, { backgroundColor: account.isActive ? "#22c55e" : "#f59e0b" }]} />
+              <Text style={[styles.statusText, { color: account.isActive ? "#16a34a" : "#d97706" }]}>
+                {account.isActive ? "Active" : "Issue"}
+              </Text>
+            </View>
           </View>
         </View>
 
@@ -83,14 +99,10 @@ function AccountCard({ account }: { account: Account }) {
 
         <View style={styles.cardDetails}>
           {account.email && (
-            <Text style={[styles.accountIdentifier, { color: colors.foreground }]} numberOfLines={1}>
-              {account.email}
-            </Text>
+            <Text style={[styles.accountIdentifier, { color: colors.foreground }]} numberOfLines={1}>{account.email}</Text>
           )}
           {account.phone && (
-            <Text style={[styles.accountIdentifier, { color: colors.foreground }]} numberOfLines={1}>
-              {account.phone}
-            </Text>
+            <Text style={[styles.accountIdentifier, { color: colors.foreground }]} numberOfLines={1}>{account.phone}</Text>
           )}
           <Text style={[styles.connectedDate, { color: colors.mutedForeground }]}>
             Connected {format(new Date(account.createdAt), "MMM d, yyyy")}
@@ -105,6 +117,70 @@ function AccountCard({ account }: { account: Account }) {
             </Text>
           </View>
         )}
+
+        {canDisconnect && (
+          <Pressable
+            onPress={() => onDisconnect(account)}
+            style={({ pressed }) => [styles.disconnectBtn, { opacity: pressed ? 0.6 : 1, borderColor: colors.destructive + "40" }]}
+          >
+            <Feather name="link-2" size={13} color={colors.destructive} />
+            <Text style={[styles.disconnectText, { color: colors.destructive }]}>Disconnect</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
+  const colors = useColors();
+  const [connecting, setConnecting] = useState<string | null>(null);
+
+  async function connectProvider(provider: "gmail" | "outlook") {
+    setConnecting(provider);
+    try {
+      const url = `${API_BASE}/api/auth/${provider}/connect`;
+      const result = await WebBrowser.openAuthSessionAsync(url, `${API_BASE}/accounts?connected=${provider}`);
+      if (result.type === "success") {
+        onRefetch();
+      }
+    } catch {
+      Alert.alert("Connection failed", "Could not connect account. Please try again.");
+    } finally {
+      setConnecting(null);
+    }
+  }
+
+  return (
+    <View style={styles.connectSection}>
+      <Text style={[styles.connectTitle, { color: colors.mutedForeground }]}>Add Account</Text>
+      <View style={styles.connectButtons}>
+        <Pressable
+          onPress={() => connectProvider("gmail")}
+          style={[styles.connectBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          disabled={connecting !== null}
+        >
+          {connecting === "gmail" ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="mail" size={18} color="#EA4335" />
+          )}
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect Gmail</Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
+        <Pressable
+          onPress={() => connectProvider("outlook")}
+          style={[styles.connectBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          disabled={connecting !== null}
+        >
+          {connecting === "outlook" ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="mail" size={18} color="#0078d4" />
+          )}
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect Outlook</Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
       </View>
     </View>
   );
@@ -113,7 +189,6 @@ function AccountCard({ account }: { account: Account }) {
 function UserCard() {
   const { user, signOut } = useAuth();
   const colors = useColors();
-
   const initials = ((user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")).toUpperCase();
   const displayName = user?.firstName && user?.lastName
     ? `${user.firstName} ${user.lastName}`
@@ -150,7 +225,6 @@ const LEGAL_LINKS = [
 
 function LegalSection() {
   const colors = useColors();
-
   return (
     <View style={styles.section}>
       <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Legal</Text>
@@ -182,8 +256,43 @@ export default function AccountsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const [disconnecting, setDisconnecting] = useState<number | null>(null);
 
   const { data: accounts, isLoading, isFetching, refetch } = useGetAccounts();
+
+  async function handleDisconnect(account: Account) {
+    Alert.alert(
+      "Disconnect Account",
+      `Are you sure you want to disconnect ${account.name}?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Disconnect",
+          style: "destructive",
+          onPress: async () => {
+            setDisconnecting(account.id);
+            try {
+              const token = await getAuthToken();
+              const res = await fetch(`${API_BASE}/api/auth/${account.provider}/disconnect`, {
+                method: "DELETE",
+                headers: token ? { Authorization: `Bearer ${token}` } : {},
+                credentials: "include",
+              });
+              if (res.ok) {
+                refetch();
+              } else {
+                Alert.alert("Error", "Failed to disconnect account.");
+              }
+            } catch {
+              Alert.alert("Error", "Failed to disconnect account.");
+            } finally {
+              setDisconnecting(null);
+            }
+          },
+        },
+      ]
+    );
+  }
 
   return (
     <ScrollView
@@ -209,18 +318,20 @@ export default function AccountsScreen() {
           <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name="inbox" size={36} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No accounts connected</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-              Add accounts from the web app
-            </Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail or Outlook below</Text>
           </View>
         ) : (
           <View style={styles.accountList}>
             {accounts.map((acc) => (
-              <AccountCard key={acc.id} account={acc} />
+              <View key={acc.id} style={{ opacity: disconnecting === acc.id ? 0.5 : 1 }}>
+                <AccountCard account={acc} onDisconnect={handleDisconnect} />
+              </View>
             ))}
           </View>
         )}
       </View>
+
+      <ConnectSection onRefetch={refetch} />
 
       <LegalSection />
     </ScrollView>
@@ -230,104 +341,50 @@ export default function AccountsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
-  userCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    gap: 12,
-  },
-  userAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+  userCard: { flexDirection: "row", alignItems: "center", borderRadius: 16, borderWidth: 1, padding: 16, gap: 12 },
+  userAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   userAvatarText: { fontSize: 18, fontFamily: "Inter_700Bold" },
   userInfo: { flex: 1, minWidth: 0 },
   userName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   userEmail: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   signOutBtn: { padding: 8, flexShrink: 0 },
   section: { gap: 12 },
-  sectionTitle: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-  },
+  sectionTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8 },
   loadingCenter: { paddingVertical: 32, alignItems: "center" },
-  emptyState: {
-    borderRadius: 16,
-    borderWidth: 1,
-    borderStyle: "dashed",
-    padding: 32,
-    alignItems: "center",
-    gap: 8,
-  },
+  emptyState: { borderRadius: 16, borderWidth: 1, borderStyle: "dashed", padding: 32, alignItems: "center", gap: 8 },
   emptyTitle: { fontSize: 16, fontFamily: "Inter_500Medium" },
   emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
   accountList: { gap: 12 },
-  card: {
-    borderRadius: 14,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
+  card: { borderRadius: 14, borderWidth: 1, overflow: "hidden" },
   cardAccent: { height: 3, width: "100%" },
   cardContent: { padding: 16, gap: 12 },
   cardTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   cardLeft: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  cardRight: { flexShrink: 0 },
   providerIcon: { width: 40, height: 40, borderRadius: 10, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   cardTitles: { flex: 1, minWidth: 0 },
   accountName: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
   providerName: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 20,
-    flexShrink: 0,
-  },
+  statusBadge: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 8, paddingVertical: 4, borderRadius: 20 },
   statusDot: { width: 6, height: 6, borderRadius: 3 },
   statusText: { fontSize: 11, fontFamily: "Inter_600SemiBold" },
   cardDivider: { height: StyleSheet.hairlineWidth },
   cardDetails: { gap: 4 },
   accountIdentifier: { fontSize: 14, fontFamily: "Inter_400Regular" },
   connectedDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  unreadRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-  },
+  unreadRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
   unreadLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
   unreadCount: { fontSize: 16, fontFamily: "Inter_700Bold" },
-  legalCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
-  },
-  legalRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    gap: 12,
-  },
-  legalIconWrap: {
-    width: 32,
-    height: 32,
-    borderRadius: 8,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
+  disconnectBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignSelf: "flex-start" },
+  disconnectText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  connectSection: { gap: 12 },
+  connectTitle: { fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8 },
+  connectButtons: { gap: 10 },
+  connectBtn: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, padding: 16 },
+  connectBtnText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  legalCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
+  legalRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
+  legalIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   legalLabel: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular" },
   legalDivider: { height: StyleSheet.hairlineWidth, marginLeft: 60 },
   copyright: { fontSize: 11, fontFamily: "Inter_400Regular", textAlign: "center", paddingTop: 4 },

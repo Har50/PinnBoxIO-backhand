@@ -314,6 +314,25 @@ export default function StorageScreen() {
     }
   }, [loadData, currentFolder]);
 
+  const handleShare = useCallback(async (file: StorageFile) => {
+    try {
+      const result = await apiPost<{ shareUrl?: string; shareToken?: string; url?: string }>(`/storage/files/${file.id}/share`, {});
+      const shareUrl = result.shareUrl ?? result.url ?? (result.shareToken ? `${API_BASE}/api/storage/public/${result.shareToken}` : null);
+      if (shareUrl) {
+        Alert.alert(
+          "Share Link Created",
+          shareUrl,
+          [
+            { text: "Open", onPress: () => Linking.openURL(shareUrl) },
+            { text: "OK" },
+          ]
+        );
+      }
+    } catch (err: any) {
+      Alert.alert("Share Failed", err.message);
+    }
+  }, []);
+
   const quotaPct = quota ? Math.min(100, (quota.usedBytes / quota.totalBytes) * 100) : 0;
   const isWarning = quotaPct > 80;
   const isDanger = quotaPct > 95;
@@ -441,6 +460,9 @@ export default function StorageScreen() {
                         <Feather name="corner-up-left" size={15} color={colors.mutedForeground} />
                       </Pressable>
                     )}
+                    <Pressable onPress={() => handleShare(file)} style={styles.fileActionBtn} hitSlop={8}>
+                      <Feather name="share-2" size={15} color={colors.mutedForeground} />
+                    </Pressable>
                     <Pressable onPress={() => handleDownload(file)} style={styles.fileActionBtn} hitSlop={8}>
                       <Feather name="download" size={15} color={colors.mutedForeground} />
                     </Pressable>

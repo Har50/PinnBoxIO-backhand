@@ -5,19 +5,22 @@ import {
   TextInput,
   ScrollView,
   TouchableOpacity,
+  Pressable,
   KeyboardAvoidingView,
   Platform,
   StyleSheet,
   ActivityIndicator,
+  Modal,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
+import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 
 interface Message {
   role: "user" | "assistant";
   content: string;
-  limitReached?: boolean;
 }
 
 interface Conversation {
@@ -48,27 +51,150 @@ const SUGGESTIONS = [
   "Any important messages today?",
 ];
 
+function parseEmailDraft(content: string): { before: string; draft: Record<string, string>; after: string } | null {
+  const match = content.match(/<email-draft>([\s\S]*?)<\/email-draft>/);
+  if (!match) return null;
+  const raw = match[1];
+  const fields: Record<string, string> = {};
+  const fieldRe = /<(to|subject|body)>([\s\S]*?)<\/\1>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = fieldRe.exec(raw)) !== null) {
+    fields[m[1].toLowerCase()] = m[2].trim();
+  }
+  const idx = content.indexOf("<email-draft>");
+  const after = content.indexOf("</email-draft>");
+  return {
+    before: content.slice(0, idx).trim(),
+    draft: fields,
+    after: content.slice(after + "</email-draft>".length).trim(),
+  };
+}
+
+function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSend: (d: ComposeDraft) => void }) {
+  const colors = useColors();
+  const s = makeStyles(colors);
+  return (
+    <View style={[s.draftCard, { backgroundColor: colors.card, borderColor: colors.primary + "40" }]}>
+      <View style={s.draftHeader}>
+        <Feather name="mail" size={14} color={colors.primary} />
+        <Text style={[s.draftHeaderText, { color: colors.primary }]}>Email Draft</Text>
+      </View>
+      {draft.to && (
+        <View style={s.draftRow}>
+          <Text style={[s.draftLabel, { color: colors.mutedForeground }]}>To:</Text>
+          <Text style={[s.draftValue, { color: colors.foreground }]}>{draft.to}</Text>
+        </View>
+      )}
+      {draft.subject && (
+        <View style={s.draftRow}>
+          <Text style={[s.draftLabel, { color: colors.mutedForeground }]}>Subject:</Text>
+          <Text style={[s.draftValue, { color: colors.foreground }]}>{draft.subject}</Text>
+        </View>
+      )}
+      {draft.body && (
+        <Text style={[s.draftBody, { color: colors.foreground }]} numberOfLines={4}>{draft.body}</Text>
+      )}
+      <TouchableOpacity
+        style={[s.draftSendBtn, { backgroundColor: colors.primary }]}
+        onPress={() => onSend({ to: draft.to, subject: draft.subject, body: draft.body })}
+        activeOpacity={0.8}
+      >
+        <Feather name="send" size={13} color="#fff" />
+        <Text style={s.draftSendText}>Send Now</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft: (d: ComposeDraft) => void; colors: any }) {
+  const s = makeStyles(colors);
+  if (msg.role === "user") {
+    return (
+      <View style={[s.bubbleWrap, s.bubbleWrapUser]}>
+        <View style={[s.bubble, s.userBubble]}>
+          <Text style={s.userText}>{msg.content}</Text>
+        </View>
+      </View>
+    );
+  }
+
+  const parsed = parseEmailDraft(msg.content);
+  if (parsed) {
+    return (
+      <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
+        <View style={s.aiBubbleAvatar}>
+          <Feather name="zap" size={11} color={colors.primary} />
+        </View>
+        <View style={{ flex: 1, gap: 8 }}>
+          {parsed.before ? (
+            <View style={[s.bubble, s.assistantBubble]}>
+              <Text style={s.assistantText}>{parsed.before}</Text>
+            </View>
+          ) : null}
+          <EmailDraftCard draft={parsed.draft} onSend={onSendDraft} />
+          {parsed.after ? (
+            <View style={[s.bubble, s.assistantBubble]}>
+              <Text style={s.assistantText}>{parsed.after}</Text>
+            </View>
+          ) : null}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
+      <View style={s.aiBubbleAvatar}>
+        <Feather name="zap" size={11} color={colors.primary} />
+      </View>
+      <View style={[s.bubble, s.assistantBubble]}>
+        <Text style={s.assistantText}>{msg.content}</Text>
+      </View>
+    </View>
+  );
+}
+
 export default function AiScreen() {
   const colors = useColors();
+  const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
   const [provider, setProvider] = useState<Provider>("openai");
+  const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [composeVisible, setComposeVisible] = useState(false);
+  const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const apiUrl = process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
     : "/api";
 
-  const startConversation = useCallback(async () => {
+  async function fetchHeaders() {
     const token = await getAuthToken();
+    return {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    };
+  }
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const headers = await fetchHeaders();
+      const res = await fetch(`${apiUrl}/ai/conversations`, { headers, credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setConversations(data.conversations ?? data ?? []);
+      }
+    } catch {}
+  }, [apiUrl]);
+
+  const startConversation = useCallback(async () => {
+    const headers = await fetchHeaders();
     const res = await fetch(`${apiUrl}/ai/conversations`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
+      headers,
       credentials: "include",
       body: JSON.stringify({ title: "New chat" }),
     });
@@ -76,14 +202,50 @@ export default function AiScreen() {
       const conv = await res.json();
       setConversation(conv);
       setMessages([]);
+      loadConversations();
     }
-  }, [apiUrl]);
+  }, [apiUrl, loadConversations]);
+
+  async function loadConversation(conv: Conversation) {
+    setConversation(conv);
+    setSidebarVisible(false);
+    try {
+      const headers = await fetchHeaders();
+      const res = await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { headers, credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setMessages(
+          (data.messages ?? []).map((m: any) => ({ role: m.role, content: m.content }))
+        );
+      }
+    } catch {}
+  }
+
+  async function deleteConversation(conv: Conversation) {
+    Alert.alert("Delete conversation", "Are you sure?", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Delete",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            const headers = await fetchHeaders();
+            await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { method: "DELETE", headers, credentials: "include" });
+            if (conversation?.id === conv.id) {
+              setConversation(null);
+              setMessages([]);
+            }
+            loadConversations();
+          } catch {}
+        },
+      },
+    ]);
+  }
 
   useEffect(() => {
-    if (!conversation) {
-      startConversation();
-    }
-  }, [conversation, startConversation]);
+    loadConversations();
+    if (!conversation) startConversation();
+  }, []);
 
   const sendMessage = async (text?: string) => {
     const userMsg = (text ?? input).trim();
@@ -97,13 +259,10 @@ export default function AiScreen() {
     setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
 
     try {
-      const token = await getAuthToken();
+      const headers = await fetchHeaders();
       const res = await fetch(`${apiUrl}/ai/conversations/${conversation.id}/messages`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
+        headers,
         credentials: "include",
         body: JSON.stringify({ content: userMsg, provider }),
       });
@@ -120,9 +279,8 @@ export default function AiScreen() {
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const text = decoder.decode(value);
-        const lines = text.split("\n");
-        for (const line of lines) {
+        const chunk = decoder.decode(value);
+        for (const line of chunk.split("\n")) {
           if (line.startsWith("data: ")) {
             try {
               const data = JSON.parse(line.slice(6));
@@ -143,20 +301,24 @@ export default function AiScreen() {
         const updated = [...prev];
         updated[updated.length - 1] = {
           role: "assistant",
-          content: err instanceof Error ? err.message : "Sorry, something went wrong. Please try again.",
+          content: err instanceof Error ? err.message : "Sorry, something went wrong.",
         };
         return updated;
       });
     } finally {
       setStreaming(false);
+      loadConversations();
     }
   };
 
   useEffect(() => {
-    if (messages.length > 0) {
-      scrollRef.current?.scrollToEnd({ animated: true });
-    }
+    if (messages.length > 0) scrollRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
+
+  function openSendDraft(draft: ComposeDraft) {
+    setComposeDraft(draft);
+    setComposeVisible(true);
+  }
 
   const s = makeStyles(colors);
 
@@ -164,40 +326,31 @@ export default function AiScreen() {
     <SafeAreaView style={s.container} edges={["top"]}>
       {/* Header */}
       <View style={s.header}>
+        <Pressable style={s.sidebarBtn} onPress={() => { loadConversations(); setSidebarVisible(true); }}>
+          <Feather name="list" size={20} color={colors.primary} />
+        </Pressable>
         <View style={s.headerIcon}>
           <Feather name="zap" size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={s.headerTitle}>AI Assistant</Text>
+          <Text style={s.headerTitle}>{conversation?.title ?? "AI Assistant"}</Text>
           <Text style={s.headerSub}>Context-aware help for your inbox</Text>
         </View>
-        <View style={s.headerActions}>
-          <TouchableOpacity style={s.newBtn} onPress={startConversation} activeOpacity={0.8}>
-            <Feather name="plus" size={15} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity style={s.newBtn} onPress={startConversation} activeOpacity={0.8}>
+          <Feather name="plus" size={15} color={colors.primary} />
+        </TouchableOpacity>
       </View>
 
       {/* Provider pills */}
       <View style={s.providerBar}>
         {PROVIDERS.map((p) => (
-          <TouchableOpacity
-            key={p.id}
-            onPress={() => setProvider(p.id)}
-            style={[s.providerPill, provider === p.id && s.providerPillActive]}
-            activeOpacity={0.75}
-          >
-            <Text style={[s.providerPillText, provider === p.id && s.providerPillTextActive]}>
-              {p.label}
-            </Text>
+          <TouchableOpacity key={p.id} onPress={() => setProvider(p.id)} style={[s.providerPill, provider === p.id && s.providerPillActive]} activeOpacity={0.75}>
+            <Text style={[s.providerPillText, provider === p.id && s.providerPillTextActive]}>{p.label}</Text>
           </TouchableOpacity>
         ))}
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           ref={scrollRef}
           style={{ flex: 1 }}
@@ -211,17 +364,10 @@ export default function AiScreen() {
                 <Feather name="zap" size={30} color={colors.primary} />
               </View>
               <Text style={s.emptyTitle}>Hello! I'm your AI assistant.</Text>
-              <Text style={s.emptyText}>
-                I can summarize emails, draft replies, find contacts, and help you manage all your communications smarter.
-              </Text>
+              <Text style={s.emptyText}>I can summarize emails, draft replies, find contacts, and help you manage all your communications smarter.</Text>
               <View style={s.suggestionsGrid}>
                 {SUGGESTIONS.map((suggestion) => (
-                  <TouchableOpacity
-                    key={suggestion}
-                    style={s.suggestion}
-                    onPress={() => sendMessage(suggestion)}
-                    activeOpacity={0.75}
-                  >
+                  <TouchableOpacity key={suggestion} style={s.suggestion} onPress={() => sendMessage(suggestion)} activeOpacity={0.75}>
                     <Text style={s.suggestionText}>{suggestion}</Text>
                   </TouchableOpacity>
                 ))}
@@ -229,26 +375,19 @@ export default function AiScreen() {
             </View>
           ) : (
             messages.map((msg, i) => (
-              <View
-                key={i}
-                style={[s.bubbleWrap, msg.role === "user" ? s.bubbleWrapUser : s.bubbleWrapAssistant]}
-              >
-                {msg.role === "assistant" && (
-                  <View style={s.aiBubbleAvatar}>
-                    <Feather name="zap" size={11} color={colors.primary} />
-                  </View>
-                )}
-                <View style={[s.bubble, msg.role === "user" ? s.userBubble : s.assistantBubble]}>
-                  <Text style={msg.role === "user" ? s.userText : s.assistantText}>
-                    {msg.content || (streaming && i === messages.length - 1 ? "..." : "")}
-                  </Text>
-                </View>
-              </View>
+              <MessageBubble key={i} msg={msg} onSendDraft={openSendDraft} colors={colors} />
             ))
+          )}
+          {streaming && messages[messages.length - 1]?.content === "" && (
+            <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
+              <View style={s.aiBubbleAvatar}><Feather name="zap" size={11} color={colors.primary} /></View>
+              <View style={[s.bubble, s.assistantBubble]}>
+                <ActivityIndicator size="small" color={colors.primary} />
+              </View>
+            </View>
           )}
         </ScrollView>
 
-        {/* Input bar */}
         <View style={s.inputBar}>
           <TextInput
             ref={inputRef}
@@ -268,14 +407,59 @@ export default function AiScreen() {
             disabled={!input.trim() || streaming}
             activeOpacity={0.8}
           >
-            {streaming ? (
-              <ActivityIndicator size="small" color="#fff" />
-            ) : (
-              <Feather name="send" size={16} color="#fff" />
-            )}
+            {streaming ? <ActivityIndicator size="small" color="#fff" /> : <Feather name="send" size={16} color="#fff" />}
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Conversation sidebar */}
+      <Modal visible={sidebarVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSidebarVisible(false)}>
+        <SafeAreaView style={[s.sidebarModal, { backgroundColor: colors.background }]} edges={["top"]}>
+          <View style={[s.sidebarHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[s.sidebarTitle, { color: colors.foreground }]}>Conversations</Text>
+            <Pressable onPress={() => setSidebarVisible(false)} style={s.sidebarClose}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </Pressable>
+          </View>
+          <Pressable
+            style={[s.newConvBtn, { backgroundColor: colors.primary }]}
+            onPress={() => { startConversation(); setSidebarVisible(false); }}
+          >
+            <Feather name="plus" size={16} color="#fff" />
+            <Text style={s.newConvBtnText}>New Conversation</Text>
+          </Pressable>
+          <ScrollView showsVerticalScrollIndicator={false}>
+            {conversations.length === 0 ? (
+              <View style={s.sidebarEmpty}>
+                <Feather name="message-circle" size={36} color={colors.mutedForeground} />
+                <Text style={[s.sidebarEmptyText, { color: colors.mutedForeground }]}>No conversations yet</Text>
+              </View>
+            ) : (
+              conversations.map((conv) => (
+                <Pressable
+                  key={conv.id}
+                  style={[
+                    s.convRow,
+                    { borderBottomColor: colors.border },
+                    conv.id === conversation?.id && { backgroundColor: colors.primary + "10" },
+                  ]}
+                  onPress={() => loadConversation(conv)}
+                >
+                  <Feather name="message-square" size={16} color={conv.id === conversation?.id ? colors.primary : colors.mutedForeground} />
+                  <Text style={[s.convTitle, { color: conv.id === conversation?.id ? colors.primary : colors.foreground }]} numberOfLines={1}>
+                    {conv.title}
+                  </Text>
+                  <Pressable onPress={() => deleteConversation(conv)} hitSlop={8}>
+                    <Feather name="trash-2" size={15} color={colors.mutedForeground} />
+                  </Pressable>
+                </Pressable>
+              ))
+            )}
+          </ScrollView>
+        </SafeAreaView>
+      </Modal>
+
+      <ComposeModal visible={composeVisible} onClose={() => setComposeVisible(false)} initialDraft={composeDraft} />
     </SafeAreaView>
   );
 }
@@ -283,134 +467,57 @@ export default function AiScreen() {
 function makeStyles(colors: any) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
-
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 12,
-      paddingHorizontal: 18,
-      paddingVertical: 14,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    headerIcon: {
-      width: 36,
-      height: 36,
-      borderRadius: 10,
-      backgroundColor: colors.primary + "15",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    headerTitle: { fontSize: 16, fontFamily: "Inter_700Bold", color: colors.foreground },
-    headerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 },
-    headerActions: { flexDirection: "row", gap: 8, alignItems: "center" },
-    newBtn: {
-      width: 32,
-      height: 32,
-      borderRadius: 10,
-      backgroundColor: colors.primary + "15",
-      alignItems: "center",
-      justifyContent: "center",
-    },
-
-    providerBar: {
-      flexDirection: "row",
-      paddingHorizontal: 16,
-      paddingVertical: 10,
-      gap: 8,
-      borderBottomWidth: StyleSheet.hairlineWidth,
-      borderBottomColor: colors.border,
-    },
-    providerPill: {
-      paddingHorizontal: 14,
-      paddingVertical: 6,
-      borderRadius: 20,
-      backgroundColor: colors.muted,
-    },
+    header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    sidebarBtn: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" },
+    headerIcon: { width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" },
+    headerTitle: { fontSize: 15, fontFamily: "Inter_700Bold", color: colors.foreground },
+    headerSub: { fontSize: 11, fontFamily: "Inter_400Regular", color: colors.mutedForeground, marginTop: 1 },
+    newBtn: { width: 32, height: 32, borderRadius: 10, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center" },
+    providerBar: { flexDirection: "row", paddingHorizontal: 16, paddingVertical: 10, gap: 8, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
+    providerPill: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20, backgroundColor: colors.muted },
     providerPillActive: { backgroundColor: colors.primary },
     providerPillText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground },
     providerPillTextActive: { color: "#fff" },
-
     scrollContent: { padding: 16, paddingBottom: 12 },
     scrollEmpty: { flexGrow: 1 },
-
     emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 24 },
-    emptyIconWrap: {
-      width: 60,
-      height: 60,
-      borderRadius: 18,
-      backgroundColor: colors.primary + "15",
-      alignItems: "center",
-      justifyContent: "center",
-      marginBottom: 16,
-    },
+    emptyIconWrap: { width: 60, height: 60, borderRadius: 18, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center", marginBottom: 16 },
     emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 8 },
     emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", lineHeight: 21, marginBottom: 24 },
     suggestionsGrid: { width: "100%", gap: 10 },
-    suggestion: {
-      backgroundColor: colors.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 13,
-    },
+    suggestion: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13 },
     suggestionText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground },
-
     bubbleWrap: { flexDirection: "row", marginBottom: 14, gap: 8 },
     bubbleWrapUser: { justifyContent: "flex-end" },
     bubbleWrapAssistant: { justifyContent: "flex-start", alignItems: "flex-start" },
-    aiBubbleAvatar: {
-      width: 24,
-      height: 24,
-      borderRadius: 8,
-      backgroundColor: colors.primary + "15",
-      alignItems: "center",
-      justifyContent: "center",
-      marginTop: 2,
-    },
+    aiBubbleAvatar: { width: 24, height: 24, borderRadius: 8, backgroundColor: colors.primary + "15", alignItems: "center", justifyContent: "center", marginTop: 2, flexShrink: 0 },
     bubble: { maxWidth: "82%", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 10 },
     userBubble: { backgroundColor: colors.primary, borderBottomRightRadius: 5 },
-    assistantBubble: {
-      backgroundColor: colors.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderBottomLeftRadius: 5,
-    },
+    assistantBubble: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderBottomLeftRadius: 5 },
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
-
-    inputBar: {
-      flexDirection: "row",
-      alignItems: "flex-end",
-      gap: 10,
-      paddingHorizontal: 14,
-      paddingVertical: 12,
-      borderTopWidth: StyleSheet.hairlineWidth,
-      borderTopColor: colors.border,
-    },
-    input: {
-      flex: 1,
-      backgroundColor: colors.card,
-      borderWidth: StyleSheet.hairlineWidth,
-      borderColor: colors.border,
-      borderRadius: 22,
-      paddingHorizontal: 16,
-      paddingTop: 11,
-      paddingBottom: 11,
-      color: colors.foreground,
-      fontSize: 15,
-      fontFamily: "Inter_400Regular",
-      maxHeight: 120,
-    },
-    sendBtn: {
-      width: 42,
-      height: 42,
-      borderRadius: 21,
-      backgroundColor: colors.primary,
-      alignItems: "center",
-      justifyContent: "center",
-    },
+    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    input: { flex: 1, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", maxHeight: 120 },
+    sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
     sendBtnDisabled: { backgroundColor: colors.muted },
+    sidebarModal: { flex: 1 },
+    sidebarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+    sidebarTitle: { fontSize: 20, fontFamily: "Inter_700Bold" },
+    sidebarClose: { padding: 4 },
+    newConvBtn: { flexDirection: "row", alignItems: "center", gap: 8, margin: 16, borderRadius: 12, paddingVertical: 12, paddingHorizontal: 16 },
+    newConvBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+    sidebarEmpty: { alignItems: "center", paddingTop: 60, gap: 12 },
+    sidebarEmptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+    convRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
+    convTitle: { flex: 1, fontSize: 15, fontFamily: "Inter_400Regular" },
+    draftCard: { borderRadius: 12, borderWidth: 1, padding: 14, gap: 8, maxWidth: "100%" },
+    draftHeader: { flexDirection: "row", alignItems: "center", gap: 6 },
+    draftHeaderText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+    draftRow: { flexDirection: "row", gap: 6, alignItems: "flex-start" },
+    draftLabel: { fontSize: 12, fontFamily: "Inter_500Medium", width: 50, flexShrink: 0 },
+    draftValue: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+    draftBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, marginTop: 4 },
+    draftSendBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start", marginTop: 4 },
+    draftSendText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   });
 }
