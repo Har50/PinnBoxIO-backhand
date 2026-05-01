@@ -1,6 +1,8 @@
 import { Router, type IRouter } from "express";
 import { getAuth } from "@clerk/express";
 import { upsertOAuthToken, deleteOAuthToken, ensureUser } from "../services/tokenManager";
+import { db, mobileSessionsTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -27,16 +29,38 @@ function getRedirectBase(req: any): string {
     return process.env.PUBLIC_URL.replace(/\/$/, "");
   }
   const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  // Strip any port from the host header (e.g. ":443" or ":8080") so the
-  // redirect URI is always clean and matches what's registered in Google / Microsoft.
   const rawHost: string = req.headers["x-forwarded-host"] || req.headers.host || "";
   const host = rawHost.replace(/:\d+$/, "");
   return `${proto}://${host}`;
 }
 
-router.get("/auth/gmail/connect", (req, res) => {
+async function getMobileUserId(token: string): Promise<string | null> {
+  try {
+    const [session] = await db
+      .select()
+      .from(mobileSessionsTable)
+      .where(eq(mobileSessionsTable.token, token));
+    if (!session) return null;
+    if (session.expiresAt && session.expiresAt < new Date()) return null;
+    return session.userId;
+  } catch {
+    return null;
+  }
+}
+
+async function resolveUserId(req: any): Promise<{ userId: string | null; isMobile: boolean }> {
+  const mobileToken = req.query.mobileToken as string | undefined;
+  if (mobileToken) {
+    const userId = await getMobileUserId(mobileToken);
+    return { userId, isMobile: true };
+  }
   const auth = getAuth(req);
-  if (!auth?.userId) {
+  return { userId: auth?.userId ?? null, isMobile: false };
+}
+
+router.get("/auth/gmail/connect", async (req, res) => {
+  const { userId, isMobile } = await resolveUserId(req);
+  if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
@@ -49,7 +73,7 @@ router.get("/auth/gmail/connect", (req, res) => {
 
   const base = getRedirectBase(req);
   const redirectUri = `${base}/api/auth/gmail/callback`;
-  const state = Buffer.from(JSON.stringify({ userId: auth.userId, redirect: "/settings" })).toString("base64url");
+  const state = Buffer.from(JSON.stringify({ userId, redirect: "/settings", mobile: isMobile })).toString("base64url");
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -72,7 +96,7 @@ router.get("/auth/gmail/callback", async (req, res) => {
     return;
   }
 
-  let stateData: { userId: string; redirect?: string } | null = null;
+  let stateData: { userId: string; redirect?: string; mobile?: boolean } | null = null;
   try {
     stateData = JSON.parse(Buffer.from(state, "base64url").toString());
   } catch {
@@ -129,16 +153,20 @@ router.get("/auth/gmail/callback", async (req, res) => {
       email: profile?.email ?? null,
     });
 
-    res.redirect(`/settings?connected=gmail`);
+    if (stateData.mobile) {
+      res.redirect(`${base}/api/mobile-oauth-complete?connected=gmail`);
+    } else {
+      res.redirect(`/settings?connected=gmail`);
+    }
   } catch (err) {
     console.error("[Gmail callback] unhandled error:", err);
     res.redirect(`/?error=gmail_callback_failed`);
   }
 });
 
-router.get("/auth/outlook/connect", (req, res) => {
-  const auth = getAuth(req);
-  if (!auth?.userId) {
+router.get("/auth/outlook/connect", async (req, res) => {
+  const { userId, isMobile } = await resolveUserId(req);
+  if (!userId) {
     res.status(401).json({ error: "Unauthorized" });
     return;
   }
@@ -151,7 +179,7 @@ router.get("/auth/outlook/connect", (req, res) => {
 
   const base = getRedirectBase(req);
   const redirectUri = `${base}/api/auth/outlook/callback`;
-  const state = Buffer.from(JSON.stringify({ userId: auth.userId, redirect: "/settings" })).toString("base64url");
+  const state = Buffer.from(JSON.stringify({ userId, redirect: "/settings", mobile: isMobile })).toString("base64url");
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -173,7 +201,7 @@ router.get("/auth/outlook/callback", async (req, res) => {
     return;
   }
 
-  let stateData: { userId: string; redirect?: string } | null = null;
+  let stateData: { userId: string; redirect?: string; mobile?: boolean } | null = null;
   try {
     stateData = JSON.parse(Buffer.from(state, "base64url").toString());
   } catch {
@@ -231,10 +259,42 @@ router.get("/auth/outlook/callback", async (req, res) => {
       email: outlookEmail,
     });
 
-    res.redirect(`/settings?connected=outlook`);
+    if (stateData.mobile) {
+      res.redirect(`${base}/api/mobile-oauth-complete?connected=outlook`);
+    } else {
+      res.redirect(`/settings?connected=outlook`);
+    }
   } catch {
     res.redirect(`/?error=outlook_callback_failed`);
   }
+});
+
+router.get("/mobile-oauth-complete", (req, res) => {
+  const connected = (req.query.connected as string) ?? "account";
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+      <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <title>Connected</title>
+        <style>
+          body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center;
+                 min-height: 100vh; margin: 0; background: #0f172a; color: #f1f5f9; text-align: center; padding: 24px; }
+          .card { max-width: 320px; }
+          .icon { font-size: 48px; margin-bottom: 16px; }
+          h1 { font-size: 22px; margin: 0 0 8px; }
+          p { font-size: 15px; color: #94a3b8; margin: 0; }
+        </style>
+      </head>
+      <body>
+        <div class="card">
+          <div class="icon">✅</div>
+          <h1>${connected.charAt(0).toUpperCase() + connected.slice(1)} Connected!</h1>
+          <p>You can close this window and return to PinnboxIO.</p>
+        </div>
+      </body>
+    </html>
+  `);
 });
 
 router.delete("/auth/gmail/disconnect", async (req: any, res) => {

@@ -139,9 +139,15 @@ function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
   async function connectProvider(provider: "gmail" | "outlook") {
     setConnecting(provider);
     try {
-      const url = `${API_BASE}/api/auth/${provider}/connect`;
-      const result = await WebBrowser.openAuthSessionAsync(url, `${API_BASE}/accounts?connected=${provider}`);
-      if (result.type === "success") {
+      const token = await getAuthToken();
+      if (!token) {
+        Alert.alert("Not signed in", "Please sign in first.");
+        return;
+      }
+      const mobileCompleteUrl = `${API_BASE}/api/mobile-oauth-complete`;
+      const connectUrl = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
+      const result = await WebBrowser.openAuthSessionAsync(connectUrl, mobileCompleteUrl);
+      if (result.type === "success" || result.type === "dismiss") {
         onRefetch();
       }
     } catch {
