@@ -8,7 +8,7 @@ import { logger } from "../lib/logger";
 const router = Router();
 
 const REPLIT_OIDC_TOKEN_URL = "https://replit.com/oidc/token";
-const REPLIT_OIDC_USERINFO_URL = "https://replit.com/oidc/userinfo";
+const REPLIT_OIDC_USERINFO_URL = "https://replit.com/oidc/me";
 const APP_SCHEME = "pinnboxio";
 const SESSION_TTL_DAYS = 90;
 const PKCE_TTL_MINUTES = 15;
@@ -55,9 +55,10 @@ async function exchangeOidcCode(params: {
     }
 
     const data = await res.json();
+    logger.info({ hasAccessToken: !!data.access_token, hasIdToken: !!data.id_token, tokenType: data.token_type, scope: data.scope }, "Replit OIDC token exchange response");
     return { accessToken: data.access_token, idToken: data.id_token };
   } catch (err) {
-    logger.error({ err }, "Replit OIDC token exchange error");
+    logger.error({ err: String(err) }, "Replit OIDC token exchange error");
     return null;
   }
 }
@@ -65,6 +66,12 @@ async function exchangeOidcCode(params: {
 interface OidcUserClaims {
   sub: string;
   email?: string;
+  // Replit-specific fields (from /oidc/me and id_token)
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  profile_image_url?: string;
+  // Standard OIDC fallback fields
   name?: string;
   given_name?: string;
   family_name?: string;
@@ -96,14 +103,21 @@ async function fetchReplitUserInfo(accessToken: string): Promise<OidcUserClaims 
     const res = await fetch(REPLIT_OIDC_USERINFO_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
+    const body = await res.text().catch(() => "");
     if (!res.ok) {
-      const body = await res.text().catch(() => "");
-      logger.error({ status: res.status, body }, "Replit userinfo endpoint returned non-OK status");
+      logger.error({ status: res.status, body, tokenPrefix: accessToken.slice(0, 20) }, "Replit userinfo endpoint returned non-OK status");
       return null;
     }
-    return await res.json() as OidcUserClaims;
+    try {
+      const data = JSON.parse(body) as OidcUserClaims;
+      logger.info({ sub: data.sub }, "Resolved user claims from userinfo endpoint");
+      return data;
+    } catch {
+      logger.error({ body }, "Replit userinfo response was not valid JSON");
+      return null;
+    }
   } catch (err) {
-    logger.error({ err }, "Replit userinfo fetch failed with exception");
+    logger.error({ err: String(err) }, "Replit userinfo fetch failed with exception");
     return null;
   }
 }
@@ -113,6 +127,7 @@ async function fetchReplitUserInfo(accessToken: string): Promise<OidcUserClaims 
  * Prefers the ID token (no extra round-trip) and falls back to the userinfo endpoint.
  */
 async function resolveUserClaims(accessToken: string, idToken?: string): Promise<OidcUserClaims | null> {
+  logger.info({ hasIdToken: !!idToken, idTokenLength: idToken?.length ?? 0 }, "resolveUserClaims called");
   if (idToken) {
     const claims = decodeIdTokenClaims(idToken);
     if (claims) {
@@ -339,9 +354,11 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
 
   const userId = userInfo.sub;
   const email = userInfo.email ?? null;
-  const firstName = userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
-  const lastName = userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
-  const profileImageUrl = userInfo.picture ?? null;
+  const firstName = userInfo.first_name ?? userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
+  const lastName = userInfo.last_name ?? userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
+  const profileImageUrl = userInfo.profile_image_url ?? userInfo.picture ?? null;
+
+  logger.info({ userId, email, firstName, lastName }, "Mobile auth: resolved user profile");
 
   await ensureUser(userId, { email: email ?? undefined });
   await db.update(usersTable).set({
@@ -400,9 +417,9 @@ router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) =
 
   const userId = userInfo.sub;
   const email = userInfo.email ?? null;
-  const firstName = userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
-  const lastName = userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
-  const profileImageUrl = userInfo.picture ?? null;
+  const firstName = userInfo.first_name ?? userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
+  const lastName = userInfo.last_name ?? userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
+  const profileImageUrl = userInfo.profile_image_url ?? userInfo.picture ?? null;
 
   await ensureUser(userId, { email: email ?? undefined });
   await db.update(usersTable).set({
