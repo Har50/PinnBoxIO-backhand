@@ -3,9 +3,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
-import { ActivityIndicator, Platform, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatDistanceToNow } from "date-fns";
+import { useState } from "react";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -85,11 +86,24 @@ function RecentMessageRow({
   );
 }
 
+const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : "https://pinn-box-io.replit.app";
+
+async function getToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+  }
+  const SecureStore = await import("expo-secure-store");
+  return SecureStore.getItemAsync("commshub_session_token");
+}
+
 export default function DashboardScreen() {
   const { user } = useAuth();
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const [syncing, setSyncing] = useState(false);
 
   const { data: stats, isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useGetOverviewStats();
   const { data: contacts, isLoading: contactsLoading, isFetching: contactsFetching, refetch: refetchContacts } = useGetContacts({});
@@ -105,6 +119,32 @@ export default function DashboardScreen() {
     refetchStats();
     refetchContacts();
     refetchRecent();
+  }
+
+  async function handleSyncContacts() {
+    setSyncing(true);
+    try {
+      const token = await getToken();
+      const res = await fetch(`${API_BASE}/api/contacts/sync`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+      });
+      if (res.ok) {
+        const data = await res.json();
+        refetchContacts();
+        Alert.alert("Contacts Synced", data.message ?? "Your contacts have been updated.");
+      } else {
+        Alert.alert("Sync Failed", "Could not sync contacts. Please try again.");
+      }
+    } catch {
+      Alert.alert("Sync Failed", "Could not sync contacts. Please try again.");
+    } finally {
+      setSyncing(false);
+    }
   }
 
   const greeting = () => {
@@ -177,8 +217,20 @@ export default function DashboardScreen() {
       )}
 
       {/* Active contacts */}
-      <View style={[s.sectionRow, { marginTop: 8 }]}>
+      <View style={[s.sectionRow, { marginTop: 8, paddingRight: 16 }]}>
         <Text style={[s.sectionLabel, { color: colors.foreground }]}>Active Contacts</Text>
+        <Pressable
+          onPress={handleSyncContacts}
+          disabled={syncing}
+          style={({ pressed }) => [s.syncBtn, { backgroundColor: colors.primary + "15", opacity: pressed || syncing ? 0.6 : 1 }]}
+        >
+          {syncing ? (
+            <ActivityIndicator size="small" color={colors.primary} />
+          ) : (
+            <Feather name="refresh-cw" size={13} color={colors.primary} />
+          )}
+          <Text style={[s.syncBtnText, { color: colors.primary }]}>Sync</Text>
+        </Pressable>
       </View>
       {contactsLoading ? (
         <View style={s.loadingRow}>
@@ -352,4 +404,13 @@ const s = StyleSheet.create({
   contactName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
   contactSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
   contactMsgs: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  syncBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 5,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+  },
+  syncBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });
