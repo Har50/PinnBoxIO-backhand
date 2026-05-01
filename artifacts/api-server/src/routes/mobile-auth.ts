@@ -448,6 +448,11 @@ router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
 });
 
 router.get("/auth/user", async (req: Request, res: Response) => {
+  // Must not cache — React Native fetch treats 304 as non-OK (res.ok=false),
+  // which would cause fetchCurrentUser to return null and log the user out.
+  res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate");
+  res.setHeader("Pragma", "no-cache");
+
   const authHeader = req.headers.authorization;
   const token = authHeader?.replace(/^Bearer\s+/i, "");
 

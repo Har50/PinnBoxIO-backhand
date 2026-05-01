@@ -113,17 +113,38 @@ async function removeToken(): Promise<void> {
   }
 }
 
-async function fetchCurrentUser(token: string): Promise<AuthUser | null> {
+type FetchUserResult =
+  | { ok: true; user: AuthUser }
+  | { ok: false; shouldLogOut: boolean }; // shouldLogOut=true only for confirmed 401
+
+async function fetchCurrentUserResult(token: string): Promise<FetchUserResult> {
   try {
     const res = await fetch(`${API_BASE}/api/auth/user`, {
-      headers: { Authorization: `Bearer ${token}` },
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Cache-Control": "no-cache",
+        Pragma: "no-cache",
+      },
     });
-    if (!res.ok) return null;
+    if (res.status === 401 || res.status === 403) {
+      return { ok: false, shouldLogOut: true };
+    }
+    if (!res.ok) {
+      // 304, 500, network proxy errors — don't log out, just fail silently
+      return { ok: false, shouldLogOut: false };
+    }
     const data = await res.json();
-    return data.user ?? null;
+    const user = data.user ?? null;
+    if (!user) return { ok: false, shouldLogOut: false };
+    return { ok: true, user };
   } catch {
-    return null;
+    return { ok: false, shouldLogOut: false };
   }
+}
+
+async function fetchCurrentUser(token: string): Promise<AuthUser | null> {
+  const result = await fetchCurrentUserResult(token);
+  return result.ok ? result.user : null;
 }
 
 function getWebCallbackUrl(): string {
@@ -229,13 +250,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       const stored = await getToken();
       if (stored) {
-        const u = await fetchCurrentUser(stored);
-        if (u) {
-          setUser(u);
+        const result = await fetchCurrentUserResult(stored);
+        if (result.ok) {
+          setUser(result.user);
           setToken(stored);
-        } else {
+        } else if (result.shouldLogOut) {
+          // Confirmed 401 — token is genuinely invalid, clear it
           await removeToken();
         }
+        // Otherwise (304, 500, network hiccup) keep the token; user stays logged in
+        // and the token will be retried on next app foreground
       }
       setIsLoading(false);
     })();
