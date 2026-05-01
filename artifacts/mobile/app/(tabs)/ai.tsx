@@ -54,25 +54,72 @@ const SUGGESTIONS = [
 function parseEmailDraft(content: string): { before: string; draft: Record<string, string>; after: string } | null {
   const match = content.match(/<email-draft>([\s\S]*?)<\/email-draft>/);
   if (!match) return null;
-  const raw = match[1];
+  const raw = match[1].trim();
   const fields: Record<string, string> = {};
-  const fieldRe = /<(to|subject|body)>([\s\S]*?)<\/\1>/gi;
-  let m: RegExpExecArray | null;
-  while ((m = fieldRe.exec(raw)) !== null) {
-    fields[m[1].toLowerCase()] = m[2].trim();
+
+  // Try JSON format first (what the server generates)
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === "object") {
+      if (parsed.to) fields.to = String(parsed.to);
+      if (parsed.subject) fields.subject = String(parsed.subject);
+      if (parsed.body) fields.body = String(parsed.body);
+    }
+  } catch {
+    // Fall back to XML-style tags
+    const fieldRe = /<(to|subject|body)>([\s\S]*?)<\/\1>/gi;
+    let m: RegExpExecArray | null;
+    while ((m = fieldRe.exec(raw)) !== null) {
+      fields[m[1].toLowerCase()] = m[2].trim();
+    }
   }
+
+  if (!fields.to && !fields.subject && !fields.body) return null;
+
   const idx = content.indexOf("<email-draft>");
-  const after = content.indexOf("</email-draft>");
+  const endIdx = content.indexOf("</email-draft>");
   return {
     before: content.slice(0, idx).trim(),
     draft: fields,
-    after: content.slice(after + "</email-draft>".length).trim(),
+    after: content.slice(endIdx + "</email-draft>".length).trim(),
   };
 }
 
 function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSend: (d: ComposeDraft) => void }) {
   const colors = useColors();
   const s = makeStyles(colors);
+  const [provider, setProvider] = useState<"gmail" | "outlook">("gmail");
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+
+  async function handleSendNow() {
+    setSending(true);
+    setSendError(null);
+    try {
+      const token = await getAuthToken();
+      const apiUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api` : "/api";
+      const res = await fetch(`${apiUrl}/messages/send`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({ to: draft.to, subject: draft.subject, body: draft.body, provider }),
+      });
+      if (res.ok) {
+        setSent(true);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSendError((data as any).error ?? "Failed to send");
+      }
+    } catch {
+      setSendError("Network error");
+    } finally {
+      setSending(false);
+    }
+  }
+
   return (
     <View style={[s.draftCard, { backgroundColor: colors.card, borderColor: colors.primary + "40" }]}>
       <View style={s.draftHeader}>
@@ -94,14 +141,50 @@ function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSe
       {draft.body && (
         <Text style={[s.draftBody, { color: colors.foreground }]} numberOfLines={4}>{draft.body}</Text>
       )}
-      <TouchableOpacity
-        style={[s.draftSendBtn, { backgroundColor: colors.primary }]}
-        onPress={() => onSend({ to: draft.to, subject: draft.subject, body: draft.body })}
-        activeOpacity={0.8}
-      >
-        <Feather name="send" size={13} color="#fff" />
-        <Text style={s.draftSendText}>Send Now</Text>
-      </TouchableOpacity>
+      {sent ? (
+        <View style={s.draftSentRow}>
+          <Feather name="check-circle" size={14} color="#22c55e" />
+          <Text style={[s.draftSentText, { color: "#22c55e" }]}>Sent successfully</Text>
+        </View>
+      ) : (
+        <View style={s.draftFooter}>
+          <View style={[s.draftProviderRow, { borderColor: colors.border }]}>
+            {(["gmail", "outlook"] as const).map((p) => (
+              <TouchableOpacity
+                key={p}
+                onPress={() => setProvider(p)}
+                style={[s.draftProviderBtn, provider === p && { backgroundColor: colors.primary }]}
+                activeOpacity={0.7}
+              >
+                <Text style={[s.draftProviderText, { color: provider === p ? "#fff" : colors.mutedForeground }]}>
+                  {p === "gmail" ? "Gmail" : "Outlook"}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <TouchableOpacity
+            style={[s.draftSendBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
+            onPress={handleSendNow}
+            disabled={sending}
+            activeOpacity={0.8}
+          >
+            {sending
+              ? <ActivityIndicator size="small" color="#fff" />
+              : <Feather name="send" size={13} color="#fff" />}
+            <Text style={s.draftSendText}>{sending ? "Sending…" : "Send Now"}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.draftEditBtn, { borderColor: colors.border }]}
+            onPress={() => onSend({ to: draft.to, subject: draft.subject, body: draft.body })}
+            activeOpacity={0.8}
+          >
+            <Feather name="edit-2" size={13} color={colors.mutedForeground} />
+          </TouchableOpacity>
+        </View>
+      )}
+      {sendError && (
+        <Text style={[s.draftErrorText, { color: "#ef4444" }]}>{sendError}</Text>
+      )}
     </View>
   );
 }
@@ -517,7 +600,15 @@ function makeStyles(colors: any) {
     draftLabel: { fontSize: 12, fontFamily: "Inter_500Medium", width: 50, flexShrink: 0 },
     draftValue: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
     draftBody: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, marginTop: 4 },
-    draftSendBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 14, paddingVertical: 8, alignSelf: "flex-start", marginTop: 4 },
+    draftFooter: { flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 4 },
+    draftProviderRow: { flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, overflow: "hidden" },
+    draftProviderBtn: { paddingHorizontal: 10, paddingVertical: 5 },
+    draftProviderText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+    draftSendBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
     draftSendText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+    draftEditBtn: { width: 30, height: 30, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },
+    draftSentRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 4 },
+    draftSentText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+    draftErrorText: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
   });
 }

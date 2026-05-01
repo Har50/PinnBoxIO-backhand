@@ -27,6 +27,28 @@ function generateToken(): string {
   return crypto.randomBytes(48).toString("hex");
 }
 
+/**
+ * If a user with the same email already exists (e.g. a Clerk web user),
+ * return that existing user's ID so mobile and web share the same data.
+ * Otherwise return the Replit sub as-is.
+ */
+async function resolveCanonicalUserId(replitSub: string, email: string | null): Promise<string> {
+  if (!email) return replitSub;
+  try {
+    const [existing] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email));
+    if (existing && existing.id !== replitSub) {
+      logger.info({ replitSub, canonicalId: existing.id }, "Mobile auth: linking to existing account by email");
+      return existing.id;
+    }
+  } catch (err) {
+    logger.warn({ err }, "Mobile auth: email lookup failed, using Replit sub");
+  }
+  return replitSub;
+}
+
 async function exchangeOidcCode(params: {
   code: string;
   codeVerifier: string;
@@ -352,14 +374,15 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  const userId = userInfo.sub;
+  const replitSub = userInfo.sub;
   const email = userInfo.email ?? null;
   const firstName = userInfo.first_name ?? userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
   const lastName = userInfo.last_name ?? userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
   const profileImageUrl = userInfo.profile_image_url ?? userInfo.picture ?? null;
 
-  logger.info({ userId, email, firstName, lastName }, "Mobile auth: resolved user profile");
+  logger.info({ replitSub, email, firstName, lastName }, "Mobile auth: resolved user profile");
 
+  const userId = await resolveCanonicalUserId(replitSub, email);
   await ensureUser(userId, { email: email ?? undefined });
   await db.update(usersTable).set({
     ...(email ? { email } : {}),
@@ -415,12 +438,13 @@ router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) =
     return;
   }
 
-  const userId = userInfo.sub;
+  const replitSub = userInfo.sub;
   const email = userInfo.email ?? null;
   const firstName = userInfo.first_name ?? userInfo.given_name ?? (userInfo.name ? userInfo.name.split(" ")[0] : null) ?? null;
   const lastName = userInfo.last_name ?? userInfo.family_name ?? (userInfo.name && userInfo.name.includes(" ") ? userInfo.name.split(" ").slice(1).join(" ") : null) ?? null;
   const profileImageUrl = userInfo.profile_image_url ?? userInfo.picture ?? null;
 
+  const userId = await resolveCanonicalUserId(replitSub, email);
   await ensureUser(userId, { email: email ?? undefined });
   await db.update(usersTable).set({
     ...(email ? { email } : {}),
