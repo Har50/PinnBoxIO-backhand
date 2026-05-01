@@ -61,6 +61,8 @@ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY = "appl_xEeoLrNEKawMaZfbZUXDzQXxajL"
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY = "goog_gxhrOzFIGYGpnTCqraejJuASwsF"
 VITE_CLERK_PUBLISHABLE_KEY = "pk_test_dGhhbmtmdWwtc3dpZnQtNDIuY2xlcmsuYWNjb3VudHMuZGV2JA"
 LINKEDIN_REDIRECT_BASE_URL = "https://pinnboxio.net"
+EXPO_PUBLIC_REPL_ID = "38defd90-5362-4523-ab8a-d909d0a8000a"
+EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN = "pinn-box-io.replit.app"
 
 [userenv.production]
 PUBLIC_URL = "https://pinn-box-io.replit.app"

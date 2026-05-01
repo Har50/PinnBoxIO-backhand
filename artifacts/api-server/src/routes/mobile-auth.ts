@@ -62,23 +62,67 @@ async function exchangeOidcCode(params: {
   }
 }
 
-async function fetchReplitUserInfo(accessToken: string): Promise<{
+interface OidcUserClaims {
   sub: string;
   email?: string;
   name?: string;
   given_name?: string;
   family_name?: string;
   picture?: string;
-} | null> {
+}
+
+/**
+ * Decodes the payload of a JWT without signature verification.
+ * Safe here because we received the token directly from Replit's token endpoint
+ * over TLS — we trust its provenance without needing to re-verify the signature.
+ */
+function decodeIdTokenClaims(idToken: string): OidcUserClaims | null {
+  try {
+    const parts = idToken.split(".");
+    if (parts.length !== 3) return null;
+    const payload = parts[1].replace(/-/g, "+").replace(/_/g, "/");
+    const json = Buffer.from(payload, "base64").toString("utf-8");
+    const claims = JSON.parse(json) as OidcUserClaims;
+    if (!claims.sub) return null;
+    return claims;
+  } catch (err) {
+    logger.warn({ err }, "Failed to decode ID token claims");
+    return null;
+  }
+}
+
+async function fetchReplitUserInfo(accessToken: string): Promise<OidcUserClaims | null> {
   try {
     const res = await fetch(REPLIT_OIDC_USERINFO_URL, {
       headers: { Authorization: `Bearer ${accessToken}` },
     });
-    if (!res.ok) return null;
-    return await res.json();
-  } catch {
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      logger.error({ status: res.status, body }, "Replit userinfo endpoint returned non-OK status");
+      return null;
+    }
+    return await res.json() as OidcUserClaims;
+  } catch (err) {
+    logger.error({ err }, "Replit userinfo fetch failed with exception");
     return null;
   }
+}
+
+/**
+ * Resolves user profile claims from an OIDC token response.
+ * Prefers the ID token (no extra round-trip) and falls back to the userinfo endpoint.
+ */
+async function resolveUserClaims(accessToken: string, idToken?: string): Promise<OidcUserClaims | null> {
+  if (idToken) {
+    const claims = decodeIdTokenClaims(idToken);
+    if (claims) {
+      logger.info({ sub: claims.sub }, "Resolved user claims from ID token");
+      return claims;
+    }
+    logger.warn("ID token present but could not be decoded — falling back to userinfo endpoint");
+  }
+  logger.info("No ID token available — fetching from userinfo endpoint");
+  return fetchReplitUserInfo(accessToken);
 }
 
 async function createMobileSession(userId: string): Promise<string> {
@@ -282,7 +326,7 @@ router.get("/mobile-auth/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  const userInfo = await fetchReplitUserInfo(tokens.accessToken);
+  const userInfo = await resolveUserClaims(tokens.accessToken, tokens.idToken);
   if (!userInfo) {
     const expiresAt = new Date(Date.now() + TOKEN_RESULT_TTL_MINUTES * 60 * 1000);
     await db.insert(mobileTokenResultsTable)
@@ -348,7 +392,7 @@ router.post("/mobile-auth/token-exchange", async (req: Request, res: Response) =
     return;
   }
 
-  const userInfo = await fetchReplitUserInfo(tokens.accessToken);
+  const userInfo = await resolveUserClaims(tokens.accessToken, tokens.idToken);
   if (!userInfo) {
     res.status(401).json({ error: "Failed to fetch user info" });
     return;

@@ -134,12 +134,22 @@ async function startMetro(expoPublicDomain, expoPublicReplId) {
     return;
   }
 
+  // The auth redirect domain must always be the public-facing production domain
+  // so that the Replit OIDC callback URL registered with the app matches what
+  // the client sends. Fall back to the PUBLIC_URL env var or the compute domain.
+  const authRedirectDomain =
+    process.env.EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN ||
+    (process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/^https?:\/\//, "").replace(/\/$/, "") : null) ||
+    expoPublicDomain;
+
   console.log("Starting Metro...");
   console.log(`Setting EXPO_PUBLIC_DOMAIN=${expoPublicDomain}`);
+  console.log(`Setting EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN=${authRedirectDomain}`);
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
     EXPO_PUBLIC_REPL_ID: expoPublicReplId,
+    EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN: authRedirectDomain,
   };
 
   if (expoPublicReplId) {
