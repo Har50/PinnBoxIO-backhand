@@ -19,6 +19,7 @@ import PrivacyPolicy from "@/pages/privacy";
 import TermsOfService from "@/pages/terms";
 import RefundsAndCancellations from "@/pages/refunds";
 import CookiePolicy from "@/pages/cookies";
+import ExpoConnect from "@/pages/expo-connect";
 import { Redirect } from "wouter";
 import { Layout } from "./components/layout";
 import { Spinner } from "@/components/ui/spinner";
@@ -240,6 +241,7 @@ function SignUpPage() {
 function Router() {
   return (
     <Switch>
+      <Route path="/expo" component={ExpoConnect} />
       <Route path="/privacy" component={PrivacyPolicy} />
       <Route path="/terms" component={TermsOfService} />
       <Route path="/refunds" component={RefundsAndCancellations} />
