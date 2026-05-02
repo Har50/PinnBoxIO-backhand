@@ -1,5 +1,5 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import healthRouter from "./health";
 import accountsRouter from "./accounts";
 import messagesRouter from "./messages";
@@ -35,7 +35,15 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     (req as any).userId = clerkUserId;
     if (!seenUsers.has(clerkUserId)) {
       seenUsers.add(clerkUserId);
-      ensureUser(clerkUserId).catch(() => {});
+      // Fetch the user's primary email from Clerk and store it so that when
+      // the same user signs in on mobile (Replit OIDC), resolveCanonicalUserId
+      // can match them by email and share the same storage/data across platforms.
+      clerkClient.users.getUser(clerkUserId)
+        .then((clerkUser) => {
+          const email = clerkUser.emailAddresses?.[0]?.emailAddress ?? null;
+          return ensureUser(clerkUserId, { email });
+        })
+        .catch(() => ensureUser(clerkUserId));
     }
     next();
     return;

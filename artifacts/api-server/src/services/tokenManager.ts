@@ -3,14 +3,29 @@ import { and, eq } from "drizzle-orm";
 
 /**
  * Ensure a user row exists in the local DB. Called before any operation that
- * requires a users FK (e.g. saving OAuth tokens). Uses ON CONFLICT DO NOTHING
- * so it's a no-op when the user already exists.
+ * requires a users FK (e.g. saving OAuth tokens).
+ *
+ * - If the user doesn't exist yet, inserts a new row.
+ * - If the user exists but email is null and we now have one, updates it.
+ *   This is critical for mobile↔web account linking: the web (Clerk) path
+ *   creates users without email initially; the mobile path needs to find them
+ *   by email to share the same storage/data.
  */
 export async function ensureUser(userId: string, data?: { email?: string | null }) {
-  await db
-    .insert(usersTable)
-    .values({ id: userId, email: data?.email ?? null })
-    .onConflictDoNothing();
+  if (data?.email) {
+    await db
+      .insert(usersTable)
+      .values({ id: userId, email: data.email })
+      .onConflictDoUpdate({
+        target: usersTable.id,
+        set: { email: data.email },
+      });
+  } else {
+    await db
+      .insert(usersTable)
+      .values({ id: userId, email: null })
+      .onConflictDoNothing();
+  }
 }
 
 export async function getOAuthToken(userId: string, provider: string) {
