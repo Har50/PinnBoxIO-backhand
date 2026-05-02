@@ -18,7 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
-import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from "expo-audio";
+import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from "expo-audio";
 
 interface Message {
   role: "user" | "assistant";
@@ -360,6 +360,13 @@ export default function AiScreen() {
         Alert.alert("Microphone permission required", "Please allow microphone access in your device settings to use voice input.");
         return;
       }
+      await setAudioModeAsync({
+        allowsRecording: true,
+        playsInSilentMode: true,
+        interruptionMode: "doNotMix",
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+      });
       await audioRecorder.prepareToRecordAsync();
       audioRecorder.record();
       setIsRecording(true);
@@ -374,6 +381,13 @@ export default function AiScreen() {
     setTranscribing(true);
     try {
       await audioRecorder.stop();
+      await setAudioModeAsync({
+        allowsRecording: false,
+        playsInSilentMode: true,
+        interruptionMode: "mixWithOthers",
+        shouldPlayInBackground: false,
+        shouldRouteThroughEarpiece: false,
+      });
       const uri = audioRecorder.uri;
       if (!uri) { setTranscribing(false); return; }
 
@@ -427,14 +441,7 @@ export default function AiScreen() {
         throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
       }
 
-      if (!res.body) throw new Error("No response body");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        const chunk = decoder.decode(value);
+      function parseSseChunk(chunk: string) {
         for (const line of chunk.split("\n")) {
           if (line.startsWith("data: ")) {
             try {
@@ -450,6 +457,20 @@ export default function AiScreen() {
             } catch {}
           }
         }
+      }
+
+      if (res.body) {
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          parseSseChunk(decoder.decode(value));
+        }
+      } else {
+        // React Native / Expo Go: body stream not available, read full text
+        const text = await res.text();
+        parseSseChunk(text);
       }
     } catch (err) {
       setMessages((prev) => {
