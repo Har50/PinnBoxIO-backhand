@@ -19,6 +19,8 @@ import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from "expo-audio";
+import * as DocumentPicker from "expo-document-picker";
+import * as FileSystem from "expo-file-system";
 
 interface Message {
   role: "user" | "assistant";
@@ -255,6 +257,7 @@ export default function AiScreen() {
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [pendingAttachments, setPendingAttachments] = useState<Array<{ name: string; mimeType: string; data: string }>>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const scrollRef = useRef<ScrollView>(null);
@@ -353,6 +356,25 @@ export default function AiScreen() {
     }
   }, [isRecording]);
 
+  async function pickAttachment() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: ["image/*", "application/pdf", "text/*"],
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+      setPendingAttachments((prev) => [
+        ...prev,
+        { name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", data: base64 },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not attach file. Please try again.");
+    }
+  }
+
   async function startVoiceRecording() {
     try {
       const { granted } = await requestRecordingPermissionsAsync();
@@ -406,7 +428,9 @@ export default function AiScreen() {
     const userMsg = (text ?? input).trim();
     if (!userMsg || !conversation || streaming) return;
 
+    const attachmentsToSend = [...pendingAttachments];
     setInput("");
+    setPendingAttachments([]);
     setMessages((prev) => [...prev, { role: "user", content: userMsg }]);
     setStreaming(true);
 
@@ -419,7 +443,7 @@ export default function AiScreen() {
         method: "POST",
         headers,
         credentials: "include",
-        body: JSON.stringify({ content: userMsg, provider }),
+        body: JSON.stringify({ content: userMsg, provider, attachments: attachmentsToSend }),
       });
 
       if (!res.ok) {
@@ -553,10 +577,23 @@ export default function AiScreen() {
           )}
         </ScrollView>
 
+        {pendingAttachments.length > 0 && (
+          <View style={[s.attachPreviewBar, { borderTopColor: colors.border }]}>
+            {pendingAttachments.map((att, i) => (
+              <View key={i} style={[s.attachChip, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                <Feather name={att.mimeType.startsWith("image/") ? "image" : "file"} size={12} color={colors.primary} />
+                <Text style={[s.attachChipText, { color: colors.foreground }]} numberOfLines={1}>{att.name}</Text>
+                <TouchableOpacity onPress={() => setPendingAttachments((p) => p.filter((_, j) => j !== i))} hitSlop={8}>
+                  <Feather name="x" size={12} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              </View>
+            ))}
+          </View>
+        )}
         <View style={s.inputBar}>
           <TouchableOpacity
             style={s.attachBtn}
-            onPress={() => {}}
+            onPress={pickAttachment}
             activeOpacity={0.7}
           >
             <Feather name="plus" size={18} color={colors.mutedForeground} />
@@ -720,5 +757,8 @@ function makeStyles(colors: any, bottomPad = 0) {
     draftSentRow: { flexDirection: "row", alignItems: "center", gap: 6, paddingTop: 4 },
     draftSentText: { fontSize: 12, fontFamily: "Inter_500Medium" },
     draftErrorText: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    attachPreviewBar: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderTopWidth: StyleSheet.hairlineWidth },
+    attachChip: { flexDirection: "row", alignItems: "center", gap: 5, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, maxWidth: 200 },
+    attachChipText: { fontSize: 11, fontFamily: "Inter_400Regular", flex: 1 },
   });
 }
