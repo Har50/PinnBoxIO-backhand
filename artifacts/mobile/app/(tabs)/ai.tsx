@@ -14,7 +14,7 @@ import {
   Alert,
   Animated,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
@@ -239,8 +239,11 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
   );
 }
 
+const TAB_BAR_HEIGHT = 49;
+
 export default function AiScreen() {
   const colors = useColors();
+  const insets = useSafeAreaInsets();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -472,7 +475,8 @@ export default function AiScreen() {
     setComposeVisible(true);
   }
 
-  const s = makeStyles(colors);
+  const bottomPad = insets.bottom + TAB_BAR_HEIGHT;
+  const s = makeStyles(colors, bottomPad);
 
   return (
     <SafeAreaView style={s.container} edges={["top"]}>
@@ -642,7 +646,7 @@ export default function AiScreen() {
   );
 }
 
-function makeStyles(colors: any) {
+function makeStyles(colors: any, bottomPad = 0) {
   return StyleSheet.create({
     container: { flex: 1, backgroundColor: colors.background },
     header: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: colors.border },
@@ -674,7 +678,7 @@ function makeStyles(colors: any) {
     assistantBubble: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderBottomLeftRadius: 5 },
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
-    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 + bottomPad, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     input: { flex: 1, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", maxHeight: 120 },
