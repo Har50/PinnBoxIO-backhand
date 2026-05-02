@@ -94,10 +94,9 @@ function GmailConnectModal({
 
   const handleConnect = useCallback(async () => {
     if (!token) return;
+    const mobileCompleteUrl = `${API_BASE}/api/mobile-oauth-complete`;
     const url = `${API_BASE}/api/auth/gmail/connect?mobileToken=${encodeURIComponent(token)}`;
-    await WebBrowser.openBrowserAsync(url, {
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-    });
+    await WebBrowser.openAuthSessionAsync(url, mobileCompleteUrl);
     onDismiss();
   }, [token, onDismiss]);
 
