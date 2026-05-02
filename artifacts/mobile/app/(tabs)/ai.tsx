@@ -12,11 +12,13 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
+import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from "expo-audio";
 
 interface Message {
   role: "user" | "assistant";
@@ -248,6 +250,10 @@ export default function AiScreen() {
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
+  const [isRecording, setIsRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const apiUrl = process.env.EXPO_PUBLIC_DOMAIN
@@ -329,6 +335,69 @@ export default function AiScreen() {
     loadConversations();
     if (!conversation) startConversation();
   }, []);
+
+  useEffect(() => {
+    if (isRecording) {
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(pulseAnim, { toValue: 1.3, duration: 600, useNativeDriver: true }),
+          Animated.timing(pulseAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
+        ])
+      ).start();
+    } else {
+      pulseAnim.stopAnimation();
+      pulseAnim.setValue(1);
+    }
+  }, [isRecording]);
+
+  async function startVoiceRecording() {
+    try {
+      const { granted } = await requestRecordingPermissionsAsync();
+      if (!granted) {
+        Alert.alert("Microphone permission required", "Please allow microphone access in your device settings to use voice input.");
+        return;
+      }
+      await audioRecorder.prepareToRecordAsync();
+      audioRecorder.record();
+      setIsRecording(true);
+    } catch {
+      Alert.alert("Could not start recording", "Please try again.");
+    }
+  }
+
+  async function stopVoiceRecording() {
+    if (!isRecording) return;
+    setIsRecording(false);
+    setTranscribing(true);
+    try {
+      await audioRecorder.stop();
+      const uri = audioRecorder.uri;
+      if (!uri) { setTranscribing(false); return; }
+
+      const formData = new FormData();
+      formData.append("audio", { uri, name: "recording.m4a", type: "audio/m4a" } as any);
+
+      const token = await getAuthToken();
+      const res = await fetch(`${apiUrl}/ai/transcribe`, {
+        method: "POST",
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.text) {
+          setInput((prev) => (prev ? prev + " " + data.text : data.text));
+        }
+      } else {
+        Alert.alert("Transcription failed", "Could not convert your speech. Please try again.");
+      }
+    } catch {
+      Alert.alert("Error", "Something went wrong with voice input.");
+    } finally {
+      setTranscribing(false);
+    }
+  }
 
   const sendMessage = async (text?: string) => {
     const userMsg = (text ?? input).trim();
@@ -472,17 +541,43 @@ export default function AiScreen() {
         </ScrollView>
 
         <View style={s.inputBar}>
+          <TouchableOpacity
+            style={s.attachBtn}
+            onPress={() => {}}
+            activeOpacity={0.7}
+          >
+            <Feather name="plus" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.micBtn, isRecording && { backgroundColor: "#ef444420" }]}
+            onPress={isRecording ? stopVoiceRecording : startVoiceRecording}
+            disabled={transcribing || streaming}
+            activeOpacity={0.8}
+          >
+            {transcribing ? (
+              <ActivityIndicator size="small" color={colors.primary} />
+            ) : (
+              <Animated.View style={{ transform: [{ scale: isRecording ? pulseAnim : 1 }] }}>
+                <Feather
+                  name="mic"
+                  size={18}
+                  color={isRecording ? "#ef4444" : colors.mutedForeground}
+                />
+              </Animated.View>
+            )}
+          </TouchableOpacity>
           <TextInput
             ref={inputRef}
             style={s.input}
             value={input}
             onChangeText={setInput}
-            placeholder="Ask anything about your communications…"
-            placeholderTextColor={colors.mutedForeground}
+            placeholder={isRecording ? "Listening…" : "Ask anything about your communications…"}
+            placeholderTextColor={isRecording ? "#ef4444" : colors.mutedForeground}
             multiline
             returnKeyType="send"
             onSubmitEditing={() => sendMessage()}
             blurOnSubmit={false}
+            editable={!isRecording}
           />
           <TouchableOpacity
             style={[s.sendBtn, (!input.trim() || streaming) && s.sendBtnDisabled]}
@@ -579,9 +674,11 @@ function makeStyles(colors: any) {
     assistantBubble: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderBottomLeftRadius: 5 },
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
-    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+    attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     input: { flex: 1, backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 22, paddingHorizontal: 16, paddingTop: 11, paddingBottom: 11, color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", maxHeight: 120 },
-    sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center" },
+    sendBtn: { width: 42, height: 42, borderRadius: 21, backgroundColor: colors.primary, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     sendBtnDisabled: { backgroundColor: colors.muted },
     sidebarModal: { flex: 1 },
     sidebarHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },

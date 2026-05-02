@@ -1,4 +1,6 @@
 import { Router, type IRouter } from "express";
+import multer from "multer";
+import { Readable } from "stream";
 import { db } from "@workspace/db";
 import {
   aiConversationsTable,
@@ -17,6 +19,7 @@ import { listOutlookMessages } from "../services/outlook";
 import { objectStorageClient } from "../lib/objectStorage";
 
 const router: IRouter = Router();
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 * 1024 * 1024 } });
 
 type Provider = "openai" | "claude" | "gemini";
 
@@ -431,6 +434,34 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
   } catch (err: any) {
     res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
     res.end();
+  }
+});
+
+router.post("/ai/transcribe", upload.single("audio"), async (req, res) => {
+  const userId = (req as any).userId;
+  if (!userId) { res.status(401).json({ error: "Unauthorized" }); return; }
+
+  const file = (req as any).file as Express.Multer.File | undefined;
+  if (!file) { res.status(400).json({ error: "No audio file provided" }); return; }
+
+  try {
+    const readable = new Readable();
+    readable.push(file.buffer);
+    readable.push(null);
+    (readable as any).name = file.originalname || "recording.m4a";
+
+    const { toFile } = await import("openai");
+    const audioFile = await toFile(file.buffer, file.originalname || "recording.m4a", { type: file.mimetype || "audio/m4a" });
+
+    const transcription = await openai.audio.transcriptions.create({
+      file: audioFile,
+      model: "whisper-1",
+      response_format: "text",
+    });
+
+    res.json({ text: transcription });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Transcription failed" });
   }
 });
 

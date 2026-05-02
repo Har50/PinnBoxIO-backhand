@@ -18,7 +18,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.pinnboxio.mobile",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "NSMicrophoneUsageDescription": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant."
       },
       "buildNumber": "8"
     },
@@ -40,7 +41,13 @@
         }
       ],
       "expo-font",
-      "expo-web-browser"
+      "expo-web-browser",
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
