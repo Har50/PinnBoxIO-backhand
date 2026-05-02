@@ -1,6 +1,7 @@
 import { useGetContacts, useGetOverviewStats, useGetRecentMessages, type Contact } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
+import { useThemeMode } from "@/contexts/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
 import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -101,6 +102,7 @@ async function getToken(): Promise<string | null> {
 export default function DashboardScreen() {
   const { user } = useAuth();
   const colors = useColors();
+  const { mode, toggleMode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [syncing, setSyncing] = useState(false);
@@ -175,8 +177,18 @@ export default function DashboardScreen() {
           <Text style={[s.greeting, { color: colors.mutedForeground }]}>{greeting()}</Text>
           <Text style={[s.userName, { color: colors.foreground }]}>{displayName}</Text>
         </View>
-        <View style={[s.userAvatar, { backgroundColor: colors.primary + "18" }]}>
-          <Text style={[s.userAvatarText, { color: colors.primary }]}>{avatarInitials}</Text>
+        <View style={s.headerRight}>
+          <Pressable
+            onPress={toggleMode}
+            style={[s.themeToggle, { backgroundColor: colors.card, borderColor: colors.border }]}
+            accessibilityRole="button"
+            accessibilityLabel={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            <Feather name={mode === "dark" ? "sun" : "moon"} size={16} color={colors.foreground} />
+          </Pressable>
+          <View style={[s.userAvatar, { backgroundColor: colors.primary + "18" }]}>
+            <Text style={[s.userAvatarText, { color: colors.primary }]}>{avatarInitials}</Text>
+          </View>
         </View>
       </View>
 
@@ -276,6 +288,19 @@ const s = StyleSheet.create({
   },
   greeting: { fontSize: 13, fontFamily: "Inter_400Regular" },
   userName: { fontSize: 26, fontFamily: "Inter_700Bold" },
+  headerRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  themeToggle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
   userAvatar: {
     width: 42,
     height: 42,

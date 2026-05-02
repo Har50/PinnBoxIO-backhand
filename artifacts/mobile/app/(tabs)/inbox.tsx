@@ -1,6 +1,5 @@
 import { useGetMessages, useGetMessage, useUpdateMessage } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
-import { useThemeMode } from "@/contexts/ThemeContext";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -224,7 +223,6 @@ function MessageDetail({
 
 export default function InboxScreen() {
   const colors = useColors();
-  const { mode, toggleMode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -303,20 +301,10 @@ export default function InboxScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.listHeader, { paddingTop: topPad + 12 }]}>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Inbox</Text>
-        <View style={styles.headerActions}>
-          <Pressable
-            onPress={toggleMode}
-            style={[styles.themeToggle, { backgroundColor: colors.card, borderColor: colors.border }]}
-            accessibilityRole="button"
-            accessibilityLabel={mode === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            <Feather name={mode === "dark" ? "sun" : "moon"} size={16} color={colors.foreground} />
-          </Pressable>
-          <Pressable onPress={() => openCompose()} style={[styles.composeBtn, { backgroundColor: colors.primary }]}>
-            <Feather name="edit-2" size={15} color="#fff" />
-            <Text style={styles.composeBtnText}>Compose</Text>
-          </Pressable>
-        </View>
+        <Pressable onPress={() => openCompose()} style={[styles.composeBtn, { backgroundColor: colors.primary }]}>
+          <Feather name="edit-2" size={15} color="#fff" />
+          <Text style={styles.composeBtnText}>Compose</Text>
+        </Pressable>
       </View>
 
       <ScrollView
@@ -387,13 +375,11 @@ const styles = StyleSheet.create({
     alignItems: "flex-end",
   },
   screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
-  headerActions: { flexDirection: "row", alignItems: "center", gap: 10 },
-  themeToggle: { width: 36, height: 36, borderRadius: 18, borderWidth: 1, alignItems: "center", justifyContent: "center" },
   composeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   composeBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
   folderTabs: { borderBottomWidth: StyleSheet.hairlineWidth },
-  folderTabsContent: { paddingHorizontal: 16, gap: 4 },
-  folderTab: { paddingHorizontal: 12, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
+  folderTabsContent: { paddingLeft: 8, paddingRight: 16, flexDirection: "row" },
+  folderTab: { paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
   folderTabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
