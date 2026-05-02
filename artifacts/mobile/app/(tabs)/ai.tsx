@@ -18,7 +18,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
-import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync, setAudioModeAsync } from "expo-audio";
+import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from "expo-av";
 
 interface Message {
   role: "user" | "assistant";
@@ -256,7 +256,7 @@ export default function AiScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
+  const recordingRef = useRef<Audio.Recording | null>(null);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const apiUrl = process.env.EXPO_PUBLIC_DOMAIN
@@ -355,22 +355,26 @@ export default function AiScreen() {
 
   async function startVoiceRecording() {
     try {
-      const { granted } = await requestRecordingPermissionsAsync();
+      const { granted } = await Audio.requestPermissionsAsync();
       if (!granted) {
         Alert.alert("Microphone permission required", "Please allow microphone access in your device settings to use voice input.");
         return;
       }
-      await setAudioModeAsync({
-        allowsRecording: true,
-        playsInSilentMode: true,
-        interruptionMode: "doNotMix",
-        shouldPlayInBackground: false,
-        shouldRouteThroughEarpiece: false,
+      await Audio.setAudioModeAsync({
+        allowsRecordingIOS: true,
+        playsInSilentModeIOS: true,
+        interruptionModeIOS: InterruptionModeIOS.DoNotMix,
+        shouldDuckAndroid: true,
+        interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
+        playThroughEarpieceAndroid: false,
+        staysActiveInBackground: false,
       });
-      await audioRecorder.prepareToRecordAsync();
-      audioRecorder.record();
+      const { recording } = await Audio.Recording.createAsync(
+        Audio.RecordingOptionsPresets.HIGH_QUALITY
+      );
+      recordingRef.current = recording;
       setIsRecording(true);
-    } catch {
+    } catch (err) {
       Alert.alert("Could not start recording", "Please try again.");
     }
   }
@@ -380,15 +384,12 @@ export default function AiScreen() {
     setIsRecording(false);
     setTranscribing(true);
     try {
-      await audioRecorder.stop();
-      await setAudioModeAsync({
-        allowsRecording: false,
-        playsInSilentMode: true,
-        interruptionMode: "mixWithOthers",
-        shouldPlayInBackground: false,
-        shouldRouteThroughEarpiece: false,
-      });
-      const uri = audioRecorder.uri;
+      const recording = recordingRef.current;
+      recordingRef.current = null;
+      if (!recording) { setTranscribing(false); return; }
+      await recording.stopAndUnloadAsync();
+      await Audio.setAudioModeAsync({ allowsRecordingIOS: false, playsInSilentModeIOS: true });
+      const uri = recording.getURI();
       if (!uri) { setTranscribing(false); return; }
 
       const formData = new FormData();
@@ -459,7 +460,8 @@ export default function AiScreen() {
         }
       }
 
-      if (res.body) {
+      if (Platform.OS === "web" && res.body) {
+        // Web: true streaming SSE
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
         while (true) {
@@ -468,7 +470,8 @@ export default function AiScreen() {
           parseSseChunk(decoder.decode(value));
         }
       } else {
-        // React Native / Expo Go: body stream not available, read full text
+        // Native (iOS/Android): Hermes fetch doesn't support SSE streaming,
+        // read the full response text then parse all SSE events at once
         const text = await res.text();
         parseSseChunk(text);
       }
