@@ -90,6 +90,8 @@ interface Quota { totalBytes: number; usedBytes: number; planName: string; }
 interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; downloadCount: number; createdAt: string; folder: string; }
 interface StorageFolder { path: string; name: string; }
 
+type FileFilter = "all" | "photos" | "videos" | "audio" | "docs";
+
 function formatBytes(bytes: number): string {
   if (bytes === 0) return "0 B";
   const k = 1024;
@@ -111,12 +113,21 @@ function getMimeIcon(mimeType: string): string {
   return "file";
 }
 
-function getMimeBg(mimeType: string): string {
-  if (mimeType.startsWith("image/")) return "#8b5cf6";
-  if (mimeType.startsWith("video/")) return "#ef4444";
-  if (mimeType.startsWith("audio/")) return "#f59e0b";
-  if (mimeType.includes("pdf")) return "#3b82f6";
-  return "#6b7280";
+function getMimeColors(mimeType: string): { bg: string; accent: string; badge: string } {
+  if (mimeType.startsWith("image/")) return { bg: "#8b5cf620", accent: "#8b5cf6", badge: "IMG" };
+  if (mimeType.startsWith("video/")) return { bg: "#ef444420", accent: "#ef4444", badge: "VID" };
+  if (mimeType.startsWith("audio/")) return { bg: "#f59e0b20", accent: "#f59e0b", badge: "AUD" };
+  if (mimeType.includes("pdf")) return { bg: "#3b82f620", accent: "#3b82f6", badge: "PDF" };
+  return { bg: "#6b728020", accent: "#6b7280", badge: "FILE" };
+}
+
+function matchesFilter(mimeType: string, filter: FileFilter): boolean {
+  if (filter === "all") return true;
+  if (filter === "photos") return mimeType.startsWith("image/");
+  if (filter === "videos") return mimeType.startsWith("video/");
+  if (filter === "audio") return mimeType.startsWith("audio/");
+  if (filter === "docs") return !mimeType.startsWith("image/") && !mimeType.startsWith("video/") && !mimeType.startsWith("audio/");
+  return true;
 }
 
 function BreadcrumbBar({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
@@ -162,6 +173,8 @@ export default function StorageScreen() {
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [moveTarget, setMoveTarget] = useState<StorageFile | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [fileFilter, setFileFilter] = useState<FileFilter>("all");
 
   const loadData = useCallback(async (folder = currentFolder) => {
     try {
@@ -188,6 +201,8 @@ export default function StorageScreen() {
     setLoading(true);
     setFiles([]);
     setFolders([]);
+    setSearchQuery("");
+    setFileFilter("all");
   }, []);
 
   const handleRefresh = useCallback(() => {
@@ -337,6 +352,24 @@ export default function StorageScreen() {
   const isWarning = quotaPct > 80;
   const isDanger = quotaPct > 95;
 
+  const filteredFiles = files.filter((f) => {
+    const matchesSearch = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCat = matchesFilter(f.mimeType, fileFilter);
+    return matchesSearch && matchesCat;
+  });
+
+  const filteredFolders = fileFilter === "all"
+    ? folders.filter((f) => !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+    : [];
+
+  const TAB_FILTERS: { key: FileFilter | "add" | "scan"; label: string; icon: string }[] = [
+    { key: "all", label: "Files", icon: "file" },
+    { key: "add", label: "Add", icon: "plus" },
+    { key: "photos", label: "Media", icon: "film" },
+    { key: "scan", label: "Scan", icon: "maximize" },
+    { key: "docs", label: "Docs", icon: "file-text" },
+  ];
+
   if (loading) {
     return (
       <View style={[styles.fill, { backgroundColor: colors.background, alignItems: "center", justifyContent: "center" }]}>
@@ -374,6 +407,69 @@ export default function StorageScreen() {
         </View>
       </View>
 
+      {/* Search bar */}
+      <View style={[styles.searchRow, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <View style={[styles.searchBox, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Feather name="search" size={15} color={colors.mutedForeground} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.foreground }]}
+            placeholder="Search My Drive…"
+            placeholderTextColor={colors.mutedForeground}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            autoCapitalize="none"
+            autoCorrect={false}
+          />
+          {searchQuery.length > 0 && (
+            <Pressable onPress={() => setSearchQuery("")} hitSlop={8}>
+              <Feather name="x" size={14} color={colors.mutedForeground} />
+            </Pressable>
+          )}
+        </View>
+      </View>
+
+      {/* Tab / Filter row */}
+      <View style={[styles.tabRowWrap, { borderBottomColor: colors.border }]}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabRow}>
+          {TAB_FILTERS.map((tab) => {
+            const isAdd = tab.key === "add";
+            const isScan = tab.key === "scan";
+            const isActive = !isAdd && !isScan && fileFilter === tab.key;
+
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => {
+                  if (isAdd) { handleUpload(); return; }
+                  if (isScan) { handleUpload(); return; }
+                  setFileFilter(tab.key as FileFilter);
+                }}
+                style={({ pressed }) => [
+                  styles.tabBtn,
+                  {
+                    backgroundColor: isActive
+                      ? colors.primary
+                      : pressed ? colors.muted : colors.card,
+                    borderColor: isActive ? colors.primary : colors.border,
+                    opacity: pressed ? 0.8 : 1,
+                  },
+                ]}
+              >
+                <Feather
+                  name={tab.icon as any}
+                  size={13}
+                  color={isActive ? "#fff" : colors.mutedForeground}
+                />
+                <Text style={[styles.tabBtnText, { color: isActive ? "#fff" : colors.mutedForeground }]}>
+                  {isAdd ? "+ Add" : tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+      </View>
+
       {/* Breadcrumb */}
       <View style={[styles.breadcrumbWrap, { backgroundColor: colors.background, borderBottomColor: colors.border }]}>
         <BreadcrumbBar path={currentFolder} onNavigate={navigateTo} />
@@ -390,101 +486,114 @@ export default function StorageScreen() {
             <View style={styles.quotaHeader}>
               <View style={styles.quotaLeft}>
                 <Feather name="hard-drive" size={14} color={colors.mutedForeground} />
-                <Text style={[styles.quotaTitle, { color: colors.foreground }]}>Storage</Text>
-                <View style={[styles.planBadge, { backgroundColor: colors.primary + "18" }]}>
-                  <Text style={[styles.planBadgeText, { color: colors.primary }]}>{quota.planName}</Text>
-                </View>
+                <Text style={[styles.quotaTitle, { color: colors.foreground }]}>{quota.planName} plan</Text>
               </View>
               <Text style={[styles.quotaNumbers, { color: colors.mutedForeground }]}>
-                {formatBytes(quota.usedBytes)} / {formatBytes(quota.totalBytes)}
+                {formatBytes(quota.usedBytes)} of {formatBytes(quota.totalBytes)}
               </Text>
             </View>
             <View style={[styles.progressBg, { backgroundColor: colors.muted }]}>
-              <View style={[styles.progressFill, { width: `${quotaPct}%`, backgroundColor: isDanger ? "#ef4444" : isWarning ? "#f59e0b" : colors.primary }]} />
+              <View style={[styles.progressFill, { width: `${quotaPct}%` as any, backgroundColor: isDanger ? "#ef4444" : isWarning ? "#f59e0b" : colors.primary }]} />
             </View>
           </View>
         )}
 
-        {/* Folders */}
-        {folders.length > 0 && (
+        {/* Folders grid */}
+        {filteredFolders.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Folders</Text>
-            <View style={[styles.folderGrid, { borderColor: colors.border }]}>
-              {folders.map((folder, i) => (
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              FOLDERS · {filteredFolders.length}
+            </Text>
+            <View style={styles.folderGrid}>
+              {filteredFolders.map((folder) => (
                 <Pressable
                   key={folder.path}
                   onPress={() => navigateTo(folder.path)}
                   onLongPress={() => handleDeleteFolder(folder)}
                   style={({ pressed }) => [
-                    styles.folderItem,
+                    styles.folderCard,
                     {
-                      borderBottomColor: colors.border,
-                      borderBottomWidth: i < folders.length - 1 ? StyleSheet.hairlineWidth : 0,
                       backgroundColor: pressed ? colors.muted : colors.card,
+                      borderColor: colors.border,
                     },
                   ]}
                 >
-                  <View style={[styles.folderIcon, { backgroundColor: "#f59e0b18" }]}>
-                    <Feather name="folder" size={18} color="#f59e0b" />
+                  <View style={styles.folderCardIcon}>
+                    <Feather name="folder" size={26} color="#f59e0b" />
                   </View>
-                  <Text style={[styles.folderName, { color: colors.foreground }]} numberOfLines={1}>{folder.name}</Text>
-                  <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+                  <Text style={[styles.folderCardName, { color: colors.foreground }]} numberOfLines={2}>{folder.name}</Text>
                 </Pressable>
               ))}
             </View>
           </>
         )}
 
-        {/* Files */}
-        {files.length > 0 && (
+        {/* Files list */}
+        {filteredFiles.length > 0 && (
           <>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>Files</Text>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
+              FILES · {filteredFiles.length}
+            </Text>
             <View style={[styles.fileList, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              {files.map((file, i) => (
-                <View
-                  key={file.id}
-                  style={[styles.fileRow, { borderBottomColor: colors.border }, i === files.length - 1 && { borderBottomWidth: 0 }]}
-                >
-                  <View style={[styles.fileIcon, { backgroundColor: getMimeBg(file.mimeType) + "20" }]}>
-                    <Feather name={getMimeIcon(file.mimeType) as any} size={15} color={getMimeBg(file.mimeType)} />
-                  </View>
-                  <View style={styles.fileInfo}>
-                    <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={1}>{file.name}</Text>
-                    <Text style={[styles.fileMeta, { color: colors.mutedForeground }]}>
-                      {formatBytes(file.sizeBytes)} · {formatDate(file.createdAt)}
-                    </Text>
-                  </View>
-                  <View style={styles.fileActions}>
-                    {currentFolder !== "/" && (
-                      <Pressable onPress={() => handleMoveFile(file, "/")} style={styles.fileActionBtn} hitSlop={8}>
-                        <Feather name="corner-up-left" size={15} color={colors.mutedForeground} />
+              {filteredFiles.map((file, i) => {
+                const mime = getMimeColors(file.mimeType);
+                return (
+                  <View
+                    key={file.id}
+                    style={[styles.fileRow, { borderBottomColor: colors.border }, i === filteredFiles.length - 1 && { borderBottomWidth: 0 }]}
+                  >
+                    <View style={[styles.fileIconWrap, { backgroundColor: mime.bg }]}>
+                      <Feather name={getMimeIcon(file.mimeType) as any} size={15} color={mime.accent} />
+                    </View>
+                    <View style={styles.fileInfo}>
+                      <Text style={[styles.fileName, { color: colors.foreground }]} numberOfLines={1}>{file.name}</Text>
+                      <View style={styles.fileMetaRow}>
+                        <View style={[styles.fileBadge, { backgroundColor: mime.bg }]}>
+                          <Text style={[styles.fileBadgeText, { color: mime.accent }]}>{mime.badge}</Text>
+                        </View>
+                        <Text style={[styles.fileMeta, { color: colors.mutedForeground }]}>
+                          {formatBytes(file.sizeBytes)} · {formatDate(file.createdAt)}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.fileActions}>
+                      {currentFolder !== "/" && (
+                        <Pressable onPress={() => handleMoveFile(file, "/")} style={styles.fileActionBtn} hitSlop={8}>
+                          <Feather name="corner-up-left" size={15} color={colors.mutedForeground} />
+                        </Pressable>
+                      )}
+                      <Pressable onPress={() => handleShare(file)} style={styles.fileActionBtn} hitSlop={8}>
+                        <Feather name="share-2" size={15} color={colors.mutedForeground} />
                       </Pressable>
-                    )}
-                    <Pressable onPress={() => handleShare(file)} style={styles.fileActionBtn} hitSlop={8}>
-                      <Feather name="share-2" size={15} color={colors.mutedForeground} />
-                    </Pressable>
-                    <Pressable onPress={() => handleDownload(file)} style={styles.fileActionBtn} hitSlop={8}>
-                      <Feather name="download" size={15} color={colors.mutedForeground} />
-                    </Pressable>
-                    <Pressable onPress={() => handleDelete(file)} style={styles.fileActionBtn} hitSlop={8}>
-                      <Feather name="trash-2" size={15} color="#ef4444" />
-                    </Pressable>
+                      <Pressable onPress={() => handleDownload(file)} style={styles.fileActionBtn} hitSlop={8}>
+                        <Feather name="download" size={15} color={colors.mutedForeground} />
+                      </Pressable>
+                      <Pressable onPress={() => handleDelete(file)} style={styles.fileActionBtn} hitSlop={8}>
+                        <Feather name="trash-2" size={15} color="#ef4444" />
+                      </Pressable>
+                    </View>
                   </View>
-                </View>
-              ))}
+                );
+              })}
             </View>
           </>
         )}
 
         {/* Empty state */}
-        {files.length === 0 && folders.length === 0 && !loading && (
+        {filteredFiles.length === 0 && filteredFolders.length === 0 && !loading && (
           <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="folder-plus" size={32} color={colors.mutedForeground} />
+            <Feather name={searchQuery ? "search" : "folder-plus"} size={32} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-              {currentFolder === "/" ? "Your drive is empty" : "This folder is empty"}
+              {searchQuery
+                ? `No results for "${searchQuery}"`
+                : fileFilter !== "all"
+                  ? "No matching files"
+                  : currentFolder === "/" ? "Your drive is empty" : "This folder is empty"}
             </Text>
             <Text style={[styles.emptySubtitle, { color: colors.mutedForeground }]}>
-              Tap upload to add files or create a folder
+              {searchQuery
+                ? "Try a different search term"
+                : "Tap upload to add files or create a folder"}
             </Text>
           </View>
         )}
@@ -551,6 +660,51 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 26, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   headerActions: { flexDirection: "row", gap: 8, alignItems: "center" },
   iconBtn: { padding: 4 },
+
+  searchRow: {
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  searchBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  searchInput: {
+    flex: 1,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    paddingVertical: 0,
+  },
+
+  tabRowWrap: {
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  tabRow: {
+    flexDirection: "row",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+  },
+  tabBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+  },
+  tabBtnText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+
   breadcrumbWrap: {
     paddingHorizontal: 16,
     paddingVertical: 6,
@@ -560,102 +714,162 @@ const styles = StyleSheet.create({
   breadcrumbPiece: { flexDirection: "row", alignItems: "center", gap: 2 },
   breadcrumbSep: { fontSize: 13, paddingHorizontal: 2 },
   breadcrumbItem: { fontSize: 13, fontFamily: "Inter_500Medium" },
+
   quotaCard: {
     marginHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
     padding: 14,
     marginBottom: 16,
-    gap: 8,
   },
-  quotaHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  quotaHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 10 },
   quotaLeft: { flexDirection: "row", alignItems: "center", gap: 6 },
-  quotaTitle: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  planBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 6 },
-  planBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
-  quotaNumbers: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  progressBg: { height: 5, borderRadius: 3, overflow: "hidden" },
-  progressFill: { height: 5, borderRadius: 3 },
+  quotaTitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  quotaNumbers: { fontSize: 12, fontFamily: "Inter_400Regular" },
+  progressBg: { height: 4, borderRadius: 4, overflow: "hidden" },
+  progressFill: { height: "100%", borderRadius: 4 },
+
   sectionLabel: {
     fontSize: 11,
     fontFamily: "Inter_600SemiBold",
-    letterSpacing: 0.5,
-    textTransform: "uppercase",
-    paddingHorizontal: 16,
-    marginBottom: 6,
-    marginTop: 8,
-  },
-  folderGrid: {
+    letterSpacing: 0.8,
     marginHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 10,
+    marginTop: 4,
   },
-  folderItem: {
+
+  folderGrid: {
     flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 14,
-    paddingVertical: 13,
-    gap: 12,
+    flexWrap: "wrap",
+    gap: 10,
+    paddingHorizontal: 16,
+    marginBottom: 20,
   },
-  folderIcon: { width: 36, height: 36, borderRadius: 10, alignItems: "center", justifyContent: "center" },
-  folderName: { flex: 1, fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  folderCard: {
+    width: "47%",
+    borderRadius: 14,
+    borderWidth: 1,
+    padding: 14,
+    alignItems: "flex-start",
+    gap: 10,
+  },
+  folderCardIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    backgroundColor: "#f59e0b18",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  folderCardName: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+
   fileList: {
     marginHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
     overflow: "hidden",
-    marginBottom: 8,
+    marginBottom: 20,
   },
   fileRow: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    gap: 11,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    gap: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
-  fileIcon: { width: 34, height: 34, borderRadius: 9, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  fileInfo: { flex: 1, gap: 2 },
-  fileName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  fileIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
+  },
+  fileInfo: { flex: 1, minWidth: 0 },
+  fileName: { fontSize: 13, fontFamily: "Inter_500Medium", marginBottom: 3 },
+  fileMetaRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  fileBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  fileBadgeText: {
+    fontSize: 9,
+    fontFamily: "Inter_600SemiBold",
+    letterSpacing: 0.5,
+  },
   fileMeta: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  fileActions: { flexDirection: "row", gap: 2 },
-  fileActionBtn: { padding: 5 },
+  fileActions: { flexDirection: "row", gap: 2, alignItems: "center" },
+  fileActionBtn: { padding: 6 },
+
   emptyState: {
     marginHorizontal: 16,
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
-    padding: 30,
+    padding: 36,
     alignItems: "center",
     gap: 8,
     marginBottom: 16,
   },
-  emptyTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold" },
-  emptySubtitle: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
+  emptyTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center" },
+  emptySubtitle: { fontSize: 13, fontFamily: "Inter_400Regular", textAlign: "center" },
+
   uploadArea: {
     marginHorizontal: 16,
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: "dashed",
-    paddingVertical: 18,
-    flexDirection: "row",
+    paddingVertical: 20,
+    alignItems: "center",
+    gap: 8,
+  },
+  uploadTitle: { fontSize: 14, fontFamily: "Inter_500Medium" },
+
+  modalOverlay: {
+    position: "absolute",
+    top: 0, left: 0, right: 0, bottom: 0,
+    backgroundColor: "rgba(0,0,0,0.55)",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    marginBottom: 16,
-    marginTop: 8,
+    zIndex: 50,
   },
-  uploadTitle: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  modalOverlay: {
-    position: "absolute", top: 0, left: 0, right: 0, bottom: 0,
-    backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center", padding: 24,
+  modal: {
+    width: "82%",
+    borderRadius: 20,
+    padding: 24,
+    gap: 16,
+    shadowColor: "#000",
+    shadowOpacity: 0.3,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  modal: { borderRadius: 20, padding: 22, width: "100%", gap: 16 },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_700Bold" },
-  folderInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 11, fontSize: 15, fontFamily: "Inter_400Regular" },
+  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
+  folderInput: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+  },
   modalButtons: { flexDirection: "row", gap: 10 },
-  modalCancel: { flex: 1, paddingVertical: 11, borderRadius: 10, borderWidth: 1, alignItems: "center" },
-  modalCancelText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
-  modalConfirm: { flex: 1, paddingVertical: 11, borderRadius: 10, alignItems: "center" },
-  modalConfirmText: { fontSize: 14, color: "#fff", fontFamily: "Inter_600SemiBold" },
+  modalCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  modalCancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  modalConfirm: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalConfirmText: { fontSize: 14, fontFamily: "Inter_500Medium", color: "#fff" },
 });
