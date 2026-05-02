@@ -322,10 +322,6 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
     const systemContext = await getUserContext(req.userId);
 
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-
     // Build the latest user message content with any attachments
     const imageAttachments = attachments.filter((a) => a.mimeType.startsWith("image/"));
     const textAttachments = attachments.filter((a) => !a.mimeType.startsWith("image/"));
@@ -334,7 +330,22 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       : "";
     const enrichedContent = content + textAttachmentContext;
 
+    // Detect streaming-capable clients (web browsers support SSE; React Native does not)
+    const acceptsStream = req.headers.accept?.includes("text/event-stream");
+
+    if (acceptsStream) {
+      // Web: true SSE streaming
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+    }
+
     let fullResponse = "";
+
+    const writeChunk = (text: string) => {
+      fullResponse += text;
+      if (acceptsStream) res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+    };
 
     if (provider === "claude") {
       const claudeMessages: any[] = history.slice(0, -1).map((m) => ({
@@ -342,7 +353,6 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
         content: m.content,
       }));
 
-      // Build the latest message with optional image attachments
       const latestContent: any[] = imageAttachments.map((a) => ({
         type: "image",
         source: { type: "base64", media_type: a.mimeType as any, data: a.data },
@@ -359,8 +369,7 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
       for await (const event of stream) {
         if (event.type === "content_block_delta" && event.delta.type === "text_delta") {
-          fullResponse += event.delta.text;
-          res.write(`data: ${JSON.stringify({ content: event.delta.text })}\n\n`);
+          writeChunk(event.delta.text);
         }
       }
     } else if (provider === "gemini") {
@@ -368,7 +377,6 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
         role: m.role === "assistant" ? "model" : "user",
         parts: [{ text: m.content }],
       }));
-      // Latest message with optional image attachments (Gemini vision)
       const latestParts: any[] = imageAttachments.map((a) => ({
         inlineData: { mimeType: a.mimeType, data: a.data },
       }));
@@ -386,18 +394,13 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       });
 
       for await (const chunk of geminiStream) {
-        const text = chunk.text;
-        if (text) {
-          fullResponse += text;
-          res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
-        }
+        if (chunk.text) writeChunk(chunk.text);
       }
     } else {
       const chatMessages: any[] = [
         { role: "system", content: systemContext },
         ...history.slice(0, -1).map((m) => ({ role: m.role, content: m.content })),
       ];
-      // Latest user message with optional image attachments (GPT-4o vision)
       if (imageAttachments.length > 0) {
         const latestParts: any[] = imageAttachments.map((a) => ({
           type: "image_url",
@@ -418,10 +421,7 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
       for await (const chunk of stream) {
         const chunkContent = chunk.choices[0]?.delta?.content;
-        if (chunkContent) {
-          fullResponse += chunkContent;
-          res.write(`data: ${JSON.stringify({ content: chunkContent })}\n\n`);
-        }
+        if (chunkContent) writeChunk(chunkContent);
       }
     }
 
@@ -429,11 +429,18 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       .insert(aiMessagesTable)
       .values({ conversationId: id, role: "assistant", content: fullResponse });
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    if (acceptsStream) {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    } else {
+      // Mobile / non-streaming: return completed response in SSE format.
+      // res.body is only non-null for completed HTTP responses in React Native.
+      res.setHeader("Content-Type", "text/plain");
+      res.setHeader("Cache-Control", "no-store");
+      res.send(`data: ${JSON.stringify({ content: fullResponse })}\n\ndata: ${JSON.stringify({ done: true })}\n\n`);
+    }
   } catch (err: any) {
-    res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-    res.end();
+    res.status(500).json({ error: err.message || "AI request failed" });
   }
 });
 
