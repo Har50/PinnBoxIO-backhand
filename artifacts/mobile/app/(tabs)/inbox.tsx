@@ -309,28 +309,34 @@ export default function InboxScreen() {
         </Pressable>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.folderTabsContent}
-        style={[styles.folderTabs, { borderBottomColor: colors.border }]}
-      >
-        {FOLDERS.map((folder) => (
-          <Pressable
-            key={folder}
-            onPress={() => setActiveFolder(folder)}
-            style={[styles.folderTab, activeFolder === folder && { borderBottomColor: colors.primary }]}
-          >
-            <Text style={[
-              styles.folderTabText,
-              { color: activeFolder === folder ? colors.primary : colors.mutedForeground },
-              activeFolder === folder && { fontFamily: "Inter_600SemiBold" },
-            ]}>
-              {folder}
-            </Text>
-          </Pressable>
-        ))}
-      </ScrollView>
+      <View style={[styles.folderTabsWrapper, { borderBottomColor: colors.border }]}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.folderTabsContent}
+          style={styles.folderTabs}
+        >
+          {FOLDERS.map((folder) => (
+            <Pressable
+              key={folder}
+              onPress={() => setActiveFolder(folder)}
+              style={[styles.folderTab, activeFolder === folder && { borderBottomColor: colors.primary }]}
+            >
+              <Text style={[
+                styles.folderTabText,
+                { color: activeFolder === folder ? colors.primary : colors.mutedForeground },
+                activeFolder === folder && { fontFamily: "Inter_600SemiBold" },
+              ]}>
+                {folder}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+        <View
+          style={[styles.folderTabsFade, { backgroundColor: colors.background }]}
+          pointerEvents="none"
+        />
+      </View>
 
       {isLoading && allMessages.length === 0 ? (
         <View style={styles.loadingCenter}><ActivityIndicator color={colors.primary} size="large" /></View>
@@ -388,10 +394,19 @@ const styles = StyleSheet.create({
   screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   composeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   composeBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  folderTabs: { borderBottomWidth: StyleSheet.hairlineWidth },
-  folderTabsContent: { paddingLeft: 8, paddingRight: 16, flexDirection: "row" },
-  folderTab: { paddingHorizontal: 10, paddingVertical: 10, borderBottomWidth: 2, borderBottomColor: "transparent" },
-  folderTabText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  folderTabsWrapper: { borderBottomWidth: StyleSheet.hairlineWidth, position: "relative" },
+  folderTabs: {},
+  folderTabsContent: { paddingLeft: 12, paddingRight: 40, flexDirection: "row" },
+  folderTab: { paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
+  folderTabText: { fontSize: 14, fontFamily: "Inter_500Medium" },
+  folderTabsFade: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 36,
+    opacity: 0.92,
+  },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
