@@ -1,6 +1,7 @@
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 import { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -226,6 +227,52 @@ export default function StorageScreen() {
     }
   }, [newFolderName, currentFolder, loadData]);
 
+  const handleScan = useCallback(async () => {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Camera Permission", "Camera access is required to scan documents. Please enable it in Settings.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.9,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets?.[0]) return;
+      const asset = result.assets[0];
+      setUploading(true);
+
+      const fileName = `scan_${Date.now()}.jpg`;
+      const mimeType = "image/jpeg";
+      const { uploadUrl, storageKey } = await apiPost<{ uploadUrl: string; storageKey: string }>("/storage/upload-url", {
+        fileName,
+        mimeType,
+        sizeBytes: asset.fileSize ?? 0,
+        folder: currentFolder,
+      });
+
+      const fileRes = await fetch(asset.uri);
+      const blob = await fileRes.blob();
+      await fetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": mimeType } });
+
+      await apiPost("/storage/files", {
+        name: fileName,
+        mimeType,
+        sizeBytes: asset.fileSize ?? 0,
+        storageKey,
+        folder: currentFolder,
+      });
+
+      Alert.alert("Scanned", `"${fileName}" added to ${currentFolder === "/" ? "My Drive" : currentFolder.split("/").pop()}.`);
+      await loadData(currentFolder);
+    } catch (err: any) {
+      Alert.alert("Scan Failed", err?.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
+    } finally {
+      setUploading(false);
+    }
+  }, [currentFolder, loadData]);
+
   const handleUpload = useCallback(async () => {
     try {
       const result = await DocumentPicker.getDocumentAsync({ copyToCacheDirectory: true });
@@ -442,7 +489,7 @@ export default function StorageScreen() {
                 key={tab.key}
                 onPress={() => {
                   if (isAdd) { handleUpload(); return; }
-                  if (isScan) { handleUpload(); return; }
+                  if (isScan) { handleScan(); return; }
                   setFileFilter(tab.key as FileFilter);
                 }}
                 style={({ pressed }) => [

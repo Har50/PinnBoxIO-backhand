@@ -19,7 +19,8 @@
       "bundleIdentifier": "com.pinnboxio.mobile",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSMicrophoneUsageDescription": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant."
+        "NSMicrophoneUsageDescription": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant.",
+        "NSCameraUsageDescription": "PinnboxIO uses your camera so you can scan and upload documents."
       },
       "buildNumber": "8"
     },
@@ -28,7 +29,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "permissions": ["android.permission.CAMERA"]
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -42,6 +44,12 @@
       ],
       "expo-font",
       "expo-web-browser",
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "PinnboxIO uses your camera so you can scan and upload documents."
+        }
+      ],
       [
         "expo-audio",
         {
