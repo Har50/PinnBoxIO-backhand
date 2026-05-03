@@ -14,6 +14,7 @@ import storageRouter, { storagePublicRouter } from "./storage";
 import authOAuthRouter from "./auth-oauth";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
+import calendarRouter from "./calendar";
 import { ensureUser } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
@@ -186,5 +187,6 @@ router.use(aiRouter);
 router.use(linkedinRouter);
 router.use(storageRouter);
 router.use(preferencesRouter);
+router.use(calendarRouter);
 
 export default router;

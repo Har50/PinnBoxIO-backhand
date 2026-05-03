@@ -11,8 +11,8 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 - **LinkedIn integration** — OAuth sign-in, profile card, conversations
 - **Cloud Storage** — 2 GB free, upload/download/delete files, purchase 10/50/100 GB plans via RevenueCat on mobile
 - **AI Assistant** — Multi-model chat (OpenAI, Anthropic, Gemini)
-- **Contacts & Search** — Global search across messages and contacts
 - **Contacts & Search** — Search across database records, contacts, stored/live email messages, and WhatsApp with a Google fallback when there are no local matches
+- **Calendar** — Month/week/agenda views, syncs events from connected Gmail and Outlook accounts, plus local event creation/deletion
 
 ## Stack
 
