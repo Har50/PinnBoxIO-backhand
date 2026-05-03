@@ -1,45 +1,10 @@
 import { Router, type IRouter } from "express";
 import { eq, ilike, or, count, max, desc, and } from "drizzle-orm";
-import { db, accountsTable, messagesTable, contactsTable, attachmentsTable, usersTable } from "@workspace/db";
+import { db, accountsTable, messagesTable, contactsTable, attachmentsTable } from "@workspace/db";
 import { listGmailMessages } from "../services/gmail";
 import { listOutlookMessages } from "../services/outlook";
 
 const router: IRouter = Router();
-
-const FREE_SEARCH_PER_DAY = 3;
-
-// In-memory daily counter: Map<"userId:YYYY-MM-DD", number>
-const searchUsage = new Map<string, number>();
-
-function todayKey(userId: string): string {
-  const d = new Date();
-  return `${userId}:${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
-
-async function getSearchAccess(userId: string | undefined): Promise<{ allowed: boolean; isPro: boolean; usedToday: number; limit: number | null }> {
-  if (!userId) {
-    return { allowed: true, isPro: false, usedToday: 0, limit: null };
-  }
-
-  const [user] = await db.select({ isPro: usersTable.isPro }).from(usersTable).where(eq(usersTable.id, userId));
-  if (user?.isPro) {
-    return { allowed: true, isPro: true, usedToday: 0, limit: null };
-  }
-
-  const key = todayKey(userId);
-  const used = searchUsage.get(key) ?? 0;
-  return {
-    allowed: used < FREE_SEARCH_PER_DAY,
-    isPro: false,
-    usedToday: used,
-    limit: FREE_SEARCH_PER_DAY,
-  };
-}
-
-function incrementSearch(userId: string) {
-  const key = todayKey(userId);
-  searchUsage.set(key, (searchUsage.get(key) ?? 0) + 1);
-}
 
 type SearchableMessage = {
   subject?: string | null;
@@ -72,21 +37,6 @@ router.get("/search", async (req: any, res): Promise<void> => {
   }
 
   const userId: string | undefined = (req as any).userId;
-
-  const access = await getSearchAccess(userId);
-  if (!access.allowed) {
-    res.status(402).json({
-      error: "Daily search limit reached. Upgrade to Pro for unlimited search.",
-      code: "SEARCH_DAILY_LIMIT_REACHED",
-      usedToday: access.usedToday,
-      limit: access.limit,
-    });
-    return;
-  }
-
-  if (userId) {
-    incrementSearch(userId);
-  }
 
   let messages: unknown[] = [];
   let contacts: unknown[] = [];
@@ -200,11 +150,6 @@ router.get("/search", async (req: any, res): Promise<void> => {
     contacts,
     totalMessages: messages.length,
     totalContacts: contacts.length,
-    searchAccess: {
-      isPro: access.isPro,
-      usedToday: access.usedToday + 1,
-      limit: access.limit,
-    },
   });
 });
 
