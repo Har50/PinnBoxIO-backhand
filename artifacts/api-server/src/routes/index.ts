@@ -16,8 +16,9 @@ import { ensureUser } from "../services/tokenManager";
 
 const router: IRouter = Router();
 
-// In-memory set of user IDs already upserted this server session — avoids a
-// DB round-trip on every request while still guaranteeing new users get a row.
+// In-memory set of user IDs whose email has been successfully synced this
+// server session. Only added once email is confirmed stored, so that a
+// transient Clerk API failure doesn't permanently prevent mobile↔web linking.
 const seenUsers = new Set<string>();
 
 router.use(healthRouter);
@@ -34,16 +35,23 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   if (clerkUserId) {
     (req as any).userId = clerkUserId;
     if (!seenUsers.has(clerkUserId)) {
-      seenUsers.add(clerkUserId);
       // Fetch the user's primary email from Clerk and store it so that when
       // the same user signs in on mobile (Replit OIDC), resolveCanonicalUserId
       // can match them by email and share the same storage/data across platforms.
+      // Only mark as seen once the email is successfully stored — if the Clerk
+      // API call fails or returns no email, we retry on the next request so
+      // the email is never permanently left as null.
       clerkClient.users.getUser(clerkUserId)
         .then((clerkUser) => {
           const email = clerkUser.emailAddresses?.[0]?.emailAddress ?? null;
-          return ensureUser(clerkUserId, { email });
+          return ensureUser(clerkUserId, { email }).then(() => {
+            if (email) seenUsers.add(clerkUserId);
+          });
         })
-        .catch(() => ensureUser(clerkUserId));
+        .catch(() => {
+          ensureUser(clerkUserId).catch(() => {});
+          // Do not add to seenUsers — retry on next request
+        });
     }
     next();
     return;
