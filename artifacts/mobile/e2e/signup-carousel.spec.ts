@@ -249,6 +249,76 @@ test.describe("Signup flow – OAuth integration", () => {
     });
   });
 
+  test("error banner clears when the user retries sign-up after a failure", async ({
+    page,
+  }) => {
+    // First click: OIDC discovery fails with 500.
+    // Subsequent calls: discovery succeeds (slowed) so we can observe the
+    // loading state and verify the banner has cleared during the retry.
+    let discoveryCallCount = 0;
+    await page.route(OIDC_DISCOVERY_URL, async (route) => {
+      discoveryCallCount++;
+      if (discoveryCallCount === 1) {
+        await route.fulfill({
+          status: 500,
+          contentType: "application/json",
+          body: JSON.stringify({ error: "Internal Server Error" }),
+        });
+        return;
+      }
+      // Slow the success response so the loading state is observable
+      // before the page navigates away to the mock authorize endpoint.
+      await new Promise<void>((resolve) => setTimeout(resolve, 500));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(MOCK_DISCOVERY),
+      });
+    });
+
+    await page.route(`${OIDC_AUTHORIZE_URL}*`, async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "text/html",
+        body: "<html><body>Mock auth page</body></html>",
+      });
+    });
+
+    await page.getByTestId("signup-dot-3").click();
+    await expect(page.getByTestId("signup-continue-button")).toBeVisible();
+
+    // First attempt — failure path
+    await page.getByTestId("signup-continue-button").click();
+    await expect(page.getByTestId("signup-error-banner")).toBeVisible({
+      timeout: 10_000,
+    });
+
+    // CTA must be re-enabled and visible again so the user can retry
+    await expect(page.getByTestId("signup-continue-button")).toBeVisible();
+    await expect(page.getByTestId("signup-continue-button")).not.toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+
+    // Second attempt — recovery path. Banner should clear immediately
+    // (setSignInError(null) at the start of startAuthFlow).
+    await page.getByTestId("signup-continue-button").click();
+
+    await expect(page.getByTestId("signup-error-banner")).not.toBeVisible({
+      timeout: 5_000,
+    });
+
+    // Loading state should re-appear during the retry attempt
+    await expect(page.getByTestId("signup-continue-button")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    await expect(page.getByText("Create my free account")).not.toBeVisible();
+
+    // Sanity: discovery was hit twice (one fail, one retry success)
+    expect(discoveryCallCount).toBeGreaterThanOrEqual(2);
+  });
+
   test("shows error banner when token exchange fails after OAuth callback", async ({
     page,
   }) => {
