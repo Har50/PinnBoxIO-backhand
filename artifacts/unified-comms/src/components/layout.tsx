@@ -129,7 +129,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 title={item.label}
-                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium relative ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
+                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium relative ${isActive ? "bg-sidebar-primary/20 text-sidebar-primary" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
                 <div className="relative flex-shrink-0">
                   <item.icon className="w-4 h-4" />
@@ -230,7 +230,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 key={item.href}
                 href={item.href}
                 title={item.label}
-                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
+                className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium ${isActive ? "bg-sidebar-primary/20 text-sidebar-primary" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
                 <div className="relative flex-shrink-0">
                   <item.icon className="w-4 h-4" />
