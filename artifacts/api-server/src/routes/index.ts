@@ -1,6 +1,6 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from "express";
 import { getAuth, clerkClient } from "@clerk/express";
-import { eq } from "drizzle-orm";
+import { eq, and, ne } from "drizzle-orm";
 import { db, usersTable, mobileSessionsTable } from "@workspace/db";
 import healthRouter from "./health";
 import accountsRouter from "./accounts";
@@ -24,6 +24,10 @@ const router: IRouter = Router();
 // transient Clerk API failure doesn't permanently prevent mobile↔web linking.
 const seenUsers = new Set<string>();
 
+// Tracks Replit user IDs already checked for Clerk counterparts this session.
+// Prevents repeated DB lookups on every request.
+const checkedReplicUsers = new Set<string>();
+
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
 router.use(storagePublicRouter);
@@ -41,15 +45,9 @@ async function migrateLinkedMobileSessions(clerkUserId: string, email: string): 
     const linkedUsers = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(eq(usersTable.email, email));
+      .where(and(eq(usersTable.email, email), ne(usersTable.id, clerkUserId)));
 
-    const otherUserIds = linkedUsers
-      .map((u) => u.id)
-      .filter((id) => id !== clerkUserId);
-
-    if (otherUserIds.length === 0) return;
-
-    for (const replitUserId of otherUserIds) {
+    for (const { id: replitUserId } of linkedUsers) {
       const updated = await db
         .update(mobileSessionsTable)
         .set({ userId: clerkUserId })
@@ -61,10 +59,55 @@ async function migrateLinkedMobileSessions(clerkUserId: string, email: string): 
           { replitUserId, clerkUserId, migratedSessions: updated.length },
           "Migrated mobile sessions to canonical Clerk user ID"
         );
+        checkedReplicUsers.delete(replitUserId);
       }
     }
   } catch (err) {
     logger.warn({ err, clerkUserId }, "Failed to migrate mobile sessions after email sync");
+  }
+}
+
+/**
+ * For mobile (Replit OIDC) users: check if a Clerk account shares the same
+ * email. If so, migrate the mobile session to the Clerk user ID so data is
+ * shared across platforms — even for sessions that were created before the
+ * Clerk user's email was stored in our database.
+ *
+ * Returns the canonical user ID (Clerk ID if linked, Replit sub otherwise).
+ */
+async function resolveAndMigrateMobileSession(
+  bearerToken: string,
+  replitUserId: string
+): Promise<string> {
+  try {
+    const [user] = await db
+      .select({ id: usersTable.id, email: usersTable.email })
+      .from(usersTable)
+      .where(eq(usersTable.id, replitUserId));
+
+    if (!user?.email) return replitUserId;
+
+    const [clerkUser] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(and(eq(usersTable.email, user.email), ne(usersTable.id, replitUserId)));
+
+    if (!clerkUser) return replitUserId;
+
+    logger.info(
+      { replitUserId, clerkUserId: clerkUser.id },
+      "Mobile session late-bind: migrating session to Clerk user ID"
+    );
+
+    await db
+      .update(mobileSessionsTable)
+      .set({ userId: clerkUser.id })
+      .where(eq(mobileSessionsTable.token, bearerToken));
+
+    return clerkUser.id;
+  } catch (err) {
+    logger.warn({ err, replitUserId }, "Mobile session late-bind failed, using Replit user ID");
+    return replitUserId;
   }
 }
 
@@ -79,8 +122,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
       // Fetch the user's primary email from Clerk and store it so that when
       // the same user signs in on mobile (Replit OIDC), resolveCanonicalUserId
       // can match them by email and share the same storage/data across platforms.
-      // Only mark as seen once the email is successfully stored — if the Clerk
-      // API call fails or returns no email, we retry on the next request.
+      // Only mark as seen once the email is successfully stored.
       clerkClient.users.getUser(clerkUserId)
         .then(async (clerkUser) => {
           const email = clerkUser.emailAddresses?.[0]?.emailAddress ?? null;
@@ -109,15 +151,24 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
-  getMobileSessionUser(bearerToken).then((userId) => {
+  getMobileSessionUser(bearerToken).then(async (userId) => {
     if (!userId) {
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
-    (req as any).userId = userId;
-    if (!seenUsers.has(userId)) {
-      seenUsers.add(userId);
-      ensureUser(userId).catch(() => {});
+
+    // If this Replit user hasn't been checked yet, see if there's a Clerk
+    // account with the same email and migrate the session if so.
+    let canonicalUserId = userId;
+    if (!checkedReplicUsers.has(userId)) {
+      checkedReplicUsers.add(userId);
+      canonicalUserId = await resolveAndMigrateMobileSession(bearerToken, userId);
+    }
+
+    (req as any).userId = canonicalUserId;
+    if (!seenUsers.has(canonicalUserId)) {
+      seenUsers.add(canonicalUserId);
+      ensureUser(canonicalUserId).catch(() => {});
     }
     next();
   }).catch(() => {

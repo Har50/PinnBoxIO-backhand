@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { syncClerkEmailsOnStartup } from "./services/startupSync";
 
 process.on("unhandledRejection", (reason) => {
   logger.warn({ reason }, "Unhandled promise rejection — continuing");
@@ -26,4 +27,13 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+
+  // Run email sync after a short delay to let the DB connection warm up.
+  // This fixes any Clerk users missing emails and migrates their mobile
+  // sessions so web and mobile data are shared immediately on every deploy.
+  setTimeout(() => {
+    syncClerkEmailsOnStartup().catch((e) =>
+      logger.warn({ err: String(e) }, "Startup email sync threw unexpectedly")
+    );
+  }, 3000);
 });
