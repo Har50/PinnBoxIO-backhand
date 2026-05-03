@@ -207,9 +207,22 @@ export default function Inbox() {
           ) : messagesData?.messages?.length === 0 ? (
             <div className="p-8 text-center flex flex-col items-center justify-center h-48">
               <Mail className="h-10 w-10 text-muted-foreground/30 mb-3" />
-              {selectedAccountId === -1 ? (
+              {!accountsLoading && (!accounts || accounts.length === 0) ? (
                 <>
-                  <p className="text-sm font-medium text-muted-foreground">Gmail is connected, but inbox reading is not available yet.</p>
+                  <p className="text-sm font-medium text-foreground">No email accounts connected</p>
+                  <p className="text-xs text-muted-foreground mt-1 mb-3 max-w-xs">
+                    Connect Gmail or Outlook to see your messages here.
+                  </p>
+                  <a
+                    href="/accounts"
+                    className="text-xs font-semibold text-primary underline underline-offset-2 hover:opacity-80 transition-opacity"
+                  >
+                    Go to Accounts →
+                  </a>
+                </>
+              ) : selectedAccountId === -1 ? (
+                <>
+                  <p className="text-sm font-medium text-muted-foreground">Gmail inbox reading is not available yet.</p>
                   <p className="text-xs text-muted-foreground mt-2 max-w-sm">
                     The current Gmail permission allows labels and sending, but not reading mailbox messages. Outlook inbox reading is available.
                   </p>

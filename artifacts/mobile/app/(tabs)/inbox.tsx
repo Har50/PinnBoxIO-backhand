@@ -1,4 +1,4 @@
-import { useGetMessages, useGetMessage, useUpdateMessage } from "@workspace/api-client-react";
+import { useGetMessages, useGetMessage, useUpdateMessage, useGetAccounts } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -238,6 +238,8 @@ export default function InboxScreen() {
 
   const folderParam = activeFolder === "All" ? undefined : activeFolder;
   const { data, isLoading, isFetching, refetch } = useGetMessages({ limit: PAGE_SIZE, offset, folder: folderParam } as any);
+  const { data: accounts, isLoading: accountsLoading } = useGetAccounts();
+  const noAccountsConnected = !accountsLoading && (!accounts || accounts.length === 0);
 
   useEffect(() => {
     setOffset(0);
@@ -335,8 +337,17 @@ export default function InboxScreen() {
       ) : allMessages.length === 0 ? (
         <View style={styles.emptyState}>
           <Feather name="inbox" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No messages in {activeFolder === "All" ? "your inbox" : activeFolder}</Text>
+          {noAccountsConnected ? (
+            <>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No accounts connected</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail or Outlook in the Accounts tab to see your messages.</Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No messages in {activeFolder === "All" ? "your inbox" : activeFolder}</Text>
+            </>
+          )}
         </View>
       ) : (
         <FlatList
