@@ -330,21 +330,28 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       : "";
     const enrichedContent = content + textAttachmentContext;
 
-    // Detect streaming-capable clients (web browsers support SSE; React Native does not)
-    const acceptsStream = req.headers.accept?.includes("text/event-stream");
+    // Web browsers send Accept: text/event-stream for true SSE.
+    // React Native / mobile does not, but we still stream chunks so the proxy
+    // never sees an idle connection and drops it mid-response.
+    const isWebSse = req.headers.accept?.includes("text/event-stream");
 
-    if (acceptsStream) {
-      // Web: true SSE streaming
+    if (isWebSse) {
       res.setHeader("Content-Type", "text/event-stream");
       res.setHeader("Cache-Control", "no-cache");
       res.setHeader("Connection", "keep-alive");
+    } else {
+      // Mobile: chunked plain-text so bytes flow continuously and the proxy
+      // stays alive even for long AI responses.
+      res.setHeader("Content-Type", "text/plain");
+      res.setHeader("Cache-Control", "no-store");
+      res.setHeader("Transfer-Encoding", "chunked");
     }
 
     let fullResponse = "";
 
     const writeChunk = (text: string) => {
       fullResponse += text;
-      if (acceptsStream) res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
+      res.write(`data: ${JSON.stringify({ content: text })}\n\n`);
     };
 
     if (provider === "claude") {
@@ -429,16 +436,8 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       .insert(aiMessagesTable)
       .values({ conversationId: id, role: "assistant", content: fullResponse });
 
-    if (acceptsStream) {
-      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-      res.end();
-    } else {
-      // Mobile / non-streaming: return completed response in SSE format.
-      // res.body is only non-null for completed HTTP responses in React Native.
-      res.setHeader("Content-Type", "text/plain");
-      res.setHeader("Cache-Control", "no-store");
-      res.send(`data: ${JSON.stringify({ content: fullResponse })}\n\ndata: ${JSON.stringify({ done: true })}\n\n`);
-    }
+    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+    res.end();
   } catch (err: any) {
     res.status(500).json({ error: err.message || "AI request failed" });
   }
