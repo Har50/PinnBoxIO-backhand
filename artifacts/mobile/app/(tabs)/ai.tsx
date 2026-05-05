@@ -359,19 +359,37 @@ export default function AiScreen() {
   async function pickAttachment() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
-        type: ["image/*", "application/pdf", "text/*"],
+        type: "*/*",
         copyToCacheDirectory: true,
         multiple: false,
       });
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
-      const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
+
+      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+      if (asset.size && asset.size > MAX_BYTES) {
+        Alert.alert("File too large", "Please attach a file smaller than 8 MB.");
+        return;
+      }
+
+      let base64 = "";
+      try {
+        base64 = await FileSystem.readAsStringAsync(asset.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+      } catch (readErr) {
+        Alert.alert("Could not read file", "The file could not be read. Try a different file.");
+        return;
+      }
+
       setPendingAttachments((prev) => [
         ...prev,
         { name: asset.name, mimeType: asset.mimeType ?? "application/octet-stream", data: base64 },
       ]);
-    } catch {
-      Alert.alert("Error", "Could not attach file. Please try again.");
+    } catch (err: any) {
+      if (err?.code !== "DOCUMENT_PICKER_CANCELED") {
+        Alert.alert("Error", "Could not open file picker. Please try again.");
+      }
     }
   }
 
