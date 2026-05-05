@@ -301,11 +301,17 @@ function AiChat() {
 
   const addAttachments = useCallback(async (files: FileList | null) => {
     if (!files) return;
+    const MAX_BYTES = 20 * 1024 * 1024; // 20 MB
     const newAttachments: Attachment[] = [];
     for (const file of Array.from(files)) {
-      const data = await new Promise<string>((resolve) => {
+      if (file.size > MAX_BYTES) {
+        alert(`"${file.name}" is too large (${(file.size / 1024 / 1024).toFixed(1)} MB). Please attach files under 20 MB.`);
+        continue;
+      }
+      const data = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => resolve((e.target?.result as string).split(",")[1]);
+        reader.onerror = reject;
         reader.readAsDataURL(file);
       });
       newAttachments.push({
@@ -315,7 +321,7 @@ function AiChat() {
         preview: file.type.startsWith("image/") ? URL.createObjectURL(file) : undefined,
       });
     }
-    setAttachments((prev) => [...prev, ...newAttachments]);
+    if (newAttachments.length > 0) setAttachments((prev) => [...prev, ...newAttachments]);
     setShowAttachMenu(false);
   }, []);
 
