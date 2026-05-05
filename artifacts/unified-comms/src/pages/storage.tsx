@@ -236,7 +236,7 @@ function AiPanel({
   const allSelected = files.length > 0 && selected.size === files.length;
 
   return (
-    <div className="flex flex-col h-full bg-[#0d1117] border-l border-white/[0.08] w-80 flex-shrink-0">
+    <div className="flex flex-col h-full bg-background border-l border-white/[0.08] w-80 flex-shrink-0">
       {/* AI Panel Header */}
       <div className="flex items-center justify-between px-4 py-3.5 border-b border-white/[0.07]">
         <div className="flex items-center gap-2">
@@ -621,14 +621,14 @@ export default function StoragePage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-full bg-[#0d1117]">
+      <div className="flex items-center justify-center h-full bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
       </div>
     );
   }
 
   return (
-    <div className="flex h-full bg-[#0d1117] text-white overflow-hidden">
+    <div className="flex h-full bg-background text-white overflow-hidden">
       {/* Main column */}
       <div
         className="flex flex-col flex-1 min-w-0 relative overflow-hidden"
@@ -668,7 +668,7 @@ export default function StoragePage() {
         )}
 
         {/* ── Header ── */}
-        <header className="flex-shrink-0 border-b border-white/[0.07] bg-[#0d1117]">
+        <header className="flex-shrink-0 border-b border-white/[0.07] bg-background">
           {/* Search row */}
           <div className="flex items-center gap-3 px-5 py-3.5">
             <div className="flex-1 max-w-lg">
