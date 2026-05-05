@@ -6,12 +6,13 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 
 ## Features
 
-- **Unified inbox** — Email across multiple accounts
-- **WhatsApp integration** — Connect via QR code, read & send messages
-- **LinkedIn integration** — OAuth sign-in, profile card, conversations
-- **Cloud Storage** — 2 GB free, upload/download/delete files, purchase 10/50/100 GB plans via RevenueCat on mobile
-- **AI Assistant** — Multi-model chat (OpenAI, Anthropic, Gemini)
-- **Contacts & Search** — Search across database records, contacts, stored/live email messages, and WhatsApp with a Google fallback when there are no local matches
+- **Unified inbox** — Email across multiple accounts (Gmail + Outlook)
+- **Cloud Storage** — 2 GB free, upload/download/delete/share files, purchase 10/50/100 GB plans via RevenueCat on mobile
+  - **AI Auto-categorization** — Files automatically tagged on upload (invoice, contract, receipt, report, etc.) using GPT-4o-mini
+  - **AI Natural Language Search** — Search files by description ("find my invoices from last month") via `POST /api/storage/search`
+  - **Analyze with AI** — Per-file AI analysis button opens the AI assistant with the file pre-loaded and auto-sends a summary prompt
+- **AI Assistant** — Multi-model chat (OpenAI, Anthropic, Gemini); 200 free requests/day, unlimited for Pro users
+- **Contacts & Search** — Search across database records, contacts, and stored/live email messages
 - **Calendar** — Month/week/agenda views, syncs events from connected Gmail and Outlook accounts, plus local event creation/deletion
 
 ## Stack

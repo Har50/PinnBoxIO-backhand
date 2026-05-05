@@ -22,6 +22,7 @@ export const storageFilesTable = pgTable(
     sizeBytes: bigint("size_bytes", { mode: "number" }).notNull().default(0),
     storageKey: varchar("storage_key").notNull(),
     folder: varchar("folder").notNull().default("/"),
+    category: varchar("category"),
     isPublic: boolean("is_public").notNull().default(false),
     shareToken: varchar("share_token"),
     downloadCount: integer("download_count").notNull().default(0),

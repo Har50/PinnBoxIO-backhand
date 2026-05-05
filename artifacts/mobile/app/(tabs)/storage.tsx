@@ -88,7 +88,7 @@ async function apiDelete<T>(path: string): Promise<T> {
 }
 
 interface Quota { totalBytes: number; usedBytes: number; planName: string; }
-interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; downloadCount: number; createdAt: string; folder: string; }
+interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; downloadCount: number; createdAt: string; folder: string; category?: string | null; }
 interface StorageFolder { path: string; name: string; }
 
 type FileFilter = "all" | "photos" | "videos" | "audio" | "docs";
@@ -121,6 +121,21 @@ function getMimeColors(mimeType: string): { bg: string; accent: string; badge: s
   if (mimeType.includes("pdf")) return { bg: "#3b82f620", accent: "#3b82f6", badge: "PDF" };
   return { bg: "#6b728020", accent: "#6b7280", badge: "FILE" };
 }
+
+const CATEGORY_COLORS: Record<string, { bg: string; text: string; label: string }> = {
+  invoice:      { bg: "#10b98120", text: "#10b981", label: "Invoice" },
+  contract:     { bg: "#3b82f620", text: "#3b82f6", label: "Contract" },
+  receipt:      { bg: "#14b8a620", text: "#14b8a6", label: "Receipt" },
+  report:       { bg: "#6366f120", text: "#6366f1", label: "Report" },
+  presentation: { bg: "#f9731620", text: "#f97316", label: "Deck" },
+  spreadsheet:  { bg: "#22c55e20", text: "#22c55e", label: "Sheet" },
+  photo:        { bg: "#a855f720", text: "#a855f7", label: "Photo" },
+  video:        { bg: "#ef444420", text: "#ef4444", label: "Video" },
+  audio:        { bg: "#f59e0b20", text: "#f59e0b", label: "Audio" },
+  code:         { bg: "#06b6d420", text: "#06b6d4", label: "Code" },
+  document:     { bg: "#6b728020", text: "#9ca3af", label: "Doc" },
+  other:        { bg: "#6b728015", text: "#6b7280", label: "Other" },
+};
 
 function matchesFilter(mimeType: string, filter: FileFilter): boolean {
   if (filter === "all") return true;
@@ -376,6 +391,49 @@ export default function StorageScreen() {
     }
   }, [loadData, currentFolder]);
 
+  const handleAnalyzeWithAi = useCallback(async (file: StorageFile) => {
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("AUTH_REQUIRED");
+      Alert.alert("Analyzing…", `AI is reading "${file.name}". This may take a moment.`);
+      const convRes = await fetch(`${API_BASE}/api/ai/conversations`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ title: `Analyze: ${file.name}` }),
+      });
+      const convData = await convRes.json();
+      const convId = convData.id;
+      const prompt = `Please analyze this file and give me a summary: "${file.name}" (${file.mimeType}, ${file.category ?? "unknown category"}). Include key information, important dates or figures, and any action items if applicable.`;
+      const msgRes = await fetch(`${API_BASE}/api/ai/conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ content: prompt, provider: "openai" }),
+      });
+      const text = await msgRes.text();
+      const lines = text.split("\n");
+      let full = "";
+      for (const line of lines) {
+        if (line.startsWith("data: ")) {
+          const data = line.slice(6).trim();
+          if (data === "[DONE]") continue;
+          try {
+            const parsed = JSON.parse(data);
+            full += parsed.choices?.[0]?.delta?.content ?? parsed.content ?? "";
+          } catch {}
+        }
+      }
+      if (full) {
+        Alert.alert(`Analysis: ${file.name}`, full.slice(0, 600) + (full.length > 600 ? "…" : ""), [
+          { text: "OK" },
+        ]);
+      } else {
+        Alert.alert("Analysis", "No response from AI. Please try again.");
+      }
+    } catch (err: any) {
+      Alert.alert("Error", err.message === "AUTH_REQUIRED" ? "Please sign in again." : err.message);
+    }
+  }, []);
+
   const handleShare = useCallback(async (file: StorageFile) => {
     try {
       const result = await apiPost<{ shareUrl?: string; shareToken?: string; url?: string }>(`/storage/files/${file.id}/share`, {});
@@ -598,12 +656,22 @@ export default function StorageScreen() {
                         <View style={[styles.fileBadge, { backgroundColor: mime.bg }]}>
                           <Text style={[styles.fileBadgeText, { color: mime.accent }]}>{mime.badge}</Text>
                         </View>
+                        {file.category && CATEGORY_COLORS[file.category] && (
+                          <View style={[styles.fileBadge, { backgroundColor: CATEGORY_COLORS[file.category].bg }]}>
+                            <Text style={[styles.fileBadgeText, { color: CATEGORY_COLORS[file.category].text }]}>
+                              {CATEGORY_COLORS[file.category].label}
+                            </Text>
+                          </View>
+                        )}
                         <Text style={[styles.fileMeta, { color: colors.mutedForeground }]}>
                           {formatBytes(file.sizeBytes)} · {formatDate(file.createdAt)}
                         </Text>
                       </View>
                     </View>
                     <View style={styles.fileActions}>
+                      <Pressable onPress={() => handleAnalyzeWithAi(file)} style={styles.fileActionBtn} hitSlop={8}>
+                        <Feather name="zap" size={15} color="#8b5cf6" />
+                      </Pressable>
                       {currentFolder !== "/" && (
                         <Pressable onPress={() => handleMoveFile(file, "/")} style={styles.fileActionBtn} hitSlop={8}>
                           <Feather name="corner-up-left" size={15} color={colors.mutedForeground} />

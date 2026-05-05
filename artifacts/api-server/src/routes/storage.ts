@@ -2,8 +2,30 @@ import { Router, type IRouter } from "express";
 import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
-import { eq, and, sql, ne } from "drizzle-orm";
+import { eq, and, sql, ne, desc } from "drizzle-orm";
 import { objectStorageClient } from "../lib/objectStorage";
+import { openai } from "@workspace/integrations-openai-ai-server";
+
+const FILE_CATEGORIES = ["invoice", "contract", "receipt", "report", "presentation", "spreadsheet", "photo", "video", "audio", "code", "document", "other"] as const;
+type FileCategory = typeof FILE_CATEGORIES[number];
+
+async function categorizeFile(name: string, mimeType: string): Promise<string | null> {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `Classify this file into exactly one category.\nFile name: "${name}"\nMIME type: "${mimeType}"\n\nCategories: invoice, contract, receipt, report, presentation, spreadsheet, photo, video, audio, code, document, other\n\nRespond with ONLY the category name, nothing else.`,
+      }],
+      max_tokens: 10,
+      temperature: 0,
+    });
+    const cat = response.choices[0]?.message?.content?.trim().toLowerCase() ?? "";
+    return FILE_CATEGORIES.includes(cat as FileCategory) ? cat : "other";
+  } catch {
+    return null;
+  }
+}
 
 const router: IRouter = Router();
 
@@ -233,7 +255,74 @@ router.post("/storage/files", async (req: any, res) => {
       .set({ usedBytes: sql`used_bytes + ${sizeBytes}` })
       .where(eq(storageQuotasTable.userId, req.userId));
 
+    categorizeFile(name, mimeType || "application/octet-stream").then((category) => {
+      if (category) {
+        db.update(storageFilesTable).set({ category }).where(eq(storageFilesTable.id, file.id)).catch(() => {});
+      }
+    }).catch(() => {});
+
     res.json({ file });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post("/storage/search", async (req: any, res) => {
+  try {
+    const { query } = req.body;
+    if (!query?.trim()) return res.status(400).json({ error: "query is required" });
+
+    const allFiles = await db
+      .select({
+        id: storageFilesTable.id,
+        name: storageFilesTable.name,
+        mimeType: storageFilesTable.mimeType,
+        sizeBytes: storageFilesTable.sizeBytes,
+        folder: storageFilesTable.folder,
+        category: storageFilesTable.category,
+        createdAt: storageFilesTable.createdAt,
+        storageKey: storageFilesTable.storageKey,
+        isPublic: storageFilesTable.isPublic,
+        shareToken: storageFilesTable.shareToken,
+        downloadCount: storageFilesTable.downloadCount,
+        updatedAt: storageFilesTable.updatedAt,
+      })
+      .from(storageFilesTable)
+      .where(eq(storageFilesTable.userId, req.userId))
+      .orderBy(desc(storageFilesTable.updatedAt))
+      .limit(200);
+
+    if (allFiles.length === 0) return res.json({ files: [] });
+
+    const fileList = allFiles.map((f) =>
+      `id:${f.id} name:"${f.name}" type:${f.mimeType} size:${f.sizeBytes}B folder:"${f.folder}" category:"${f.category ?? "unknown"}" uploaded:${f.createdAt ? new Date(f.createdAt).toLocaleDateString() : "unknown"}`
+    ).join("\n");
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content: "You are a file search assistant. Given a user query and a list of files, return a JSON array of file IDs that match the query. Consider the file name, type, category, folder, and upload date. Be generous — include any file that could plausibly match. Return ONLY a valid JSON array of numbers (the file IDs), nothing else. Example: [1, 5, 12]",
+        },
+        {
+          role: "user",
+          content: `Search query: "${query.trim()}"\n\nFiles:\n${fileList}\n\nReturn ONLY a JSON array of matching file IDs.`,
+        },
+      ],
+      max_tokens: 300,
+      temperature: 0,
+    });
+
+    const raw = response.choices[0]?.message?.content?.trim() ?? "[]";
+    let matchedIds: number[] = [];
+    try {
+      matchedIds = JSON.parse(raw);
+      if (!Array.isArray(matchedIds)) matchedIds = [];
+    } catch {}
+
+    const matchedFiles = allFiles.filter((f) => matchedIds.includes(f.id));
+    res.json({ files: matchedFiles });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

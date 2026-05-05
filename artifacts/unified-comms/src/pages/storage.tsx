@@ -27,7 +27,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 }
 
 interface Quota { id: number; userId: string; totalBytes: number; usedBytes: number; planName: string; }
-interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; isPublic?: boolean; shareToken?: string | null; }
+interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; isPublic?: boolean; shareToken?: string | null; category?: string | null; }
 interface StorageFolder { path: string; name: string; }
 interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; currency: string; name?: string; }
 
@@ -71,25 +71,67 @@ function matchesFilter(mimeType: string, filter: FileFilter): boolean {
   return true;
 }
 
+const CATEGORY_STYLE: Record<string, { bg: string; text: string; label: string }> = {
+  invoice:      { bg: "bg-emerald-500/15", text: "text-emerald-400", label: "Invoice" },
+  contract:     { bg: "bg-blue-500/15",    text: "text-blue-400",    label: "Contract" },
+  receipt:      { bg: "bg-teal-500/15",    text: "text-teal-400",    label: "Receipt" },
+  report:       { bg: "bg-indigo-500/15",  text: "text-indigo-400",  label: "Report" },
+  presentation: { bg: "bg-orange-500/15",  text: "text-orange-400",  label: "Deck" },
+  spreadsheet:  { bg: "bg-green-500/15",   text: "text-green-400",   label: "Sheet" },
+  photo:        { bg: "bg-purple-500/15",  text: "text-purple-400",  label: "Photo" },
+  video:        { bg: "bg-red-500/15",     text: "text-red-400",     label: "Video" },
+  audio:        { bg: "bg-amber-500/15",   text: "text-amber-400",   label: "Audio" },
+  code:         { bg: "bg-cyan-500/15",    text: "text-cyan-400",    label: "Code" },
+  document:     { bg: "bg-gray-500/15",    text: "text-gray-400",    label: "Doc" },
+  other:        { bg: "bg-gray-500/10",    text: "text-gray-500",    label: "Other" },
+};
+
+function CategoryBadge({ category }: { category?: string | null }) {
+  if (!category) return null;
+  const s = CATEGORY_STYLE[category];
+  if (!s) return null;
+  return (
+    <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded ml-1", s.bg, s.text)}>
+      {s.label}
+    </span>
+  );
+}
+
 interface AiMessage { role: "user" | "assistant"; content: string; streaming?: boolean; }
 
 function AiPanel({
   files,
   onClose,
+  initialFileId,
+  autoQuery,
 }: {
   files: StorageFile[];
   onClose: () => void;
+  initialFileId?: number | null;
+  autoQuery?: string | null;
 }) {
-  const [selected, setSelected] = useState<Set<number>>(new Set());
+  const [selected, setSelected] = useState<Set<number>>(() =>
+    initialFileId != null ? new Set([initialFileId]) : new Set()
+  );
   const [query, setQuery] = useState("");
   const [messages, setMessages] = useState<AiMessage[]>([]);
   const [streaming, setStreaming] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const autoSentRef = useRef(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
+
+  useEffect(() => {
+    if (autoQuery && !autoSentRef.current && files.length > 0) {
+      autoSentRef.current = true;
+      setTimeout(() => {
+        sendQueryWithContent(autoQuery);
+      }, 150);
+    }
+  }, [autoQuery, files]);
 
   function toggleSelect(id: number) {
     setSelected((prev) => {
@@ -105,20 +147,18 @@ function AiPanel({
     else setSelected(new Set(files.map((f) => f.id)));
   }
 
-  async function sendQuery() {
-    const q = query.trim();
+  async function sendQueryWithContent(q: string) {
     if (!q || streaming) return;
 
     const selectedFiles = files.filter((f) => selected.has(f.id));
     const context = selectedFiles.length > 0
       ? `The user has selected these files from their drive:\n${selectedFiles
-          .map((f) => `- ${f.name} (${f.mimeType}, ${formatBytes(f.sizeBytes)}, uploaded ${formatDistanceToNow(new Date(f.createdAt), { addSuffix: true })})`)
+          .map((f) => `- ${f.name} (${f.mimeType}, ${formatBytes(f.sizeBytes)}, uploaded ${formatDistanceToNow(new Date(f.createdAt), { addSuffix: true })}${f.category ? `, category: ${f.category}` : ""})`)
           .join("\n")}\n\nUser question: ${q}`
       : q;
 
     const userMsg: AiMessage = { role: "user", content: q };
     setMessages((prev) => [...prev, userMsg]);
-    setQuery("");
     setStreaming(true);
 
     const assistantMsg: AiMessage = { role: "assistant", content: "", streaming: true };
@@ -184,6 +224,13 @@ function AiPanel({
     } finally {
       setStreaming(false);
     }
+  }
+
+  async function sendQuery() {
+    const q = query.trim();
+    if (!q) return;
+    setQuery("");
+    await sendQueryWithContent(q);
   }
 
   const allSelected = files.length > 0 && selected.size === files.length;
@@ -334,6 +381,10 @@ export default function StoragePage() {
   const [dragging, setDragging] = useState(false);
   const [fileFilter, setFileFilter] = useState<FileFilter>("all");
   const [showAiPanel, setShowAiPanel] = useState(false);
+  const [analyzeTarget, setAnalyzeTarget] = useState<StorageFile | null>(null);
+  const [aiSearchMode, setAiSearchMode] = useState(false);
+  const [aiSearchLoading, setAiSearchLoading] = useState(false);
+  const [aiSearchResults, setAiSearchResults] = useState<StorageFile[] | null>(null);
 
   const newFolderRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -527,14 +578,41 @@ export default function StoragePage() {
   const openFilePicker = () => fileInputRef.current?.click();
   const openPhotoPicker = () => photoInputRef.current?.click();
 
-  const filteredFiles = files.filter((f) => {
-    const matchesSearch = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCat = matchesFilter(f.mimeType, fileFilter);
-    return matchesSearch && matchesCat;
-  });
-  const filteredFolders = fileFilter === "all"
-    ? folders.filter((f) => !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-    : [];
+  const handleAiSearch = useCallback(async (q: string) => {
+    if (!q.trim()) { setAiSearchResults(null); return; }
+    setAiSearchLoading(true);
+    try {
+      const authHeaders = await getAuthHeaders();
+      const res = await fetch(`${BASE}/api/storage/search`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", ...authHeaders },
+        body: JSON.stringify({ query: q }),
+      });
+      if (!res.ok) throw new Error("Search failed");
+      const data = await res.json();
+      setAiSearchResults(data.files ?? []);
+    } catch {
+      setAiSearchResults([]);
+    } finally {
+      setAiSearchLoading(false);
+    }
+  }, []);
+
+  const displayedFiles = aiSearchMode && aiSearchResults !== null
+    ? aiSearchResults
+    : files.filter((f) => {
+        const matchesSearch = !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase());
+        const matchesCat = matchesFilter(f.mimeType, fileFilter);
+        return matchesSearch && matchesCat;
+      });
+
+  const filteredFiles = displayedFiles;
+  const filteredFolders = (aiSearchMode && aiSearchResults !== null)
+    ? []
+    : fileFilter === "all"
+      ? folders.filter((f) => !searchQuery || f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+      : [];
 
   const breadcrumbSegments = currentFolder === "/" ? [] : currentFolder.split("/").filter(Boolean);
   const usedPct = quota && quota.totalBytes > 0 ? Math.min(100, (quota.usedBytes / quota.totalBytes) * 100) : 0;
@@ -594,19 +672,50 @@ export default function StoragePage() {
           {/* Search row */}
           <div className="flex items-center gap-3 px-5 py-3.5">
             <div className="flex-1 max-w-lg">
-              <div className="flex items-center gap-2 bg-white/[0.06] hover:bg-white/[0.09] rounded-xl px-4 py-2.5 border border-white/[0.08] transition group">
-                <Search className="w-4 h-4 text-gray-500 group-hover:text-gray-400 flex-shrink-0" />
+              <div className={cn(
+                "flex items-center gap-2 rounded-xl px-4 py-2.5 border transition group",
+                aiSearchMode
+                  ? "bg-violet-600/10 border-violet-500/30 hover:bg-violet-600/15"
+                  : "bg-white/[0.06] hover:bg-white/[0.09] border-white/[0.08]"
+              )}>
+                {aiSearchLoading
+                  ? <Loader2 className="w-4 h-4 text-violet-400 animate-spin flex-shrink-0" />
+                  : aiSearchMode
+                    ? <Sparkles className="w-4 h-4 text-violet-400 flex-shrink-0" />
+                    : <Search className="w-4 h-4 text-gray-500 group-hover:text-gray-400 flex-shrink-0" />
+                }
                 <input
                   value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  placeholder="Search My Drive…"
+                  onChange={(e) => {
+                    setSearchQuery(e.target.value);
+                    if (aiSearchMode) setAiSearchResults(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && aiSearchMode && searchQuery.trim()) {
+                      handleAiSearch(searchQuery);
+                    }
+                  }}
+                  placeholder={aiSearchMode ? "Describe what you're looking for… (press Enter)" : "Search My Drive…"}
                   className="flex-1 bg-transparent text-sm text-white placeholder-gray-600 outline-none"
                 />
                 {searchQuery && (
-                  <button onClick={() => setSearchQuery("")} className="text-gray-500 hover:text-gray-300">
+                  <button onClick={() => { setSearchQuery(""); setAiSearchResults(null); }} className="text-gray-500 hover:text-gray-300">
                     <X className="w-3.5 h-3.5" />
                   </button>
                 )}
+                <button
+                  onClick={() => { setAiSearchMode((v) => !v); setSearchQuery(""); setAiSearchResults(null); }}
+                  title={aiSearchMode ? "Switch to regular search" : "Switch to AI search"}
+                  className={cn(
+                    "flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition flex-shrink-0",
+                    aiSearchMode
+                      ? "bg-violet-600 text-white hover:bg-violet-500"
+                      : "bg-white/[0.08] text-gray-400 hover:text-violet-400 hover:bg-violet-600/10"
+                  )}
+                >
+                  <Sparkles className="w-3 h-3" />
+                  AI
+                </button>
               </div>
             </div>
           </div>
@@ -881,9 +990,12 @@ export default function StoragePage() {
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-medium text-white truncate">{file.name}</p>
-                          <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", colors.bg, colors.text)}>
-                            {colors.badge}
-                          </span>
+                          <div className="flex items-center gap-1 flex-wrap">
+                            <span className={cn("text-[10px] font-bold px-1.5 py-0.5 rounded", colors.bg, colors.text)}>
+                              {colors.badge}
+                            </span>
+                            <CategoryBadge category={file.category} />
+                          </div>
                         </div>
                       </div>
                       <span className="text-sm text-gray-500 self-center hidden sm:block">
@@ -893,9 +1005,19 @@ export default function StoragePage() {
                         {formatBytes(file.sizeBytes)}
                       </span>
                       <div className={cn(
-                        "flex items-center gap-1 justify-end self-center w-20 transition-opacity",
+                        "flex items-center gap-1 justify-end self-center transition-opacity",
                         isHovered ? "opacity-100" : "opacity-0"
                       )}>
+                        <button
+                          onClick={() => {
+                            setAnalyzeTarget(file);
+                            setShowAiPanel(true);
+                          }}
+                          className="w-7 h-7 rounded-lg hover:bg-violet-600/20 flex items-center justify-center text-gray-500 hover:text-violet-400 transition"
+                          title="Analyze with AI"
+                        >
+                          <Sparkles className="w-3.5 h-3.5" />
+                        </button>
                         {currentFolder !== "/" && (
                           <button onClick={() => handleMoveToRoot(file)}
                             className="w-7 h-7 rounded-lg hover:bg-white/10 flex items-center justify-center text-gray-500 hover:text-white transition" title="Move to My Drive">
@@ -989,7 +1111,12 @@ export default function StoragePage() {
 
       {/* ── AI Panel (slides in from right) ── */}
       {showAiPanel && (
-        <AiPanel files={files} onClose={() => setShowAiPanel(false)} />
+        <AiPanel
+          files={files}
+          onClose={() => { setShowAiPanel(false); setAnalyzeTarget(null); }}
+          initialFileId={analyzeTarget?.id ?? null}
+          autoQuery={analyzeTarget ? `Please analyze this file and give me a summary: "${analyzeTarget.name}". Include key information, important dates or figures, and any action items if applicable.` : null}
+        />
       )}
 
       {/* Share modal */}
