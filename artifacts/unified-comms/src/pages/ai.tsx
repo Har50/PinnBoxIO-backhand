@@ -457,12 +457,50 @@ function AiChat() {
 
   const formatConversationTitle = (conv: Conversation) => {
     const title = conv.title?.trim();
-    if (title && !/^new (chat|conversation)$/i.test(title)) return title;
-    return `Chat ${new Date(conv.createdAt).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    })}`;
+    if (title && !/^new (chat|conversation)$/i.test(title) && !/^chat (jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)/i.test(title)) return title;
+    return "New chat";
   };
+
+  const formatConversationDate = (conv: Conversation) => {
+    const date = new Date(conv.createdAt);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const convDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    if (convDay.getTime() === today.getTime()) {
+      return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+    }
+    if (convDay.getTime() === yesterday.getTime()) {
+      return `Yesterday ${date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}`;
+    }
+    return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: now.getFullYear() !== date.getFullYear() ? "numeric" : undefined });
+  };
+
+  const getDateGroupLabel = (conv: Conversation) => {
+    const date = new Date(conv.createdAt);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const convDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+    const diffDays = Math.floor((today.getTime() - convDay.getTime()) / (1000 * 60 * 60 * 24));
+
+    if (convDay.getTime() === today.getTime()) return "Today";
+    if (convDay.getTime() === yesterday.getTime()) return "Yesterday";
+    if (diffDays <= 7) return "This week";
+    if (diffDays <= 30) return "This month";
+    return date.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  };
+
+  const groupedConversations = conversations.reduce<{ label: string; items: Conversation[] }[]>((groups, conv) => {
+    const label = getDateGroupLabel(conv);
+    const existing = groups.find((g) => g.label === label);
+    if (existing) existing.items.push(conv);
+    else groups.push({ label, items: [conv] });
+    return groups;
+  }, []);
 
   const activeConversation = conversations.find((conv) => conv.id === activeConvId);
 
@@ -480,29 +518,44 @@ function AiChat() {
           </Button>
         </div>
         <ScrollArea className="flex-1">
-          <div className="p-2 flex flex-col gap-1">
-            {conversations.map((conv) => (
-              <button
-                key={conv.id}
-                onClick={() => loadConversation(conv.id)}
-                className={cn(
-                  "w-full text-left px-3 py-2.5 rounded-lg text-sm flex items-center justify-between group transition-colors",
-                  activeConvId === conv.id
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-accent text-foreground",
-                )}
-              >
-                <span className="truncate flex-1">{formatConversationTitle(conv)}</span>
-                <button
-                  onClick={(e) => deleteConversation(conv.id, e)}
-                  className={cn(
-                    "ml-2 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity",
-                    activeConvId === conv.id ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-destructive",
-                  )}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
-              </button>
+          <div className="p-2 flex flex-col gap-0.5">
+            {groupedConversations.map((group) => (
+              <div key={group.label}>
+                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/70">
+                  {group.label}
+                </p>
+                {group.items.map((conv) => (
+                  <button
+                    key={conv.id}
+                    onClick={() => loadConversation(conv.id)}
+                    className={cn(
+                      "w-full text-left px-3 py-2 rounded-lg flex items-start justify-between group transition-colors",
+                      activeConvId === conv.id
+                        ? "bg-primary text-primary-foreground"
+                        : "hover:bg-accent text-foreground",
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate leading-snug">{formatConversationTitle(conv)}</p>
+                      <p className={cn(
+                        "text-[11px] mt-0.5 truncate",
+                        activeConvId === conv.id ? "text-primary-foreground/70" : "text-muted-foreground",
+                      )}>
+                        {formatConversationDate(conv)}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => deleteConversation(conv.id, e)}
+                      className={cn(
+                        "ml-2 mt-0.5 shrink-0 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity",
+                        activeConvId === conv.id ? "text-primary-foreground/70 hover:text-primary-foreground" : "text-muted-foreground hover:text-destructive",
+                      )}
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </button>
+                ))}
+              </div>
             ))}
             {conversations.length === 0 && (
               <p className="text-center text-xs text-muted-foreground py-8 px-4">
