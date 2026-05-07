@@ -546,6 +546,20 @@ export const GetOverviewStatsResponse = zod.object({
 });
 
 /**
+ * @summary Get message counts (total and unread) per folder
+ */
+export const GetFolderCountsQueryParams = zod.object({
+  accountId: zod.coerce.number().nullish(),
+});
+
+export const GetFolderCountsResponseItem = zod.object({
+  folder: zod.string(),
+  total: zod.number(),
+  unread: zod.number(),
+});
+export const GetFolderCountsResponse = zod.array(GetFolderCountsResponseItem);
+
+/**
  * @summary Get recent messages across all accounts
  */
 export const GetRecentMessagesQueryParams = zod.object({

@@ -52,6 +52,41 @@ async function buildMessageResponse(msg: typeof messagesTable.$inferSelect, acco
   };
 }
 
+router.get("/messages/folder-counts", async (req: any, res): Promise<void> => {
+  const userId: string = req.userId;
+  const accountIdRaw = req.query.accountId ? Number(req.query.accountId) : undefined;
+
+  const folders = ["Inbox", "Sent", "Drafts", "Archive", "Trash", "Spam"];
+
+  const conditions = [eq(accountsTable.userId, userId)];
+  if (accountIdRaw) conditions.push(eq(messagesTable.accountId, accountIdRaw));
+
+  const totalRows = await db
+    .select({ folder: messagesTable.folder, cnt: count() })
+    .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
+    .where(and(...conditions))
+    .groupBy(messagesTable.folder);
+
+  const unreadRows = await db
+    .select({ folder: messagesTable.folder, cnt: count() })
+    .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
+    .where(and(...conditions, eq(messagesTable.isRead, false)))
+    .groupBy(messagesTable.folder);
+
+  const totalMap = new Map(totalRows.map((r) => [r.folder, Number(r.cnt)]));
+  const unreadMap = new Map(unreadRows.map((r) => [r.folder, Number(r.cnt)]));
+
+  const result = folders.map((folder) => ({
+    folder,
+    total: totalMap.get(folder) ?? 0,
+    unread: unreadMap.get(folder) ?? 0,
+  }));
+
+  res.json(result);
+});
+
 router.get("/messages/recent", async (req: any, res): Promise<void> => {
   const userId: string = req.userId;
   const query = GetRecentMessagesQueryParams.safeParse(req.query);

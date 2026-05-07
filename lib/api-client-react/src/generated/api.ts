@@ -26,7 +26,9 @@ import type {
   CreateAttachmentBody,
   CreateContactBody,
   CreateMessageBody,
+  FolderCount,
   GetContactsParams,
+  GetFolderCountsParams,
   GetMessagesParams,
   GetRecentMessagesParams,
   HandleBrowserLoginCallbackParams,
@@ -2271,6 +2273,100 @@ export function useGetOverviewStats<
   request?: SecondParameter<typeof customFetch>;
 }): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
   const queryOptions = getGetOverviewStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get message counts (total and unread) per folder
+ */
+export const getGetFolderCountsUrl = (params?: GetFolderCountsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/messages/folder-counts?${stringifiedParams}`
+    : `/api/messages/folder-counts`;
+};
+
+export const getFolderCounts = async (
+  params?: GetFolderCountsParams,
+  options?: RequestInit,
+): Promise<FolderCount[]> => {
+  return customFetch<FolderCount[]>(getGetFolderCountsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetFolderCountsQueryKey = (params?: GetFolderCountsParams) => {
+  return [`/api/messages/folder-counts`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetFolderCountsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getFolderCounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFolderCountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFolderCounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetFolderCountsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getFolderCounts>>> = ({
+    signal,
+  }) => getFolderCounts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getFolderCounts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetFolderCountsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getFolderCounts>>
+>;
+export type GetFolderCountsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get message counts (total and unread) per folder
+ */
+
+export function useGetFolderCounts<
+  TData = Awaited<ReturnType<typeof getFolderCounts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetFolderCountsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getFolderCounts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetFolderCountsQueryOptions(params, options);
 
   const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
     queryKey: QueryKey;

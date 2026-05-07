@@ -492,6 +492,26 @@ paths:
               schema:
                 $ref: "#/components/schemas/OverviewStats"
 
+  /messages/folder-counts:
+    get:
+      operationId: getFolderCounts
+      tags: [messages]
+      summary: Get message counts (total and unread) per folder
+      parameters:
+        - name: accountId
+          in: query
+          schema:
+            type: ["integer", "null"]
+      responses:
+        "200":
+          description: Folder counts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/FolderCount"
+
   /messages/recent:
     get:
       operationId: getRecentMessages
@@ -922,6 +942,20 @@ components:
         - totalStarred
         - totalContacts
         - accountBreakdown
+
+    FolderCount:
+      type: object
+      properties:
+        folder:
+          type: string
+        total:
+          type: integer
+        unread:
+          type: integer
+      required:
+        - folder
+        - total
+        - unread
 
     AccountStat:
       type: object

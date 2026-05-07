@@ -249,6 +249,12 @@ export interface OverviewStats {
   accountBreakdown: AccountStat[];
 }
 
+export interface FolderCount {
+  folder: string;
+  total: number;
+  unread: number;
+}
+
 export interface NotificationPreferences {
   emailSummary: boolean;
   importantMessages: boolean;
@@ -323,6 +329,13 @@ export const SearchAllType = {
   contacts: "contacts",
   all: "all",
 } as const;
+
+export type GetFolderCountsParams = {
+  /**
+   * @nullable
+   */
+  accountId?: number | null;
+};
 
 export type GetRecentMessagesParams = {
   /**

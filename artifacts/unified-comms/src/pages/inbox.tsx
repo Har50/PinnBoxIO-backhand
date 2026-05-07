@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage } from "@workspace/api-client-react";
+import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage, useGetFolderCounts } from "@workspace/api-client-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mail, Star, Inbox as InboxIcon, Tag, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
@@ -41,6 +41,9 @@ export default function Inbox() {
   const debouncedSearch = useDebounce(searchQuery, 300);
 
   const { data: accounts, isLoading: accountsLoading } = useGetAccounts();
+  const { data: folderCounts } = useGetFolderCounts(
+    selectedAccountId != null ? { accountId: selectedAccountId } : {}
+  );
   const { data: messagesData, isLoading: messagesLoading, refetch } = useGetMessages({ 
     accountId: selectedAccountId ?? undefined,
     folder: selectedFolder ?? undefined,
@@ -110,6 +113,10 @@ export default function Inbox() {
 
   const folders = ["Inbox", "Sent", "Drafts", "Archive", "Trash", "Spam"];
 
+  const folderCountMap = new Map(
+    (folderCounts ?? []).map((fc) => [fc.folder, fc])
+  );
+
   const mailboxPanel = (
     <div className="bg-muted/10 border-r flex flex-col h-full min-w-0">
       <div className="p-4 border-b flex items-center justify-between">
@@ -152,17 +159,32 @@ export default function Inbox() {
           <div className="pt-2 border-t">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Folders</h3>
             <div className="space-y-1">
-              {folders.map(folder => (
-                <Button 
-                  key={folder}
-                  variant={selectedFolder === folder ? "secondary" : "ghost"} 
-                  className={`w-full justify-start gap-2 h-9 px-3 ${selectedFolder === folder ? "font-semibold" : "font-normal text-muted-foreground"}`}
-                  onClick={() => handleFolderSelect(folder)}
-                >
-                  <Tag className="w-3.5 h-3.5" />
-                  {folder}
-                </Button>
-              ))}
+              {folders.map(folder => {
+                const fc = folderCountMap.get(folder);
+                const showUnread = folder === "Inbox" && fc && fc.unread > 0;
+                const showTotal = folder !== "Inbox" && fc && fc.total > 0;
+                return (
+                  <Button 
+                    key={folder}
+                    variant={selectedFolder === folder ? "secondary" : "ghost"} 
+                    className={`w-full justify-start gap-2 h-9 px-3 ${selectedFolder === folder ? "font-semibold" : "font-normal text-muted-foreground"}`}
+                    onClick={() => handleFolderSelect(folder)}
+                  >
+                    <Tag className="w-3.5 h-3.5 flex-shrink-0" />
+                    <span className="flex-1 text-left truncate">{folder}</span>
+                    {showUnread && (
+                      <Badge variant="default" className="ml-auto px-1.5 py-0 text-xs font-semibold h-5 min-w-5 justify-center">
+                        {fc.unread > 99 ? "99+" : fc.unread}
+                      </Badge>
+                    )}
+                    {showTotal && (
+                      <span className="ml-auto text-xs text-muted-foreground/60 font-normal tabular-nums">
+                        {fc.total > 999 ? "999+" : fc.total}
+                      </span>
+                    )}
+                  </Button>
+                );
+              })}
             </div>
           </div>
         </div>
