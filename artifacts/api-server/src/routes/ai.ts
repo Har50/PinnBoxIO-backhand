@@ -438,6 +438,31 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
     res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
     res.end();
+
+    // Auto-generate a title after the first message if the conversation still has a generic title
+    const isFirstMessage = history.length === 1;
+    const hasGenericTitle = /^new (chat|conversation)$/i.test(conversation.title ?? "");
+    if (isFirstMessage && hasGenericTitle) {
+      setImmediate(async () => {
+        try {
+          const titleRes = await openai.chat.completions.create({
+            model: "gpt-4o-mini",
+            max_completion_tokens: 20,
+            messages: [
+              { role: "system", content: "Generate a concise 3-6 word title summarizing this message. Return only the title with no quotes, punctuation, or explanation." },
+              { role: "user", content: content.slice(0, 300) },
+            ],
+          });
+          const generatedTitle = titleRes.choices[0]?.message?.content?.trim();
+          if (generatedTitle) {
+            await db
+              .update(aiConversationsTable)
+              .set({ title: generatedTitle })
+              .where(eq(aiConversationsTable.id, id));
+          }
+        } catch {}
+      });
+    }
   } catch (err: any) {
     res.status(500).json({ error: err.message || "AI request failed" });
   }

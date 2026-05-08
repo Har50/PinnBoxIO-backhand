@@ -514,6 +514,8 @@ export default function AiScreen() {
     } finally {
       setStreaming(false);
       loadConversations();
+      // Delayed refresh so auto-generated title (set async on server) appears
+      setTimeout(() => loadConversations(), 1500);
     }
   };
 

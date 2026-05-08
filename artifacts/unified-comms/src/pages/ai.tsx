@@ -439,6 +439,8 @@ function AiChat() {
         return updated;
       });
       setStreaming(false);
+      // Refresh conversations after a short delay so auto-generated titles appear
+      setTimeout(() => fetchConversations(), 1200);
     }
   };
 
