@@ -19,9 +19,12 @@ export function BoldDark() {
   ];
 
   return (
-    <div className="flex h-[800px] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#2d3139] bg-[#0d1117] font-sans text-slate-300 shadow-2xl mx-auto my-8">
+    <div className="flex h-[800px] w-full max-w-[1280px] overflow-hidden rounded-xl border border-[#2d3139] bg-[#0d1117] font-sans text-slate-300 shadow-2xl mx-auto my-8 relative">
+      {/* Decorative orbs — matches Merged */}
+      <div className="absolute top-[-8%] left-[-5%] w-[35%] h-[40%] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)", filter: "blur(60px)" }} />
+      <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[45%] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)", filter: "blur(80px)" }} />
       {/* Sidebar */}
-      <div className="flex w-64 flex-col bg-[#161b22] border-r border-[#2d3139]">
+      <div className="flex w-64 flex-col bg-[#161b22] border-r border-[#2d3139] relative z-10">
         <div className="p-4">
           <button className="flex w-full items-center justify-center gap-2 rounded-lg bg-[#21262d] px-4 py-2.5 text-sm font-medium text-slate-200 transition-colors hover:bg-[#30363d] focus:outline-none focus:ring-2 focus:ring-[#58a6ff]">
             <Plus className="h-4 w-4" />
@@ -58,7 +61,7 @@ export function BoldDark() {
       </div>
 
       {/* Main Chat Area */}
-      <div className="flex flex-1 flex-col relative bg-[#0d1117]">
+      <div className="flex flex-1 flex-col relative z-10 bg-[#0d1117]">
         {/* Header */}
         <header className="flex h-14 items-center justify-between border-b border-[#2d3139] px-6 bg-[#0d1117]/80 backdrop-blur-md z-10 sticky top-0">
           <div className="flex items-center gap-2">
