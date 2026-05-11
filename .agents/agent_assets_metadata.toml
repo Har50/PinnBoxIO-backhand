@@ -1,8 +1,13 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "IGvBsBMHKS2FexivA-Agd"
 uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
-title = "pinnboxio icon clean"
+title = "generated_image"
+
+[[outputs]]
+id = "3e4tq5MnUeaPu3QUiDRgO"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "New PinnboxIO App Icon"
