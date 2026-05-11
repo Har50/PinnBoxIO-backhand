@@ -28,6 +28,11 @@
     }
   },
   "submit": {
-    "production": {}
+    "production": {
+      "ios": {
+        "ascApiKeyIssuerId": "29ecf491-9bfc-4605-8fb9-24c5b58604e3",
+        "ascApiKeyId": "XT5F8TSLWA"
+      }
+    }
   }
 }
