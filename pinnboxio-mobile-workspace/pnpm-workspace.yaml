@@ -1,0 +1,10 @@
+packages:
+  - "artifacts/mobile"
+  - "lib/api-client-react"
+  - "lib/brand"
+
+catalog:
+  "@tanstack/react-query": "^5.90.21"
+  react: "19.1.0"
+  react-dom: "19.1.0"
+  zod: "3.25.76"
