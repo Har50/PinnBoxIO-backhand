@@ -30,7 +30,6 @@ import Contacts from "./pages/contacts";
 import SearchPage from "./pages/search";
 import Accounts from "./pages/accounts";
 import AiPage from "./pages/ai";
-import StoragePage from "./pages/storage";
 import SettingsPage from "./pages/settings";
 import CalendarPage from "./pages/calendar";
 
@@ -280,7 +279,6 @@ function Router() {
               <Route path="/search" component={SearchPage} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/ai" component={AiPage} />
-              <Route path="/storage" component={StoragePage} />
               <Route path="/settings" component={SettingsPage} />
               <Route path="/calendar" component={CalendarPage} />
               <Route component={NotFound} />

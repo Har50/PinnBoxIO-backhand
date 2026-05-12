@@ -76,13 +76,7 @@ function ClassicTabLayout() {
           tabBarIcon: ({ color }) => <TabIcon name="calendar" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="storage"
-        options={{
-          title: "Storage",
-          tabBarIcon: ({ color }) => <TabIcon name="hard-drive" color={color} />,
-        }}
-      />
+      <Tabs.Screen name="storage" options={{ href: null }} />
       <Tabs.Screen
         name="ai"
         options={{
