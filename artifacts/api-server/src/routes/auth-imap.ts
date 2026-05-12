@@ -1,7 +1,7 @@
 import { Router, type IRouter } from "express";
 import { db, imapCredentialsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
-import { testImapConnection } from "../services/imap";
+import { testImapConnection, encryptPassword, decryptPassword } from "../services/imap";
 
 const router: IRouter = Router();
 
@@ -26,9 +26,27 @@ router.post("/auth/imap/connect", async (req: any, res): Promise<void> => {
   const resolvedPort = port ?? 993;
   const resolvedSecure = secure ?? true;
 
-  const test = await testImapConnection({ host, port: resolvedPort, secure: resolvedSecure, username, password });
+  const test = await testImapConnection({
+    host,
+    port: resolvedPort,
+    secure: resolvedSecure,
+    username,
+    password,
+  });
+
   if (!test.ok) {
-    res.status(400).json({ error: test.error ?? "Could not connect to IMAP server. Check your credentials." });
+    res.status(400).json({
+      error: test.error ?? "Could not connect to IMAP server. Check your credentials.",
+    });
+    return;
+  }
+
+  let encryptedPassword: string;
+  try {
+    encryptedPassword = encryptPassword(password);
+  } catch (err: any) {
+    req.log.error({ err }, "IMAP encryption key not configured");
+    res.status(500).json({ error: "Server encryption not configured. Contact support." });
     return;
   }
 
@@ -42,7 +60,7 @@ router.post("/auth/imap/connect", async (req: any, res): Promise<void> => {
       port: resolvedPort,
       secure: resolvedSecure,
       username,
-      password,
+      password: encryptedPassword,
       color: color || "#6366f1",
       isActive: true,
     })
@@ -65,12 +83,20 @@ router.post("/auth/imap/:id/test", async (req: any, res): Promise<void> => {
     return;
   }
 
+  let plainPassword: string;
+  try {
+    plainPassword = decryptPassword(cred.password);
+  } catch {
+    res.status(500).json({ error: "Could not decrypt credentials" });
+    return;
+  }
+
   const result = await testImapConnection({
     host: cred.host,
     port: cred.port,
     secure: cred.secure,
     username: cred.username,
-    password: cred.password,
+    password: plainPassword,
   });
 
   res.json(result);
@@ -82,7 +108,12 @@ router.delete("/auth/imap/:id/disconnect", async (req: any, res): Promise<void> 
 
   const [deleted] = await db
     .delete(imapCredentialsTable)
-    .where(and(eq(imapCredentialsTable.id, credentialId), eq(imapCredentialsTable.userId, userId)))
+    .where(
+      and(
+        eq(imapCredentialsTable.id, credentialId),
+        eq(imapCredentialsTable.userId, userId)
+      )
+    )
     .returning();
 
   if (!deleted) {
