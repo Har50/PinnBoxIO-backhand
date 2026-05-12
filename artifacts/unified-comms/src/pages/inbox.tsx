@@ -10,6 +10,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDebounce } from "@/hooks/use-debounce";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComposeModal } from "@/components/compose-modal";
 import { PreviewPanel, type PreviewItem } from "@/components/preview-panel";
@@ -127,35 +128,57 @@ export default function Inbox() {
       </div>
       <ScrollArea className="flex-1">
         <div className="p-2 space-y-4">
-          <div className="space-y-1">
-            <Button 
-              variant={selectedAccountId === null ? "secondary" : "ghost"} 
-              className={`w-full justify-start gap-2 h-9 px-3 ${selectedAccountId === null ? "font-semibold" : "font-normal text-muted-foreground"}`}
-              onClick={() => handleAccountSelect(null)}
-            >
-              <InboxIcon className="w-4 h-4" />
-              All Accounts
-            </Button>
+          <div>
             {accountsLoading ? (
-              Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-8 w-full rounded" />)
-            ) : accounts?.map(acc => (
-              <Button 
-                key={acc.id}
-                variant={selectedAccountId === acc.id ? "secondary" : "ghost"} 
-                className={`w-full justify-start gap-2 h-9 px-3 ${selectedAccountId === acc.id ? "font-semibold" : "font-normal text-muted-foreground"}`}
-                onClick={() => handleAccountSelect(acc.id)}
+              <Skeleton className="h-9 w-full rounded" />
+            ) : (
+              <Select
+                value={selectedAccountId === null ? "all" : String(selectedAccountId)}
+                onValueChange={(val) => handleAccountSelect(val === "all" ? null : Number(val))}
               >
-                <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: acc.color || "#ccc" }} />
-                <span className="truncate">{acc.name}</span>
-                {acc.unreadCount > 0 && (
-                  <Badge variant="secondary" className="ml-auto px-1.5 py-0 text-xs font-semibold h-5">
-                    {acc.unreadCount}
-                  </Badge>
-                )}
-              </Button>
-            ))}
+                <SelectTrigger className="w-full h-9 text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {selectedAccountId === null ? (
+                      <>
+                        <InboxIcon className="w-3.5 h-3.5 flex-shrink-0 text-muted-foreground" />
+                        <SelectValue placeholder="All Accounts" />
+                      </>
+                    ) : (
+                      <>
+                        <div
+                          className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: accounts?.find(a => a.id === selectedAccountId)?.color || "#ccc" }}
+                        />
+                        <SelectValue />
+                      </>
+                    )}
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">
+                    <div className="flex items-center gap-2">
+                      <InboxIcon className="w-3.5 h-3.5 text-muted-foreground" />
+                      All Accounts
+                    </div>
+                  </SelectItem>
+                  {accounts?.map(acc => (
+                    <SelectItem key={acc.id} value={String(acc.id)}>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: acc.color || "#ccc" }} />
+                        <span className="truncate">{acc.name}</span>
+                        {acc.unreadCount > 0 && (
+                          <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-xs font-semibold h-4">
+                            {acc.unreadCount}
+                          </Badge>
+                        )}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
           </div>
-          
+
           <div className="pt-2 border-t">
             <h3 className="px-3 text-xs font-semibold text-muted-foreground mb-2 uppercase tracking-wider">Folders</h3>
             <div className="space-y-1">
