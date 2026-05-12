@@ -1,10 +1,9 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
-import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
+import { db, accountsTable, messagesTable, attachmentsTable, imapCredentialsTable } from "@workspace/db";
 import { getGmailMessage, listGmailMessages, sendGmailMessage } from "../services/gmail";
 import { getOutlookMessage, listOutlookMessages, sendOutlookMessage } from "../services/outlook";
 import { listImapMessages, getImapMessage, isImapVirtualAccountId, isImapVirtualMsgId, credentialIdFromVirtualAccountId } from "../services/imap";
-import { db as _db, imapCredentialsTable } from "@workspace/db";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -145,7 +144,7 @@ router.get("/messages", async (req: any, res): Promise<void> => {
   }
 
   if (!accountId) {
-    const imapCreds = await _db.select({ id: imapCredentialsTable.id }).from(imapCredentialsTable).where(eq(imapCredentialsTable.userId, userId));
+    const imapCreds = await db.select({ id: imapCredentialsTable.id }).from(imapCredentialsTable).where(eq(imapCredentialsTable.userId, userId));
 
     const [gmailMessages, outlookMessages, ...imapResultsList] = await Promise.all([
       listGmailMessages(userId, folder, limit ?? 25),

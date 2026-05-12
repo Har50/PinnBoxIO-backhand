@@ -58,14 +58,12 @@ const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : "https://pinn-box-io.replit.app";
 
-const IMAP_ACCOUNT_BASE = 2_000_000_000;
-
 function isImapVirtualId(id: number) {
-  return id <= -IMAP_ACCOUNT_BASE;
+  return id <= -3;
 }
 
 function credentialIdFromVirtualId(id: number): number {
-  return Math.abs(id) - IMAP_ACCOUNT_BASE;
+  return -id - 2;
 }
 
 async function getAuthToken(): Promise<string | null> {

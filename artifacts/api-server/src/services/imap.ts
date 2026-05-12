@@ -6,7 +6,7 @@ import { promises as dns } from "node:dns";
 import { isIP } from "node:net";
 
 // ---------------------------------------------------------------------------
-// Encryption helpers (AES-256-GCM)
+// Encryption (AES-256-GCM)
 // ---------------------------------------------------------------------------
 const ALGO = "aes-256-gcm";
 const ENC_KEY_HEX = process.env.IMAP_ENCRYPTION_KEY ?? "";
@@ -44,7 +44,6 @@ export function decryptPassword(stored: string): string {
 // SSRF protection — validate host/port before any outbound connection
 // ---------------------------------------------------------------------------
 
-/** Ports permitted for IMAP connections. */
 const ALLOWED_IMAP_PORTS = new Set([143, 585, 993]);
 
 function ipv4ToInt(ip: string): number | null {
@@ -85,8 +84,8 @@ function isPrivateIPv6(ip: string): boolean {
   if (lower === "::1" || lower === "::") return true;
   const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped) return isPrivateIPv4(mapped[1]);
-  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true; // link-local fe80::/10
-  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;  // unique local fc00::/7
+  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true;
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
   return false;
 }
 
@@ -97,16 +96,10 @@ function isPrivateIP(ip: string): boolean {
   return true;
 }
 
-/**
- * Validates a host + port before any outbound IMAP connection attempt.
- * Blocks private/reserved IPs, disallows non-IMAP ports, and resolves DNS
- * to guard against hostname rebinding / SSRF attacks.
- */
+/** Validates host + port before any outbound IMAP connection (SSRF protection). */
 export async function validateImapTarget(host: string, port: number): Promise<void> {
   if (!ALLOWED_IMAP_PORTS.has(port)) {
-    throw new Error(
-      `Port ${port} is not allowed. Use 143 (IMAP), 993 (IMAPS), or 585.`
-    );
+    throw new Error(`Port ${port} is not allowed. Use 143 (IMAP), 993 (IMAPS), or 585.`);
   }
 
   const cleanHost = host.trim().replace(/^\[|\]$/g, "");
@@ -120,10 +113,7 @@ export async function validateImapTarget(host: string, port: number): Promise<vo
 
   let addresses: string[] = [];
   try {
-    const [v4, v6] = await Promise.allSettled([
-      dns.resolve4(cleanHost),
-      dns.resolve6(cleanHost),
-    ]);
+    const [v4, v6] = await Promise.allSettled([dns.resolve4(cleanHost), dns.resolve6(cleanHost)]);
     if (v4.status === "fulfilled") addresses.push(...v4.value);
     if (v6.status === "fulfilled") addresses.push(...v6.value);
   } catch {
@@ -144,29 +134,21 @@ export async function validateImapTarget(host: string, port: number): Promise<vo
 // ---------------------------------------------------------------------------
 // Virtual ID scheme
 //
-// Account IDs:
-//   -(IMAP_ACCOUNT_BASE + credentialId)
-//   IMAP_ACCOUNT_BASE = 2_000_000_000
+// Account IDs: -(2 + credentialId)
+//   Gmail = -1, Outlook = -2, IMAP cred #1 = -3, cred #2 = -4, …
 //
-// Message IDs — encodes credential + folder + UID so they are globally unique
-// across mailboxes and fully deterministic (no in-memory state required).
-//
-//   -(IMAP_MSG_BASE + credentialId * FOLDER_MULT + folderIndex * UID_MULT + uid)
-//
-//   IMAP_MSG_BASE  = 10_000_000_000_000  (10 trillion — separates from account IDs)
-//   FOLDER_MULT    = 50_000_000_000      (50 billion per credential slot)
-//   UID_MULT       = 5_000_000_000       (5 billion per folder slot)
-//
-//   Max safe credentialId ≈ 898 (well above any realistic deployment).
-//   UIDs are 32-bit (max 4,294,967,295) which fits within UID_MULT (5B). ✓
-//   Max encoded value ≈ −6 × 10^13 << MAX_SAFE_INTEGER (9 × 10^15).        ✓
+// Message IDs encode credential + folder + UID for global uniqueness:
+//   -(IMAP_MSG_BASE + credId * FOLDER_MULT + folderIdx * UID_MULT + uid)
+//   IMAP_MSG_BASE = 10_000_000_000_000
+//   FOLDER_MULT   =     50_000_000_000  (6 folder slots × 5 B each)
+//   UID_MULT      =      5_000_000_000  (> max 32-bit UID 4,294,967,295)
+//   Max safe credentialId ≈ 898; max encoded ≈ −6×10¹³ << MAX_SAFE_INTEGER. ✓
 // ---------------------------------------------------------------------------
-export const IMAP_ACCOUNT_BASE = 2_000_000_000;
+
 const IMAP_MSG_BASE = 10_000_000_000_000;
 const FOLDER_MULT   =     50_000_000_000;
 const UID_MULT      =      5_000_000_000;
 
-/** Canonical folder name → stable numeric index (6 standard IMAP folders). */
 const FOLDER_TO_INDEX: Record<string, number> = {
   Inbox:   0,
   Sent:    1,
@@ -180,17 +162,16 @@ const INDEX_TO_FOLDER: Record<number, string> = Object.fromEntries(
 );
 
 export function imapVirtualAccountId(credentialId: number): number {
-  return -(IMAP_ACCOUNT_BASE + credentialId);
+  return -(2 + credentialId);
 }
 
 export function credentialIdFromVirtualAccountId(virtualId: number): number | null {
-  if (virtualId > -IMAP_ACCOUNT_BASE) return null;
-  const id = Math.abs(virtualId) - IMAP_ACCOUNT_BASE;
-  return id > 0 ? id : null;
+  if (virtualId >= -2) return null;
+  return -virtualId - 2;
 }
 
 export function isImapVirtualAccountId(accountId: number): boolean {
-  return accountId <= -IMAP_ACCOUNT_BASE;
+  return accountId <= -3;
 }
 
 export function isImapVirtualMsgId(msgId: number): boolean {
@@ -202,12 +183,10 @@ function imapVirtualMsgId(credentialId: number, folder: string, uid: number): nu
   return -(IMAP_MSG_BASE + credentialId * FOLDER_MULT + folderIndex * UID_MULT + uid);
 }
 
-function decodeMsgId(
-  virtualId: number
-): { credentialId: number; folder: string; uid: number } | null {
+function decodeMsgId(virtualId: number): { credentialId: number; folder: string; uid: number } | null {
   const abs = Math.abs(virtualId);
   if (abs < IMAP_MSG_BASE) return null;
-  const remainder   = abs - IMAP_MSG_BASE;
+  const remainder    = abs - IMAP_MSG_BASE;
   const credentialId = Math.floor(remainder / FOLDER_MULT);
   const rem2         = remainder % FOLDER_MULT;
   const folderIndex  = Math.floor(rem2 / UID_MULT);
@@ -217,15 +196,18 @@ function decodeMsgId(
 }
 
 // ---------------------------------------------------------------------------
-// ImapFlow client factory (TLS on, no rejectUnauthorized override)
+// ImapFlow client factory
 // ---------------------------------------------------------------------------
-function makeClient(cred: {
+
+interface ImapClientCred {
   host: string;
   port: number;
   secure: boolean;
   username: string;
   password: string;
-}) {
+}
+
+function makeClient(cred: ImapClientCred): ImapFlow {
   return new ImapFlow({
     host: cred.host,
     port: cred.port,
@@ -238,6 +220,7 @@ function makeClient(cred: {
 // ---------------------------------------------------------------------------
 // Folder resolution — maps canonical names to actual IMAP path on server
 // ---------------------------------------------------------------------------
+
 const FOLDER_CANDIDATES: Record<string, string[]> = {
   Inbox:   ["INBOX"],
   Sent:    ["Sent", "Sent Items", "Sent Messages", "[Gmail]/Sent Mail", "INBOX.Sent"],
@@ -247,9 +230,23 @@ const FOLDER_CANDIDATES: Record<string, string[]> = {
   Archive: ["Archive", "[Gmail]/All Mail", "INBOX.Archive"],
 };
 
+interface MailboxTreeNode {
+  path?: string;
+  folders?: MailboxTreeNode[];
+}
+
+function flattenTree(node: MailboxTreeNode): string[] {
+  const names: string[] = [];
+  if (node.path) names.push(node.path);
+  if (node.folders) {
+    for (const child of node.folders) names.push(...flattenTree(child));
+  }
+  return names;
+}
+
 async function resolveFolder(client: ImapFlow, folder: string): Promise<string> {
   const candidates = FOLDER_CANDIDATES[folder] ?? [folder];
-  const tree = await client.listTree();
+  const tree = await client.listTree() as MailboxTreeNode;
   const allFolders = flattenTree(tree);
   for (const candidate of candidates) {
     const match = allFolders.find((f) => f.toLowerCase() === candidate.toLowerCase());
@@ -258,16 +255,15 @@ async function resolveFolder(client: ImapFlow, folder: string): Promise<string> 
   return candidates[0];
 }
 
-function flattenTree(node: any): string[] {
-  const names: string[] = [];
-  if (node.path) names.push(node.path);
-  if (node.folders) for (const child of node.folders) names.push(...flattenTree(child));
-  return names;
-}
-
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
+
+interface AddressObject {
+  name?: string;
+  address?: string;
+}
+
 function parseBody(source: Buffer | undefined): { bodyText: string; bodyHtml: string | null } {
   if (!source) return { bodyText: "", bodyHtml: null };
   try {
@@ -294,29 +290,27 @@ function toDate(d: unknown): Date {
   return d instanceof Date ? d : new Date();
 }
 
+function addressList(addrs: AddressObject[] | undefined): string {
+  return addrs?.map((a) => a.address ?? "").join(", ") ?? "";
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-export async function testImapConnection(cred: {
-  host: string;
-  port: number;
-  secure: boolean;
-  username: string;
-  password: string;
-}): Promise<{ ok: boolean; error?: string }> {
+export async function testImapConnection(cred: ImapClientCred): Promise<{ ok: boolean; error?: string }> {
   try {
     await validateImapTarget(cred.host, cred.port);
-  } catch (err: any) {
-    return { ok: false, error: err.message };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Validation failed" };
   }
   const client = makeClient(cred);
   try {
     await client.connect();
     await client.logout();
     return { ok: true };
-  } catch (err: any) {
-    return { ok: false, error: err?.message ?? "Connection failed" };
+  } catch (err: unknown) {
+    return { ok: false, error: err instanceof Error ? err.message : "Connection failed" };
   }
 }
 
@@ -338,12 +332,51 @@ export async function getImapAccounts(userId: string) {
   }));
 }
 
-export async function listImapMessages(
-  userId: string,
-  credentialId: number,
-  folder = "Inbox",
-  limit = 25
+function buildMessagePayload(
+  params: {
+    virtualId: number;
+    credentialId: number;
+    folder: string;
+    cred: { email: string; displayName: string | null; color: string };
+    msg: { uid: number; envelope: Record<string, unknown> | undefined; flags: Set<string> | undefined; source: Buffer | undefined };
+  }
 ) {
+  const { virtualId, credentialId, folder, cred, msg } = params;
+  const env = msg.envelope as {
+    subject?: string;
+    date?: unknown;
+    from?: AddressObject[];
+    to?: AddressObject[];
+    cc?: AddressObject[];
+  } | undefined;
+  const from = env?.from?.[0];
+  const { bodyText, bodyHtml } = parseBody(msg.source);
+  const date = toDate(env?.date);
+
+  return {
+    id: virtualId,
+    accountId: imapVirtualAccountId(credentialId),
+    accountEmail: cred.email,
+    accountName: cred.displayName || cred.email,
+    accountColor: cred.color,
+    folder,
+    subject: env?.subject ?? "(No subject)",
+    fromName: from?.name || from?.address || "Unknown",
+    fromEmail: from?.address || "unknown@example.com",
+    toList: addressList(env?.to),
+    ccList: addressList(env?.cc) || null,
+    bodyText,
+    bodyHtml,
+    isRead: msg.flags?.has("\\Seen") ?? false,
+    isStarred: msg.flags?.has("\\Flagged") ?? false,
+    hasAttachments: false,
+    attachments: [],
+    receivedAt: date.toISOString(),
+    createdAt: date.toISOString(),
+  };
+}
+
+export async function listImapMessages(userId: string, credentialId: number, folder = "Inbox", limit = 25) {
   const [cred] = await db
     .select()
     .from(imapCredentialsTable)
@@ -369,48 +402,25 @@ export async function listImapMessages(
     const resolvedFolder = await resolveFolder(client, folder);
     const lock = await client.getMailboxLock(resolvedFolder);
     try {
-      // Use mailbox.exists to fetch only the last `limit` messages by sequence
-      // range — avoids an O(mailbox-size) UID enumeration scan.
-      const total = (client.mailbox as any)?.exists ?? 0;
-      if (total === 0) {
-        return { messages: [], total: 0, hasMore: false };
-      }
+      const mailbox = client.mailbox;
+      const total = mailbox !== false ? mailbox.exists : 0;
+      if (total === 0) return { messages: [], total: 0, hasMore: false };
+
       const startSeq = Math.max(1, total - limit + 1);
+      const messages: ReturnType<typeof buildMessagePayload>[] = [];
 
-      const messages: any[] = [];
-      for await (const msg of client.fetch(
-        `${startSeq}:*`,
-        { uid: true, envelope: true, flags: true, source: true }
-      )) {
-        const env = msg.envelope;
-        const from = env?.from?.[0];
-        const { bodyText, bodyHtml } = parseBody(msg.source);
-        const date = toDate(env?.date);
-
-        messages.push({
-          id: imapVirtualMsgId(credentialId, folder, msg.uid),
-          accountId: imapVirtualAccountId(credentialId),
-          accountEmail: cred.email,
-          accountName: cred.displayName || cred.email,
-          accountColor: cred.color,
-          folder,
-          subject: env?.subject ?? "(No subject)",
-          fromName: from?.name || from?.address || "Unknown",
-          fromEmail: from?.address || "unknown@example.com",
-          toList: env?.to?.map((a: any) => a.address).join(", ") ?? "",
-          ccList: env?.cc?.map((a: any) => a.address).join(", ") ?? null,
-          bodyText,
-          bodyHtml,
-          isRead: msg.flags?.has("\\Seen") ?? false,
-          isStarred: msg.flags?.has("\\Flagged") ?? false,
-          hasAttachments: false,
-          attachments: [],
-          receivedAt: date.toISOString(),
-          createdAt: date.toISOString(),
-        });
+      for await (const msg of client.fetch(`${startSeq}:*`, { uid: true, envelope: true, flags: true, source: true })) {
+        messages.push(
+          buildMessagePayload({
+            virtualId: imapVirtualMsgId(credentialId, folder, msg.uid),
+            credentialId,
+            folder,
+            cred,
+            msg: { uid: msg.uid, envelope: msg.envelope as Record<string, unknown>, flags: msg.flags, source: msg.source },
+          })
+        );
       }
 
-      // Deliver newest first
       messages.reverse();
       return { messages, total, hasMore: total > limit };
     } finally {
@@ -423,7 +433,7 @@ export async function listImapMessages(
   }
 }
 
-export async function getImapMessage(userId: string, virtualId: number): Promise<any | null> {
+export async function getImapMessage(userId: string, virtualId: number): Promise<ReturnType<typeof buildMessagePayload> | null> {
   const decoded = decodeMsgId(virtualId);
   if (!decoded) return null;
   const { credentialId, folder, uid } = decoded;
@@ -450,41 +460,17 @@ export async function getImapMessage(userId: string, virtualId: number): Promise
   const client = makeClient({ ...cred, password: plainPassword });
   try {
     await client.connect();
-    // Folder is encoded in the virtual ID — go directly, no guessing required
     const resolvedFolder = await resolveFolder(client, folder);
     const lock = await client.getMailboxLock(resolvedFolder);
     try {
-      for await (const msg of client.fetch(
-        [uid],
-        { uid: true, envelope: true, flags: true, source: true },
-        { uid: true }
-      )) {
-        const env = msg.envelope;
-        const from = env?.from?.[0];
-        const { bodyText, bodyHtml } = parseBody(msg.source);
-        const date = toDate(env?.date);
-
-        return {
-          id: virtualId,
-          accountId: imapVirtualAccountId(credentialId),
-          accountEmail: cred.email,
-          accountName: cred.displayName || cred.email,
-          accountColor: cred.color,
+      for await (const msg of client.fetch([uid], { uid: true, envelope: true, flags: true, source: true }, { uid: true })) {
+        return buildMessagePayload({
+          virtualId,
+          credentialId,
           folder,
-          subject: env?.subject ?? "(No subject)",
-          fromName: from?.name || from?.address || "Unknown",
-          fromEmail: from?.address || "unknown@example.com",
-          toList: env?.to?.map((a: any) => a.address).join(", ") ?? "",
-          ccList: env?.cc?.map((a: any) => a.address).join(", ") ?? null,
-          bodyText,
-          bodyHtml,
-          isRead: msg.flags?.has("\\Seen") ?? false,
-          isStarred: msg.flags?.has("\\Flagged") ?? false,
-          hasAttachments: false,
-          attachments: [],
-          receivedAt: date.toISOString(),
-          createdAt: date.toISOString(),
-        };
+          cred,
+          msg: { uid: msg.uid, envelope: msg.envelope as Record<string, unknown>, flags: msg.flags, source: msg.source },
+        });
       }
       return null;
     } finally {

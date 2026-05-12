@@ -38,14 +38,12 @@ const PROVIDER_LABEL: Record<string, string> = {
   phone: "Phone Number",
 };
 
-const IMAP_ACCOUNT_BASE = 2_000_000_000;
-
 function isImapVirtualId(id: number) {
-  return id <= -IMAP_ACCOUNT_BASE;
+  return id <= -3;
 }
 
 function credentialIdFromVirtualId(id: number): number {
-  return Math.abs(id) - IMAP_ACCOUNT_BASE;
+  return -id - 2;
 }
 
 const PRESET_HOSTS: Record<string, { host: string; port: number; secure: boolean }> = {
