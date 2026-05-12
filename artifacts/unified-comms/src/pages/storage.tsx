@@ -385,6 +385,10 @@ export default function StoragePage() {
   const [aiSearchMode, setAiSearchMode] = useState(false);
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
   const [aiSearchResults, setAiSearchResults] = useState<StorageFile[] | null>(null);
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "file"; item: StorageFile } | { type: "folder"; item: StorageFolder } | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [failedUpload, setFailedUpload] = useState<{ file: File; error: string } | null>(null);
 
   const newFolderRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -396,6 +400,7 @@ export default function StoragePage() {
   }
 
   const loadData = useCallback(async (folder = currentFolder) => {
+    setLoadError(null);
     try {
       const [quotaRes, filesRes, foldersRes, plansRes] = await Promise.all([
         apiFetch<{ quota: Quota }>("/storage/quota"),
@@ -408,7 +413,7 @@ export default function StoragePage() {
       setFolders(foldersRes.folders);
       setPlans(plansRes.plans);
     } catch (err: any) {
-      showToast("error", err.message);
+      setLoadError(err.message ?? "Failed to load files");
     } finally {
       setLoading(false);
     }
@@ -453,15 +458,28 @@ export default function StoragePage() {
   }, [newFolderName, currentFolder, loadData]);
 
   const handleDeleteFolder = useCallback(async (folder: StorageFolder) => {
-    if (!confirm(`Delete "${folder.name}" and all files inside? This cannot be undone.`)) return;
+    setDeleteConfirm({ type: "folder", item: folder });
+  }, []);
+
+  const confirmDelete = useCallback(async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
     try {
-      await apiFetch(`/storage/folders?folder=${encodeURIComponent(folder.path)}`, { method: "DELETE" });
-      showToast("success", `"${folder.name}" deleted`);
+      if (deleteConfirm.type === "file") {
+        await apiFetch(`/storage/files/${deleteConfirm.item.id}`, { method: "DELETE" });
+        showToast("success", `"${deleteConfirm.item.name}" deleted`);
+      } else {
+        await apiFetch(`/storage/folders?folder=${encodeURIComponent(deleteConfirm.item.path)}`, { method: "DELETE" });
+        showToast("success", `"${deleteConfirm.item.name}" deleted`);
+      }
+      setDeleteConfirm(null);
       await loadData(currentFolder);
     } catch (err: any) {
       showToast("error", err.message);
+    } finally {
+      setDeleting(false);
     }
-  }, [currentFolder, loadData]);
+  }, [deleteConfirm, currentFolder, loadData]);
 
   const handleUpload = useCallback(async (file: File) => {
     if (!quota) return;
@@ -470,6 +488,7 @@ export default function StoragePage() {
       return;
     }
     setUploading(true);
+    setFailedUpload(null);
     setShowActionSheet(false);
     setUploadProgress(`Preparing "${file.name}"…`);
     try {
@@ -483,17 +502,17 @@ export default function StoragePage() {
         method: "PUT", body: file,
         headers: { "Content-Type": file.type || "application/octet-stream" },
       });
-      if (!putRes.ok) throw new Error("Upload failed");
+      if (!putRes.ok) throw new Error("Upload to storage failed — please try again");
       setUploadProgress("Saving…");
       await apiFetch("/storage/files", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: file.name, mimeType: file.type, sizeBytes: file.size, storageKey, folder: currentFolder }),
       });
-      showToast("success", `"${file.name}" uploaded`);
+      showToast("success", `"${file.name}" uploaded successfully`);
       await loadData(currentFolder);
     } catch (err: any) {
-      showToast("error", err.message);
+      setFailedUpload({ file, error: err.message ?? "Upload failed" });
     } finally {
       setUploading(false);
       setUploadProgress(null);
@@ -509,13 +528,8 @@ export default function StoragePage() {
   }, []);
 
   const handleDelete = useCallback(async (file: StorageFile) => {
-    if (!confirm(`Delete "${file.name}"? This cannot be undone.`)) return;
-    try {
-      await apiFetch(`/storage/files/${file.id}`, { method: "DELETE" });
-      showToast("success", `"${file.name}" deleted`);
-      await loadData(currentFolder);
-    } catch (err: any) { showToast("error", err.message); }
-  }, [loadData, currentFolder]);
+    setDeleteConfirm({ type: "file", item: file });
+  }, []);
 
   const handleShare = useCallback(async (file: StorageFile) => {
     try {
@@ -623,6 +637,27 @@ export default function StoragePage() {
     return (
       <div className="flex items-center justify-center h-full bg-background">
         <Loader2 className="w-6 h-6 animate-spin text-blue-400" />
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-background gap-4 px-6 text-center">
+        <div className="w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center">
+          <AlertTriangle className="w-7 h-7 text-red-400" />
+        </div>
+        <div>
+          <p className="text-base font-semibold text-white">Couldn't load your files</p>
+          <p className="text-sm text-gray-500 mt-1">Your files are safe — there was a temporary connection issue.</p>
+          <p className="text-xs text-gray-600 mt-1">{loadError}</p>
+        </div>
+        <button
+          onClick={() => { setLoading(true); loadData(currentFolder); }}
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition shadow-lg shadow-blue-900/30"
+        >
+          <Loader2 className="w-4 h-4" /> Try again
+        </button>
       </div>
     );
   }
@@ -816,6 +851,26 @@ export default function StoragePage() {
             </div>
           )}
 
+          {/* Upload failure — retry banner */}
+          {failedUpload && !uploading && (
+            <div className="bg-red-900/30 border border-red-700/40 rounded-xl px-4 py-3 flex items-center gap-3">
+              <AlertTriangle className="w-4 h-4 text-red-400 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-red-300 font-medium">Upload failed — "{failedUpload.file.name}"</p>
+                <p className="text-xs text-red-500 mt-0.5">{failedUpload.error}</p>
+              </div>
+              <button
+                onClick={() => handleUpload(failedUpload.file)}
+                className="flex-shrink-0 px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-500 text-white text-xs font-semibold transition"
+              >
+                Retry
+              </button>
+              <button onClick={() => setFailedUpload(null)} className="flex-shrink-0 text-red-500 hover:text-red-300">
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+
           {/* New folder form */}
           {showNewFolder && (
             <div className="bg-white/[0.05] border border-white/[0.1] rounded-xl px-4 py-3 flex items-center gap-3">
@@ -870,6 +925,16 @@ export default function StoragePage() {
                   Upgrade <ChevronDown className={cn("w-3 h-3 transition-transform", showUpgradePlans && "rotate-180")} />
                 </button>
               )}
+            </div>
+          )}
+
+          {/* Data security notice */}
+          {currentFolder === "/" && !uploading && (
+            <div className="flex items-center gap-2.5 px-3 py-2 rounded-lg bg-emerald-500/[0.07] border border-emerald-500/[0.15]">
+              <Check className="w-3.5 h-3.5 text-emerald-400 flex-shrink-0" />
+              <p className="text-xs text-emerald-400/80">
+                Your files are securely stored and tied to your account — they won't be lost if you sign out or refresh.
+              </p>
             </div>
           )}
 
@@ -1162,6 +1227,47 @@ export default function StoragePage() {
                 className="text-xs px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/15 text-white transition"
               >
                 Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete confirmation modal */}
+      {deleteConfirm && (
+        <div className="fixed inset-0 z-50 bg-black/70 flex items-center justify-center p-4" onClick={() => !deleting && setDeleteConfirm(null)}>
+          <div className="bg-[#1a2035] border border-white/10 rounded-2xl shadow-2xl w-full max-w-sm p-6" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-red-500/15 flex items-center justify-center flex-shrink-0">
+                <Trash2 className="w-5 h-5 text-red-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-white">
+                  {deleteConfirm.type === "folder" ? "Delete folder?" : "Delete file?"}
+                </h3>
+                <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[220px]">"{deleteConfirm.item.name}"</p>
+              </div>
+            </div>
+            <p className="text-sm text-gray-400 mb-5">
+              {deleteConfirm.type === "folder"
+                ? "This will permanently delete the folder and all files inside it. This cannot be undone."
+                : "This will permanently delete this file. This cannot be undone."}
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-white/10 text-sm font-medium text-gray-300 hover:bg-white/[0.06] transition disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                disabled={deleting}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                Delete permanently
               </button>
             </div>
           </div>
