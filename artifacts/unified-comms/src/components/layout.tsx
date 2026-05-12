@@ -1,38 +1,28 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, LayoutDashboard, ChevronDown, ChevronRight, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays, PenLine } from "lucide-react";
+import { Mail, Search, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { useEffect, useState } from "react";
-import { useGetContacts, useGetOverviewStats } from "@workspace/api-client-react";
+import { useGetOverviewStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
-import { Badge } from "./ui/badge";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 const signInPath = `${basePath}/sign-in`;
 
 export function Layout({ children }: { children: React.ReactNode }) {
-  const [location, navigate] = useLocation();
+  const [location] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [importantExpanded, setImportantExpanded] = useState(true);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [theme, setTheme] = useState<"light" | "dark">(() => {
     if (typeof window === "undefined") return "light";
     return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
   });
 
-  const { data: allContacts } = useGetContacts({});
   const { data: stats } = useGetOverviewStats();
   const { user } = useUser();
   const { signOut } = useClerk();
-
-  const importantPeople = allContacts
-    ? [...allContacts]
-        .sort((a, b) => b.messageCount - a.messageCount)
-        .filter((c) => c.messageCount > 0)
-        .slice(0, 5)
-    : [];
 
   const totalUnread = stats?.totalUnread ?? 0;
 
@@ -55,10 +45,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
     { href: "/accounts", label: "Accounts", icon: Settings },
     { href: "/settings", label: "Settings", icon: SlidersHorizontal },
   ];
-
-  function handlePersonClick(contact: { email: string; name: string }) {
-    navigate(`/search?q=${encodeURIComponent(contact.email)}`);
-  }
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? "";
   const userFirstName = user?.firstName ?? "";
@@ -149,76 +135,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
-
-          {/* Important People — desktop only */}
-          <div className="mt-3 hidden md:block">
-            <button
-              onClick={() => setImportantExpanded((v) => !v)}
-              className="w-full flex items-center justify-between px-3 py-1.5 text-xs font-semibold uppercase tracking-widest text-sidebar-foreground/50 hover:text-sidebar-foreground/80 transition-colors rounded-md"
-            >
-              <span>Important People</span>
-              {importantExpanded ? (
-                <ChevronDown className="w-3.5 h-3.5" />
-              ) : (
-                <ChevronRight className="w-3.5 h-3.5" />
-              )}
-            </button>
-
-            {importantExpanded && (
-              <div className="mt-1 flex flex-col gap-0.5">
-                {importantPeople.length === 0 ? (
-                  <div className="px-3 py-2 text-xs text-sidebar-foreground/40 italic">
-                    No contacts with messages yet
-                  </div>
-                ) : (
-                  importantPeople.map((contact) => (
-                    <button
-                      key={contact.id}
-                      onClick={() => handlePersonClick(contact)}
-                      title={`View messages from ${contact.name}`}
-                      className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md hover:bg-sidebar-accent/60 transition-colors text-left group"
-                    >
-                      <div className="relative flex-shrink-0">
-                        <Avatar className="h-7 w-7 border border-sidebar-border/50">
-                          <AvatarImage src={contact.avatarUrl || ""} />
-                          <AvatarFallback className="text-[10px] font-semibold bg-primary/20 text-primary">
-                            {contact.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
-                        {contact.unreadCount > 0 && (
-                          <span className="absolute -top-1 -right-1 min-w-[14px] h-[14px] px-0.5 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center leading-none border border-sidebar">
-                            {contact.unreadCount > 9 ? "9+" : contact.unreadCount}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-xs font-medium truncate text-sidebar-foreground/90 group-hover:text-sidebar-foreground">
-                          {contact.name}
-                        </div>
-                        {contact.phone && (
-                          <div className="text-[10px] text-sidebar-foreground/50 flex items-center gap-1 truncate">
-                            <Phone className="w-2.5 h-2.5 flex-shrink-0" />
-                            {contact.phone}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                        {contact.unreadCount > 0 ? (
-                          <Badge className="h-4 min-w-4 px-1 text-[10px] font-bold bg-red-500 text-white border-0 rounded-full leading-none flex items-center justify-center">
-                            {contact.unreadCount}
-                          </Badge>
-                        ) : contact.messageCount > 0 ? (
-                          <Badge className="h-4 min-w-4 px-1 text-[10px] font-bold bg-muted text-muted-foreground border-0 rounded-full leading-none flex items-center justify-center">
-                            {contact.messageCount}
-                          </Badge>
-                        ) : null}
-                      </div>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
 
           {/* Divider */}
           <div className="mx-1.5 md:mx-3 my-2 border-t border-sidebar-border/40" />
