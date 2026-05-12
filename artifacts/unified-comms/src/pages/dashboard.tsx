@@ -1,6 +1,6 @@
 import { useGetOverviewStats, useGetRecentMessages } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Mail, InboxIcon, Users, MessageSquare } from "lucide-react";
+import { Mail, Users, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
@@ -17,23 +17,11 @@ export default function Dashboard() {
       </div>
 
       {/* Stats row */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         {statsLoading ? (
-          Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)
+          Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)
         ) : (
           <>
-            <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Total Unread</CardTitle>
-                <div className="p-2 bg-primary/10 rounded-full">
-                  <InboxIcon className="w-4 h-4 text-primary" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stats?.totalUnread || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Across all accounts</p>
-              </CardContent>
-            </Card>
             <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Contacts</CardTitle>
@@ -82,7 +70,7 @@ export default function Dashboard() {
                 </div>
               ) : (
                 recent?.messages?.map((msg) => (
-                  <div key={msg.id} className="p-4 hover:bg-muted/50 transition-colors flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer relative">
+                  <Link key={msg.id} href="/inbox" className="p-4 hover:bg-muted/50 transition-colors flex flex-col sm:flex-row sm:items-center gap-4 cursor-pointer relative block">
                     <div className="flex items-center gap-3 w-full sm:w-48 flex-shrink-0">
                       <div className="w-3 h-3 rounded-full flex-shrink-0" style={{ backgroundColor: msg.accountColor || "#ccc" }} title={msg.accountName} />
                       <div className="font-medium text-sm truncate flex-1" title={msg.fromName}>{msg.fromName}</div>
@@ -94,7 +82,7 @@ export default function Dashboard() {
                     <div className="text-xs text-muted-foreground whitespace-nowrap hidden sm:block">
                       {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: true })}
                     </div>
-                  </div>
+                  </Link>
                 ))
               )}
             </div>
