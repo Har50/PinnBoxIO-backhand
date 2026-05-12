@@ -3,7 +3,8 @@ import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
 import { getGmailMessage, listGmailMessages, sendGmailMessage } from "../services/gmail";
 import { getOutlookMessage, listOutlookMessages, sendOutlookMessage } from "../services/outlook";
-import { listImapMessages, getImapMessage, isImapVirtualAccountId, credentialIdFromVirtualAccountId } from "../services/imap";
+import { listImapMessages, getImapMessage, isImapVirtualAccountId, isImapVirtualMsgId, credentialIdFromVirtualAccountId } from "../services/imap";
+import { db as _db, imapCredentialsTable } from "@workspace/db";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -144,8 +145,6 @@ router.get("/messages", async (req: any, res): Promise<void> => {
   }
 
   if (!accountId) {
-    const { db: _db, imapCredentialsTable } = await import("@workspace/db");
-    const { eq } = await import("drizzle-orm");
     const imapCreds = await _db.select({ id: imapCredentialsTable.id }).from(imapCredentialsTable).where(eq(imapCredentialsTable.userId, userId));
 
     const [gmailMessages, outlookMessages, ...imapResultsList] = await Promise.all([
@@ -236,7 +235,7 @@ router.get("/messages/:id", async (req: any, res): Promise<void> => {
   }
 
   if (params.data.id < 0) {
-    if (isImapVirtualAccountId(params.data.id) || params.data.id <= -3_000_000_000) {
+    if (isImapVirtualMsgId(params.data.id)) {
       const imapMessage = await getImapMessage(userId, params.data.id);
       if (imapMessage) {
         res.json(GetMessageResponse.parse(imapMessage));

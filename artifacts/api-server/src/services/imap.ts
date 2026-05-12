@@ -369,18 +369,18 @@ export async function listImapMessages(
     const resolvedFolder = await resolveFolder(client, folder);
     const lock = await client.getMailboxLock(resolvedFolder);
     try {
-      const uids: number[] = [];
-      for await (const msg of client.fetch({ seq: "1:*" }, { uid: true }, { uid: false })) {
-        uids.push(msg.uid);
+      // Use mailbox.exists to fetch only the last `limit` messages by sequence
+      // range — avoids an O(mailbox-size) UID enumeration scan.
+      const total = (client.mailbox as any)?.exists ?? 0;
+      if (total === 0) {
+        return { messages: [], total: 0, hasMore: false };
       }
+      const startSeq = Math.max(1, total - limit + 1);
 
-      const topUids = uids.slice(-limit).reverse();
       const messages: any[] = [];
-
       for await (const msg of client.fetch(
-        topUids.join(","),
-        { uid: true, envelope: true, flags: true, source: true },
-        { uid: true }
+        `${startSeq}:*`,
+        { uid: true, envelope: true, flags: true, source: true }
       )) {
         const env = msg.envelope;
         const from = env?.from?.[0];
@@ -388,7 +388,6 @@ export async function listImapMessages(
         const date = toDate(env?.date);
 
         messages.push({
-          // ID encodes credential + folder + UID → globally unique across mailboxes
           id: imapVirtualMsgId(credentialId, folder, msg.uid),
           accountId: imapVirtualAccountId(credentialId),
           accountEmail: cred.email,
@@ -411,7 +410,9 @@ export async function listImapMessages(
         });
       }
 
-      return { messages, total: uids.length, hasMore: uids.length > limit };
+      // Deliver newest first
+      messages.reverse();
+      return { messages, total, hasMore: total > limit };
     } finally {
       lock.release();
     }
