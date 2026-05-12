@@ -1,43 +1,13 @@
-import { useGetOverviewStats, useGetRecentMessages, useGetContacts } from "@workspace/api-client-react";
+import { useGetOverviewStats, useGetRecentMessages } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
-import { Mail, InboxIcon, Star, Users, MessageSquare, Phone, Clock, Building2, RefreshCw } from "lucide-react";
+import { Mail, InboxIcon, Users, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
-import { apiFetch } from "@/lib/api-client";
-const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 export default function Dashboard() {
-  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useGetOverviewStats();
+  const { data: stats, isLoading: statsLoading } = useGetOverviewStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentMessages({ limit: 5 });
-  const { data: allContacts, isLoading: contactsLoading, refetch: refetchContacts } = useGetContacts({});
-  const [syncing, setSyncing] = useState(false);
-  const [syncResult, setSyncResult] = useState<string | null>(null);
-
-  const importantPeople = allContacts
-    ? [...allContacts]
-        .sort((a, b) => b.messageCount - a.messageCount)
-        .filter((c) => c.messageCount > 0)
-        .slice(0, 6)
-    : [];
-
-  async function handleSyncContacts() {
-    setSyncing(true);
-    setSyncResult(null);
-    try {
-      const data = await apiFetch<{ added: number }>(`/api/contacts/sync`, { method: "POST" });
-      setSyncResult(`Added ${data.added} new contact${data.added !== 1 ? "s" : ""}`);
-      await Promise.all([refetchContacts(), refetchStats()]);
-    } catch {
-      setSyncResult("Sync failed — try again");
-    } finally {
-      setSyncing(false);
-    }
-  }
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
@@ -66,18 +36,6 @@ export default function Dashboard() {
             </Card>
             <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Important</CardTitle>
-                <div className="p-2 bg-amber-500/10 rounded-full">
-                  <Star className="w-4 h-4 text-amber-500" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stats?.totalStarred || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Starred / flagged messages</p>
-              </CardContent>
-            </Card>
-            <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
                 <CardTitle className="text-sm font-medium text-muted-foreground">Contacts</CardTitle>
                 <div className="p-2 bg-emerald-500/10 rounded-full">
                   <Users className="w-4 h-4 text-emerald-500" />
@@ -101,108 +59,6 @@ export default function Dashboard() {
               </CardContent>
             </Card>
           </>
-        )}
-      </div>
-
-      {/* Important People section */}
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">Important People</h2>
-            <p className="text-sm text-muted-foreground mt-0.5">Your most active contacts by message volume</p>
-          </div>
-          <div className="flex items-center gap-3">
-            {syncResult && (
-              <span className="text-xs text-muted-foreground">{syncResult}</span>
-            )}
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleSyncContacts}
-              disabled={syncing}
-              className="flex items-center gap-2 text-xs"
-            >
-              <RefreshCw className={`w-3 h-3 ${syncing ? "animate-spin" : ""}`} />
-              {syncing ? "Syncing…" : "Sync Contacts"}
-            </Button>
-            <Link href="/contacts" className="text-sm text-primary hover:underline font-medium">
-              View all
-            </Link>
-          </div>
-        </div>
-
-        {contactsLoading ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {Array.from({ length: 6 }).map((_, i) => (
-              <Skeleton key={i} className="h-24 rounded-xl" />
-            ))}
-          </div>
-        ) : importantPeople.length === 0 ? (
-          <Card className="shadow-sm border-border">
-            <div className="p-8 text-center text-muted-foreground flex flex-col items-center gap-3">
-              <Users className="w-10 h-10 opacity-20" />
-              <p className="text-sm">No contacts with messages yet. Click "Sync Contacts" to import from your emails.</p>
-            </div>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {importantPeople.map((contact) => (
-              <Link key={contact.id} href="/contacts">
-                <Card className="shadow-sm border-border hover:border-primary/30 hover:shadow-md transition-all cursor-pointer group">
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <Avatar className="h-11 w-11 border border-border flex-shrink-0">
-                        <AvatarImage src={contact.avatarUrl || ""} />
-                        <AvatarFallback className="bg-primary/10 text-primary font-semibold text-sm">
-                          {contact.name.split(" ").map((n) => n[0]).join("").substring(0, 2).toUpperCase()}
-                        </AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-0.5">
-                          <span className="text-sm font-semibold truncate text-foreground group-hover:text-primary transition-colors">
-                            {contact.name}
-                          </span>
-                        </div>
-                        {contact.company && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mb-2 truncate">
-                            <Building2 className="w-3 h-3 flex-shrink-0" />
-                            <span className="truncate">{contact.company}</span>
-                          </div>
-                        )}
-                        {!contact.company && (
-                          <div className="text-xs text-muted-foreground mb-2 truncate">{contact.email}</div>
-                        )}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <Badge
-                            variant="secondary"
-                            className="flex items-center gap-1 text-xs px-2 py-0.5 bg-primary/10 text-primary border-0 font-medium"
-                          >
-                            <MessageSquare className="w-3 h-3" />
-                            {contact.messageCount} {contact.messageCount === 1 ? "message" : "messages"}
-                          </Badge>
-                          {contact.phone && (
-                            <Badge
-                              variant="secondary"
-                              className="flex items-center gap-1 text-xs px-2 py-0.5 bg-emerald-500/10 text-emerald-700 border-0 font-medium"
-                            >
-                              <Phone className="w-3 h-3" />
-                              {contact.phone}
-                            </Badge>
-                          )}
-                        </div>
-                        {contact.lastMessageAt && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1.5">
-                            <Clock className="w-3 h-3" />
-                            Last contact {formatDistanceToNow(new Date(contact.lastMessageAt), { addSuffix: true })}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </Link>
-            ))}
-          </div>
         )}
       </div>
 
