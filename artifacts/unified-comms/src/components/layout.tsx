@@ -4,7 +4,6 @@ import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { useEffect, useState } from "react";
-import { useGetOverviewStats } from "@workspace/api-client-react";
 import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
 
@@ -20,11 +19,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
     return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
   });
 
-  const { data: stats } = useGetOverviewStats();
   const { user } = useUser();
   const { signOut } = useClerk();
-
-  const totalUnread = stats?.totalUnread ?? 0;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
@@ -33,7 +29,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
-    { href: "/inbox", label: "Inbox", icon: Mail, badge: totalUnread },
+    { href: "/inbox", label: "Inbox", icon: Mail },
     { href: "/calendar", label: "Calendar", icon: CalendarDays },
     { href: "/ai", label: "AI Assistant", icon: Brain },
     { href: "/contacts", label: "Contacts", icon: Users },
@@ -118,20 +114,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 title={item.label}
                 className={`flex items-center justify-center md:justify-start gap-3 px-2 md:px-3 py-2 rounded-md transition-colors text-sm font-medium relative ${isActive ? "bg-sidebar-primary/20 text-sidebar-primary" : "hover:bg-sidebar-accent/50 text-sidebar-foreground/80 hover:text-sidebar-foreground"}`}
               >
-                <div className="relative flex-shrink-0">
-                  <item.icon className="w-4 h-4" />
-                  {/* Mobile-only badge dot */}
-                  {item.badge != null && item.badge > 0 && (
-                    <span className="md:hidden absolute -top-1 -right-1 w-2 h-2 rounded-full bg-red-500 border border-sidebar" />
-                  )}
-                </div>
+                <item.icon className="w-4 h-4 flex-shrink-0" />
                 <span className="hidden md:block flex-1">{item.label}</span>
-                {/* Desktop badge count */}
-                {item.badge != null && item.badge > 0 && (
-                  <span className="hidden md:flex min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] font-bold items-center justify-center leading-none">
-                    {item.badge > 99 ? "99+" : item.badge}
-                  </span>
-                )}
               </Link>
             );
           })}
