@@ -4,7 +4,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageSquare, Brain, Send, Plus, Trash2, Loader2, Crown,
   Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle,
-  Mic, MicOff, Settings, Search, Command,
+  Mic, MicOff, Settings, Search, Command, Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
@@ -385,7 +385,7 @@ function AiChat() {
     "Summarize my unread emails",
     "Who messaged me recently?",
     "Draft a reply to my latest email",
-    "Find time for a sync next week",
+    "Translate this text for me — paste it below and tell me the target language",
   ];
 
   return (
@@ -703,6 +703,16 @@ function AiChat() {
                       {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </button>
                   )}
+                  <button
+                    title="Translate"
+                    className="p-2 rounded-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
+                    onClick={() => {
+                      setInput((prev) => prev ? `Translate the following to English:\n\n${prev}` : "Translate this text:\n\n");
+                      textareaRef.current?.focus();
+                    }}
+                  >
+                    <Languages className="h-4 w-4" />
+                  </button>
                 </div>
                 <button
                   disabled={(!input.trim() && attachments.length === 0) || streaming}
