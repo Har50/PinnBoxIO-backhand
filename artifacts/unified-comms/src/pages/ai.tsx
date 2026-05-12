@@ -491,18 +491,6 @@ function AiChat() {
               <MessageSquare className="h-3.5 w-3.5" />
               Chats
             </button>
-            <div
-              className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
-              style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
-            >
-              <Brain className="h-4 w-4 text-white" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold text-foreground">Pinnbox Assistant</h1>
-                <Badge className="text-[10px] font-bold px-1.5 py-0.5 rounded border hidden sm:inline-flex" style={{ background: "rgba(99,102,241,0.15)", borderColor: "rgba(99,102,241,0.35)", color: "#a5b4fc" }}>PRO</Badge>
-              </div>
-            </div>
           </div>
 
           {/* Model switcher */}
