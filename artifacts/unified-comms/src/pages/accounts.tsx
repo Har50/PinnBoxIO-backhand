@@ -201,8 +201,8 @@ export default function Accounts() {
       setIsImapOpen(false);
       setImapForm(defaultImapForm());
       refetch();
-    } catch (err: any) {
-      const msg = err?.message ?? "Connection failed. Check your credentials.";
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Connection failed. Check your credentials.";
       toast({ title: "Connection failed", description: msg, variant: "destructive" });
     } finally {
       setImapConnecting(false);
@@ -226,12 +226,10 @@ export default function Accounts() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
 
-    let payload: any;
-    if (accountType === "email") {
-      payload = { name: emailForm.name, email: emailForm.email, provider: emailForm.provider, color: emailForm.color };
-    } else {
-      payload = { name: phoneForm.name, phone: phoneForm.phone, provider: "phone", color: phoneForm.color };
-    }
+    const payload =
+      accountType === "email"
+        ? { name: emailForm.name, email: emailForm.email, provider: emailForm.provider, color: emailForm.color }
+        : { name: phoneForm.name, phone: phoneForm.phone, provider: "phone", color: phoneForm.color };
 
     createAccount.mutate({ data: payload }, {
       onSuccess: () => {

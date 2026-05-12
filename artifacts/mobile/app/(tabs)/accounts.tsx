@@ -226,7 +226,10 @@ function ImapModal({ visible, onClose, onSuccess, colors }: {
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));
-        Alert.alert("Connection failed", (err as any)?.error ?? "Could not connect. Check your credentials.");
+        const errMsg = typeof err === "object" && err !== null && "error" in err && typeof (err as Record<string, unknown>).error === "string"
+          ? (err as Record<string, unknown>).error as string
+          : "Could not connect. Check your credentials.";
+        Alert.alert("Connection failed", errMsg);
         return;
       }
       Alert.alert("Connected!", "Your IMAP account was connected successfully.");
@@ -338,7 +341,7 @@ function ImapField({ label, value, onChangeText, placeholder, keyboardType, secu
   value: string;
   onChangeText: (t: string) => void;
   placeholder?: string;
-  keyboardType?: any;
+  keyboardType?: import("react-native").KeyboardTypeOptions;
   secureTextEntry?: boolean;
   colors: ReturnType<typeof useColors>;
 }) {
