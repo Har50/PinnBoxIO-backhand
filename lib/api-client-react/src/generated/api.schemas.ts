@@ -340,6 +340,13 @@ export type GetContactsParams = {
   q?: string | null;
 };
 
+export type GetContactMessagesParams = {
+  /**
+   * @nullable
+   */
+  q?: string | null;
+};
+
 export type SearchAllParams = {
   q: string;
   /**

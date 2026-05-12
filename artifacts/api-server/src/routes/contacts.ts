@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { eq, ilike, or, count, max, and } from "drizzle-orm";
+import { eq, ilike, or, count, max, and, desc } from "drizzle-orm";
 import { db, contactsTable, messagesTable, accountsTable } from "@workspace/db";
 import {
   CreateContactBody,
@@ -150,6 +150,81 @@ router.post("/contacts", async (req: any, res): Promise<void> => {
       createdAt: contact.createdAt.toISOString(),
     })
   );
+});
+
+router.get("/contacts/:id/messages", async (req: any, res): Promise<void> => {
+  const params = GetContactParams.safeParse(req.params);
+  if (!params.success) {
+    res.status(400).json({ error: params.error.message });
+    return;
+  }
+
+  const userId: string = req.userId;
+  const q = typeof req.query.q === "string" ? req.query.q.trim() : null;
+
+  const [contact] = await db
+    .select()
+    .from(contactsTable)
+    .where(and(eq(contactsTable.id, params.data.id), eq(contactsTable.userId, userId)));
+
+  if (!contact) {
+    res.status(404).json({ error: "Contact not found" });
+    return;
+  }
+
+  const conditions: ReturnType<typeof eq>[] = [
+    eq(accountsTable.userId, userId),
+    eq(messagesTable.fromEmail, contact.email),
+  ];
+
+  if (q) {
+    conditions.push(
+      or(
+        ilike(messagesTable.subject, `%${q}%`),
+        ilike(messagesTable.bodyText, `%${q}%`)
+      ) as ReturnType<typeof eq>
+    );
+  }
+
+  const msgs = await db
+    .select({
+      id: messagesTable.id,
+      accountId: messagesTable.accountId,
+      accountEmail: accountsTable.email,
+      accountName: accountsTable.name,
+      accountColor: accountsTable.color,
+      folder: messagesTable.folder,
+      subject: messagesTable.subject,
+      fromName: messagesTable.fromName,
+      fromEmail: messagesTable.fromEmail,
+      toList: messagesTable.toList,
+      ccList: messagesTable.ccList,
+      bodyText: messagesTable.bodyText,
+      bodyHtml: messagesTable.bodyHtml,
+      isRead: messagesTable.isRead,
+      isStarred: messagesTable.isStarred,
+      hasAttachments: messagesTable.hasAttachments,
+      receivedAt: messagesTable.receivedAt,
+      createdAt: messagesTable.createdAt,
+    })
+    .from(messagesTable)
+    .innerJoin(accountsTable, and(eq(messagesTable.accountId, accountsTable.id), eq(accountsTable.userId, userId)))
+    .where(and(...conditions))
+    .orderBy(desc(messagesTable.receivedAt))
+    .limit(100);
+
+  const messages = msgs.map((msg) => ({
+    ...msg,
+    attachments: [],
+    ccList: msg.ccList ?? null,
+    bodyText: msg.bodyText ?? null,
+    bodyHtml: msg.bodyHtml ?? null,
+    accountColor: msg.accountColor ?? "#ccc",
+    receivedAt: msg.receivedAt.toISOString(),
+    createdAt: msg.createdAt.toISOString(),
+  }));
+
+  res.json({ messages, total: messages.length, hasMore: false });
 });
 
 router.get("/contacts/:id", async (req: any, res): Promise<void> => {

@@ -435,6 +435,54 @@ export const CreateContactBody = zod.object({
 });
 
 /**
+ * @summary List messages from a contact
+ */
+export const GetContactMessagesParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetContactMessagesQueryParams = zod.object({
+  q: zod.coerce.string().nullish(),
+});
+
+export const GetContactMessagesResponse = zod.object({
+  messages: zod.array(
+    zod.object({
+      id: zod.number(),
+      accountId: zod.number(),
+      accountEmail: zod.string(),
+      accountName: zod.string(),
+      accountColor: zod.string(),
+      folder: zod.string(),
+      subject: zod.string(),
+      fromName: zod.string(),
+      fromEmail: zod.string(),
+      toList: zod.string(),
+      ccList: zod.string().nullish(),
+      bodyText: zod.string().nullish(),
+      bodyHtml: zod.string().nullish(),
+      isRead: zod.boolean(),
+      isStarred: zod.boolean(),
+      hasAttachments: zod.boolean(),
+      attachments: zod.array(
+        zod.object({
+          id: zod.number(),
+          messageId: zod.number(),
+          filename: zod.string(),
+          mimeType: zod.string(),
+          size: zod.number(),
+          url: zod.string().nullish(),
+        }),
+      ),
+      receivedAt: zod.string(),
+      createdAt: zod.string(),
+    }),
+  ),
+  total: zod.number(),
+  hasMore: zod.boolean(),
+});
+
+/**
  * @summary Get a contact
  */
 export const GetContactParams = zod.object({

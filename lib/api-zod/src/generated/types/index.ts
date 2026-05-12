@@ -22,6 +22,7 @@ export * from "./createContactBody";
 export * from "./createMessageBody";
 export * from "./errorEnvelope";
 export * from "./folderCount";
+export * from "./getContactMessagesParams";
 export * from "./getContactsParams";
 export * from "./getFolderCountsParams";
 export * from "./getMessagesParams";

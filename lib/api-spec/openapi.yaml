@@ -455,6 +455,31 @@ paths:
               schema:
                 $ref: "#/components/schemas/Contact"
 
+  /contacts/{id}/messages:
+    get:
+      operationId: getContactMessages
+      tags: [contacts]
+      summary: List messages from a contact
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: q
+          in: query
+          schema:
+            type: ["string", "null"]
+      responses:
+        "200":
+          description: Messages from this contact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessagesResponse"
+        "404":
+          description: Not found
+
   /contacts/{id}:
     get:
       operationId: getContact

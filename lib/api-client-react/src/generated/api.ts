@@ -27,6 +27,7 @@ import type {
   CreateContactBody,
   CreateMessageBody,
   FolderCount,
+  GetContactMessagesParams,
   GetContactsParams,
   GetFolderCountsParams,
   GetMessagesParams,
@@ -2111,6 +2112,116 @@ export const useCreateContact = <
 > => {
   return useMutation(getCreateContactMutationOptions(options));
 };
+
+/**
+ * @summary List messages from a contact
+ */
+export const getGetContactMessagesUrl = (
+  id: number,
+  params?: GetContactMessagesParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/contacts/${id}/messages?${stringifiedParams}`
+    : `/api/contacts/${id}/messages`;
+};
+
+export const getContactMessages = async (
+  id: number,
+  params?: GetContactMessagesParams,
+  options?: RequestInit,
+): Promise<MessagesResponse> => {
+  return customFetch<MessagesResponse>(getGetContactMessagesUrl(id, params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetContactMessagesQueryKey = (
+  id: number,
+  params?: GetContactMessagesParams,
+) => {
+  return [`/api/contacts/${id}/messages`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetContactMessagesQueryOptions = <
+  TData = Awaited<ReturnType<typeof getContactMessages>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetContactMessagesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getContactMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetContactMessagesQueryKey(id, params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getContactMessages>>
+  > = ({ signal }) =>
+    getContactMessages(id, params, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getContactMessages>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetContactMessagesQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getContactMessages>>
+>;
+export type GetContactMessagesQueryError = ErrorType<void>;
+
+/**
+ * @summary List messages from a contact
+ */
+
+export function useGetContactMessages<
+  TData = Awaited<ReturnType<typeof getContactMessages>>,
+  TError = ErrorType<void>,
+>(
+  id: number,
+  params?: GetContactMessagesParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getContactMessages>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetContactMessagesQueryOptions(id, params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Get a contact
