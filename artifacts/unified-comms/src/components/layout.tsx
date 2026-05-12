@@ -89,7 +89,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             title="Compose"
             className="md:hidden w-8 h-8 mx-auto rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-sm hover:bg-primary/90 transition-colors"
           >
-            <PenSquare className="w-4 h-4" />
+            <Mail className="w-4 h-4" />
           </button>
           {/* Desktop: full Compose button */}
           <Button
@@ -97,7 +97,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             className="hidden md:flex w-full justify-start gap-2 shadow-sm font-medium"
             size="lg"
           >
-            <PenSquare className="w-4 h-4" />
+            <Mail className="w-4 h-4" />
             Compose
           </Button>
 
