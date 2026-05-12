@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, PenSquare, LayoutDashboard, ChevronDown, ChevronRight, Sparkles, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays } from "lucide-react";
+import { Mail, Search, Users, Settings, LayoutDashboard, ChevronDown, ChevronRight, Sparkles, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays, PenLine } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
