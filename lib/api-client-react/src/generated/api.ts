@@ -33,6 +33,9 @@ import type {
   GetRecentMessagesParams,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
+  ImapConnectBody,
+  ImapConnectResponse,
+  ImapTestResponse,
   LogoutSuccess,
   Message,
   MessagesResponse,
@@ -42,6 +45,7 @@ import type {
   OverviewStats,
   SearchAllParams,
   SearchResults,
+  SuccessResponse,
   UpdateContactBody,
   UpdateMessageBody,
   UpdateNotificationPreferencesBody,
@@ -739,6 +743,260 @@ export const useUpdateUserPreferences = <
   TContext
 > => {
   return useMutation(getUpdateUserPreferencesMutationOptions(options));
+};
+
+/**
+ * @summary Connect a new IMAP email account
+ */
+export const getConnectImapAccountUrl = () => {
+  return `/api/auth/imap/connect`;
+};
+
+export const connectImapAccount = async (
+  imapConnectBody: ImapConnectBody,
+  options?: RequestInit,
+): Promise<ImapConnectResponse> => {
+  return customFetch<ImapConnectResponse>(getConnectImapAccountUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(imapConnectBody),
+  });
+};
+
+export const getConnectImapAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectImapAccount>>,
+    TError,
+    { data: BodyType<ImapConnectBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof connectImapAccount>>,
+  TError,
+  { data: BodyType<ImapConnectBody> },
+  TContext
+> => {
+  const mutationKey = ["connectImapAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof connectImapAccount>>,
+    { data: BodyType<ImapConnectBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return connectImapAccount(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ConnectImapAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof connectImapAccount>>
+>;
+export type ConnectImapAccountMutationBody = BodyType<ImapConnectBody>;
+export type ConnectImapAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Connect a new IMAP email account
+ */
+export const useConnectImapAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof connectImapAccount>>,
+    TError,
+    { data: BodyType<ImapConnectBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof connectImapAccount>>,
+  TError,
+  { data: BodyType<ImapConnectBody> },
+  TContext
+> => {
+  return useMutation(getConnectImapAccountMutationOptions(options));
+};
+
+/**
+ * @summary Disconnect an IMAP email account
+ */
+export const getDisconnectImapAccountUrl = (id: number) => {
+  return `/api/auth/imap/${id}/disconnect`;
+};
+
+export const disconnectImapAccount = async (
+  id: number,
+  options?: RequestInit,
+): Promise<SuccessResponse> => {
+  return customFetch<SuccessResponse>(getDisconnectImapAccountUrl(id), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getDisconnectImapAccountMutationOptions = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disconnectImapAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof disconnectImapAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["disconnectImapAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof disconnectImapAccount>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return disconnectImapAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type DisconnectImapAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof disconnectImapAccount>>
+>;
+
+export type DisconnectImapAccountMutationError = ErrorType<void>;
+
+/**
+ * @summary Disconnect an IMAP email account
+ */
+export const useDisconnectImapAccount = <
+  TError = ErrorType<void>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof disconnectImapAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof disconnectImapAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getDisconnectImapAccountMutationOptions(options));
+};
+
+/**
+ * @summary Test an existing IMAP connection
+ */
+export const getTestImapAccountUrl = (id: number) => {
+  return `/api/auth/imap/${id}/test`;
+};
+
+export const testImapAccount = async (
+  id: number,
+  options?: RequestInit,
+): Promise<ImapTestResponse> => {
+  return customFetch<ImapTestResponse>(getTestImapAccountUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getTestImapAccountMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testImapAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof testImapAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["testImapAccount"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof testImapAccount>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return testImapAccount(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TestImapAccountMutationResult = NonNullable<
+  Awaited<ReturnType<typeof testImapAccount>>
+>;
+
+export type TestImapAccountMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Test an existing IMAP connection
+ */
+export const useTestImapAccount = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof testImapAccount>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof testImapAccount>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getTestImapAccountMutationOptions(options));
 };
 
 /**

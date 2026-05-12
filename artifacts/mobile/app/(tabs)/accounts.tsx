@@ -8,12 +8,15 @@ import {
   ActivityIndicator,
   Alert,
   Linking,
+  Modal,
   Platform,
   Pressable,
   RefreshControl,
   ScrollView,
   StyleSheet,
+  Switch,
   Text,
+  TextInput,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -46,6 +49,7 @@ type FeatherName = ComponentProps<typeof Feather>["name"];
 function providerIcon(provider: string): FeatherName {
   switch (provider) {
     case "phone": return "phone";
+    case "imap": return "server";
     default: return "mail";
   }
 }
@@ -53,6 +57,16 @@ function providerIcon(provider: string): FeatherName {
 const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : "https://pinn-box-io.replit.app";
+
+const IMAP_ACCOUNT_BASE = 2_000_000_000;
+
+function isImapVirtualId(id: number) {
+  return id <= -IMAP_ACCOUNT_BASE;
+}
+
+function credentialIdFromVirtualId(id: number): number {
+  return Math.abs(id) - IMAP_ACCOUNT_BASE;
+}
 
 async function getAuthToken(): Promise<string | null> {
   if (Platform.OS === "web") {
@@ -62,10 +76,41 @@ async function getAuthToken(): Promise<string | null> {
   return SecureStore.getItemAsync("commshub_session_token");
 }
 
+const PRESET_HOSTS: Record<string, { host: string; port: string; secure: boolean }> = {
+  yahoo: { host: "imap.mail.yahoo.com", port: "993", secure: true },
+  icloud: { host: "imap.mail.me.com", port: "993", secure: true },
+  zoho: { host: "imap.zoho.com", port: "993", secure: true },
+  fastmail: { host: "imap.fastmail.com", port: "993", secure: true },
+  other: { host: "", port: "993", secure: true },
+};
+
+type ImapForm = {
+  preset: string;
+  email: string;
+  displayName: string;
+  host: string;
+  port: string;
+  secure: boolean;
+  username: string;
+  password: string;
+};
+
+const defaultImapForm = (): ImapForm => ({
+  preset: "other",
+  email: "",
+  displayName: "",
+  host: "",
+  port: "993",
+  secure: true,
+  username: "",
+  password: "",
+});
+
 function AccountCard({ account, onDisconnect }: { account: Account; onDisconnect: (acc: Account) => void }) {
   const colors = useColors();
   const isPhone = account.provider === "phone";
-  const canDisconnect = account.provider === "gmail" || account.provider === "outlook";
+  const isImap = account.provider === "imap" && isImapVirtualId(account.id);
+  const canDisconnect = account.provider === "gmail" || account.provider === "outlook" || isImap;
 
   return (
     <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -132,9 +177,205 @@ function AccountCard({ account, onDisconnect }: { account: Account; onDisconnect
   );
 }
 
+function ImapModal({ visible, onClose, onSuccess, colors }: {
+  visible: boolean;
+  onClose: () => void;
+  onSuccess: () => void;
+  colors: ReturnType<typeof useColors>;
+}) {
+  const [form, setForm] = useState<ImapForm>(defaultImapForm());
+  const [connecting, setConnecting] = useState(false);
+  const [step, setStep] = useState<"preset" | "details">("preset");
+
+  const presets = [
+    { key: "yahoo", label: "Yahoo Mail" },
+    { key: "icloud", label: "Apple iCloud" },
+    { key: "zoho", label: "Zoho Mail" },
+    { key: "fastmail", label: "Fastmail" },
+    { key: "other", label: "Other / Custom" },
+  ];
+
+  function applyPreset(key: string) {
+    const cfg = PRESET_HOSTS[key] ?? PRESET_HOSTS.other;
+    setForm((f) => ({ ...f, preset: key, host: cfg.host, port: cfg.port, secure: cfg.secure }));
+    setStep("details");
+  }
+
+  async function handleConnect() {
+    if (!form.email || !form.host || !form.password) {
+      Alert.alert("Missing fields", "Please fill in email, IMAP host, and password.");
+      return;
+    }
+    setConnecting(true);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${API_BASE}/api/auth/imap/connect`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          email: form.email,
+          displayName: form.displayName || null,
+          host: form.host,
+          port: Number(form.port) || 993,
+          secure: form.secure,
+          username: form.username || form.email,
+          password: form.password,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        Alert.alert("Connection failed", (err as any)?.error ?? "Could not connect. Check your credentials.");
+        return;
+      }
+      Alert.alert("Connected!", "Your IMAP account was connected successfully.");
+      setForm(defaultImapForm());
+      setStep("preset");
+      onSuccess();
+      onClose();
+    } catch {
+      Alert.alert("Error", "Connection failed. Please try again.");
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  function handleClose() {
+    setForm(defaultImapForm());
+    setStep("preset");
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={handleClose}>
+      <ScrollView
+        style={{ flex: 1, backgroundColor: colors.background }}
+        contentContainerStyle={{ padding: 24, gap: 16, paddingBottom: 48 }}
+        keyboardShouldPersistTaps="handled"
+      >
+        <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+          <Text style={{ fontSize: 20, fontFamily: "Inter_700Bold", color: colors.foreground }}>
+            {step === "preset" ? "Connect IMAP" : "Account Details"}
+          </Text>
+          <Pressable onPress={handleClose} hitSlop={12}>
+            <Feather name="x" size={22} color={colors.mutedForeground} />
+          </Pressable>
+        </View>
+
+        {step === "preset" && (
+          <>
+            <Text style={{ fontSize: 13, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+              Choose your email provider to pre-fill server settings.
+            </Text>
+            {presets.map((p) => (
+              <Pressable
+                key={p.key}
+                onPress={() => applyPreset(p.key)}
+                style={({ pressed }) => [
+                  styles.presetRow,
+                  { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.7 : 1 },
+                ]}
+              >
+                <Feather name="server" size={18} color={colors.primary} />
+                <Text style={{ flex: 1, fontSize: 15, fontFamily: "Inter_500Medium", color: colors.foreground }}>{p.label}</Text>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+            ))}
+          </>
+        )}
+
+        {step === "details" && (
+          <>
+            <Pressable onPress={() => setStep("preset")} style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 4 }}>
+              <Feather name="arrow-left" size={16} color={colors.primary} />
+              <Text style={{ fontSize: 14, color: colors.primary, fontFamily: "Inter_500Medium" }}>Back</Text>
+            </Pressable>
+
+            <ImapField label="Email Address *" value={form.email} onChangeText={(t) => setForm((f) => ({ ...f, email: t, username: f.username || t }))} placeholder="you@example.com" keyboardType="email-address" colors={colors} />
+            <ImapField label="Display Name" value={form.displayName} onChangeText={(t) => setForm((f) => ({ ...f, displayName: t }))} placeholder="My Yahoo Mail" colors={colors} />
+            <ImapField label="IMAP Server *" value={form.host} onChangeText={(t) => setForm((f) => ({ ...f, host: t }))} placeholder="imap.mail.yahoo.com" colors={colors} />
+            <ImapField label="Port" value={form.port} onChangeText={(t) => setForm((f) => ({ ...f, port: t }))} placeholder="993" keyboardType="numeric" colors={colors} />
+
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingVertical: 4 }}>
+              <Text style={{ fontSize: 14, fontFamily: "Inter_500Medium", color: colors.foreground }}>SSL / TLS</Text>
+              <Switch
+                value={form.secure}
+                onValueChange={(v) => setForm((f) => ({ ...f, secure: v }))}
+                trackColor={{ true: colors.primary }}
+              />
+            </View>
+
+            <ImapField label="Username (usually your email)" value={form.username} onChangeText={(t) => setForm((f) => ({ ...f, username: t }))} placeholder="you@example.com" colors={colors} />
+            <ImapField label="Password / App Password *" value={form.password} onChangeText={(t) => setForm((f) => ({ ...f, password: t }))} placeholder="••••••••••••" secureTextEntry colors={colors} />
+
+            <Pressable
+              onPress={handleConnect}
+              disabled={connecting}
+              style={({ pressed }) => [
+                styles.connectImapBtn,
+                { backgroundColor: colors.primary, opacity: pressed || connecting ? 0.7 : 1 },
+              ]}
+            >
+              {connecting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="server" size={16} color="#fff" />
+                  <Text style={{ fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" }}>Connect IMAP Account</Text>
+                </>
+              )}
+            </Pressable>
+          </>
+        )}
+      </ScrollView>
+    </Modal>
+  );
+}
+
+function ImapField({ label, value, onChangeText, placeholder, keyboardType, secureTextEntry, colors }: {
+  label: string;
+  value: string;
+  onChangeText: (t: string) => void;
+  placeholder?: string;
+  keyboardType?: any;
+  secureTextEntry?: boolean;
+  colors: ReturnType<typeof useColors>;
+}) {
+  return (
+    <View style={{ gap: 6 }}>
+      <Text style={{ fontSize: 12, fontFamily: "Inter_600SemiBold", color: colors.mutedForeground, textTransform: "uppercase", letterSpacing: 0.5 }}>{label}</Text>
+      <TextInput
+        value={value}
+        onChangeText={onChangeText}
+        placeholder={placeholder}
+        placeholderTextColor={colors.mutedForeground}
+        keyboardType={keyboardType}
+        secureTextEntry={secureTextEntry}
+        autoCapitalize="none"
+        autoCorrect={false}
+        style={{
+          backgroundColor: colors.card,
+          borderWidth: 1,
+          borderColor: colors.border,
+          borderRadius: 10,
+          paddingHorizontal: 14,
+          paddingVertical: 12,
+          fontSize: 15,
+          fontFamily: "Inter_400Regular",
+          color: colors.foreground,
+        }}
+      />
+    </View>
+  );
+}
+
 function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
   const colors = useColors();
   const [connecting, setConnecting] = useState<string | null>(null);
+  const [imapModalVisible, setImapModalVisible] = useState(false);
 
   async function connectProvider(provider: "gmail" | "outlook") {
     setConnecting(provider);
@@ -187,7 +428,22 @@ function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
           <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect Outlook</Text>
           <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
         </Pressable>
+        <Pressable
+          onPress={() => setImapModalVisible(true)}
+          style={[styles.connectBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          disabled={connecting !== null}
+        >
+          <Feather name="server" size={18} color="#6366f1" />
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect IMAP / Other</Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
       </View>
+      <ImapModal
+        visible={imapModalVisible}
+        onClose={() => setImapModalVisible(false)}
+        onSuccess={onRefetch}
+        colors={colors}
+      />
     </View>
   );
 }
@@ -279,7 +535,11 @@ export default function AccountsScreen() {
             setDisconnecting(account.id);
             try {
               const token = await getAuthToken();
-              const res = await fetch(`${API_BASE}/api/auth/${account.provider}/disconnect`, {
+              const isImap = account.provider === "imap" && isImapVirtualId(account.id);
+              const url = isImap
+                ? `${API_BASE}/api/auth/imap/${credentialIdFromVirtualId(account.id)}/disconnect`
+                : `${API_BASE}/api/auth/${account.provider}/disconnect`;
+              const res = await fetch(url, {
                 method: "DELETE",
                 headers: token ? { Authorization: `Bearer ${token}` } : {},
                 credentials: "include",
@@ -324,7 +584,7 @@ export default function AccountsScreen() {
           <View style={[styles.emptyState, { backgroundColor: colors.card, borderColor: colors.border }]}>
             <Feather name="inbox" size={36} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No accounts connected</Text>
-            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail or Outlook below</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail, Outlook, or IMAP below</Text>
           </View>
         ) : (
           <View style={styles.accountList}>
@@ -388,6 +648,8 @@ const styles = StyleSheet.create({
   connectButtons: { gap: 10 },
   connectBtn: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 14, borderWidth: 1, padding: 16 },
   connectBtnText: { flex: 1, fontSize: 15, fontFamily: "Inter_500Medium" },
+  presetRow: { flexDirection: "row", alignItems: "center", gap: 12, borderRadius: 12, borderWidth: 1, padding: 16 },
+  connectImapBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 10, borderRadius: 12, padding: 16, marginTop: 8 },
   legalCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   legalRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 14, gap: 12 },
   legalIconWrap: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },

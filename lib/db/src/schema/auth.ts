@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { boolean, index, jsonb, pgTable, text, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, serial, text, timestamp, varchar } from "drizzle-orm/pg-core";
 
 // (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
 export const sessionsTable = pgTable(
@@ -79,3 +79,21 @@ export const mobileTokenResultsTable = pgTable("mobile_token_results", {
 });
 
 export type MobileTokenResult = typeof mobileTokenResultsTable.$inferSelect;
+
+export const imapCredentialsTable = pgTable("imap_credentials", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => usersTable.id, { onDelete: "cascade" }),
+  email: varchar("email").notNull(),
+  displayName: varchar("display_name"),
+  host: varchar("host").notNull(),
+  port: integer("port").notNull().default(993),
+  secure: boolean("secure").notNull().default(true),
+  username: varchar("username").notNull(),
+  password: text("password").notNull(),
+  color: varchar("color").notNull().default("#6366f1"),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
+});
+
+export type ImapCredential = typeof imapCredentialsTable.$inferSelect;

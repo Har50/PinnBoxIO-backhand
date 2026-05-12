@@ -3,6 +3,7 @@ import { eq, count, and } from "drizzle-orm";
 import { db, accountsTable, messagesTable } from "@workspace/db";
 import { getGmailAccount, isGmailConnected } from "../services/gmail";
 import { getOutlookAccount, isOutlookConnected } from "../services/outlook";
+import { getImapAccounts } from "../services/imap";
 import {
   CreateAccountBody,
   GetAccountParams,
@@ -22,9 +23,10 @@ router.get("/accounts", async (req: any, res): Promise<void> => {
     .where(eq(accountsTable.userId, userId))
     .orderBy(accountsTable.createdAt);
 
-  const [gmailAccount, outlookAccount] = await Promise.all([
+  const [gmailAccount, outlookAccount, imapAccounts] = await Promise.all([
     getGmailAccount(userId),
     getOutlookAccount(userId),
+    getImapAccounts(userId),
   ]);
 
   const unreadCounts = await db
@@ -42,13 +44,11 @@ router.get("/accounts", async (req: any, res): Promise<void> => {
     createdAt: a.createdAt.toISOString(),
   }));
 
-  const gmailConnected = gmailAccount !== null;
-  const outlookConnected = outlookAccount !== null;
-
   res.json(
     GetAccountsResponse.parse([
       gmailAccount,
       outlookAccount,
+      ...imapAccounts,
       ...result,
     ].filter(Boolean))
   );

@@ -267,6 +267,38 @@ export interface UpdateNotificationPreferencesBody {
   weeklyDigest?: boolean;
 }
 
+export interface ImapConnectBody {
+  email: string;
+  /** @nullable */
+  displayName?: string | null;
+  host: string;
+  /** @nullable */
+  port?: number | null;
+  /** @nullable */
+  secure?: boolean | null;
+  username: string;
+  password: string;
+  /** @nullable */
+  color?: string | null;
+}
+
+export interface ImapConnectResponse {
+  id: number;
+  email: string;
+  /** @nullable */
+  displayName?: string | null;
+}
+
+export interface ImapTestResponse {
+  ok: boolean;
+  /** @nullable */
+  error?: string | null;
+}
+
+export interface SuccessResponse {
+  success: boolean;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */

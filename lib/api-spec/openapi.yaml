@@ -148,6 +148,67 @@ paths:
               schema:
                 $ref: "#/components/schemas/NotificationPreferences"
 
+  /auth/imap/connect:
+    post:
+      operationId: connectImapAccount
+      tags: [accounts]
+      summary: Connect a new IMAP email account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImapConnectBody"
+      responses:
+        "201":
+          description: IMAP account connected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImapConnectResponse"
+        "400":
+          description: Connection failed or missing fields
+
+  /auth/imap/{id}/disconnect:
+    delete:
+      operationId: disconnectImapAccount
+      tags: [accounts]
+      summary: Disconnect an IMAP email account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Disconnected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SuccessResponse"
+        "404":
+          description: Not found
+
+  /auth/imap/{id}/test:
+    post:
+      operationId: testImapAccount
+      tags: [accounts]
+      summary: Test an existing IMAP connection
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Test result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImapTestResponse"
+
   /healthz:
     get:
       operationId: healthCheck
@@ -1002,4 +1063,52 @@ components:
         importantMessages:
           type: boolean
         weeklyDigest:
+          type: boolean
+
+    ImapConnectBody:
+      type: object
+      required: [email, host, username, password]
+      properties:
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+        host:
+          type: string
+        port:
+          type: ["integer", "null"]
+        secure:
+          type: ["boolean", "null"]
+        username:
+          type: string
+        password:
+          type: string
+        color:
+          type: ["string", "null"]
+
+    ImapConnectResponse:
+      type: object
+      required: [id, email]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        displayName:
+          type: ["string", "null"]
+
+    ImapTestResponse:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        error:
+          type: ["string", "null"]
+
+    SuccessResponse:
+      type: object
+      required: [success]
+      properties:
+        success:
           type: boolean

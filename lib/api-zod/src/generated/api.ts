@@ -111,6 +111,43 @@ export const UpdateUserPreferencesResponse = zod.object({
 });
 
 /**
+ * @summary Connect a new IMAP email account
+ */
+export const ConnectImapAccountBody = zod.object({
+  email: zod.string(),
+  displayName: zod.string().nullish(),
+  host: zod.string(),
+  port: zod.number().nullish(),
+  secure: zod.boolean().nullish(),
+  username: zod.string(),
+  password: zod.string(),
+  color: zod.string().nullish(),
+});
+
+/**
+ * @summary Disconnect an IMAP email account
+ */
+export const DisconnectImapAccountParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const DisconnectImapAccountResponse = zod.object({
+  success: zod.boolean(),
+});
+
+/**
+ * @summary Test an existing IMAP connection
+ */
+export const TestImapAccountParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const TestImapAccountResponse = zod.object({
+  ok: zod.boolean(),
+  error: zod.string().nullish(),
+});
+
+/**
  * Returns server health status
  * @summary Health check
  */

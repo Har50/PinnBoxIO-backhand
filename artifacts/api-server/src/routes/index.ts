@@ -12,6 +12,7 @@ import aiRouter from "./ai";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
 import storageRouter, { storagePublicRouter } from "./storage";
 import authOAuthRouter from "./auth-oauth";
+import authImapRouter from "./auth-imap";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
 import calendarRouter from "./calendar";
@@ -178,6 +179,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 router.use(requireAuth);
+router.use(authImapRouter);
 router.use(accountsRouter);
 router.use(messagesRouter);
 router.use(contactsRouter);

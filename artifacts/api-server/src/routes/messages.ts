@@ -3,6 +3,7 @@ import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable } from "@workspace/db";
 import { getGmailMessage, listGmailMessages, sendGmailMessage } from "../services/gmail";
 import { getOutlookMessage, listOutlookMessages, sendOutlookMessage } from "../services/outlook";
+import { listImapMessages, getImapMessage, isImapVirtualAccountId, credentialIdFromVirtualAccountId } from "../services/imap";
 import {
   CreateMessageBody,
   UpdateMessageBody,
@@ -129,20 +130,39 @@ router.get("/messages", async (req: any, res): Promise<void> => {
     }
   }
 
+  if (accountId && isImapVirtualAccountId(accountId)) {
+    const credentialId = credentialIdFromVirtualAccountId(accountId);
+    if (credentialId) {
+      const imapMessages = await listImapMessages(userId, credentialId, folder ?? "Inbox", limit ?? 25);
+      if (imapMessages) {
+        res.json(GetMessagesResponse.parse(imapMessages));
+        return;
+      }
+    }
+    res.json(GetMessagesResponse.parse({ messages: [], total: 0, hasMore: false }));
+    return;
+  }
+
   if (!accountId) {
-    const [gmailMessages, outlookMessages] = await Promise.all([
+    const { db: _db, imapCredentialsTable } = await import("@workspace/db");
+    const { eq } = await import("drizzle-orm");
+    const imapCreds = await _db.select({ id: imapCredentialsTable.id }).from(imapCredentialsTable).where(eq(imapCredentialsTable.userId, userId));
+
+    const [gmailMessages, outlookMessages, ...imapResultsList] = await Promise.all([
       listGmailMessages(userId, folder, limit ?? 25),
       listOutlookMessages(userId, folder, limit ?? 25),
+      ...imapCreds.map((c) => listImapMessages(userId, c.id, folder ?? "Inbox", Math.min(limit ?? 25, 25))),
     ]);
-    if (gmailMessages || outlookMessages) {
-      const messages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? [])]
+    if (gmailMessages || outlookMessages || imapResultsList.some(Boolean)) {
+      const imapMsgs = imapResultsList.flatMap((r) => r?.messages ?? []);
+      const messages = [...(gmailMessages?.messages ?? []), ...(outlookMessages?.messages ?? []), ...imapMsgs]
         .sort((a, b) => new Date(b.receivedAt).getTime() - new Date(a.receivedAt).getTime())
         .slice(0, limit ?? 50);
       res.json(
         GetMessagesResponse.parse({
           messages,
-          total: (gmailMessages?.total ?? 0) + (outlookMessages?.total ?? 0),
-          hasMore: Boolean(gmailMessages?.hasMore || outlookMessages?.hasMore),
+          total: (gmailMessages?.total ?? 0) + (outlookMessages?.total ?? 0) + imapResultsList.reduce((s, r) => s + (r?.total ?? 0), 0),
+          hasMore: Boolean(gmailMessages?.hasMore || outlookMessages?.hasMore || imapResultsList.some((r) => r?.hasMore)),
         })
       );
       return;
@@ -216,6 +236,15 @@ router.get("/messages/:id", async (req: any, res): Promise<void> => {
   }
 
   if (params.data.id < 0) {
+    if (isImapVirtualAccountId(params.data.id) || params.data.id <= -3_000_000_000) {
+      const imapMessage = await getImapMessage(userId, params.data.id);
+      if (imapMessage) {
+        res.json(GetMessageResponse.parse(imapMessage));
+        return;
+      }
+      res.status(404).json({ error: "Message not found" });
+      return;
+    }
     const [gmailMessage, outlookMessage] = await Promise.all([
       getGmailMessage(userId, params.data.id),
       getOutlookMessage(userId, params.data.id),
