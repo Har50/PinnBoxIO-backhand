@@ -2,6 +2,8 @@ import { ImapFlow } from "imapflow";
 import { db, imapCredentialsTable } from "@workspace/db";
 import { and, eq } from "drizzle-orm";
 import { createCipheriv, createDecipheriv, randomBytes } from "node:crypto";
+import { promises as dns } from "node:dns";
+import { isIP } from "node:net";
 
 // ---------------------------------------------------------------------------
 // Encryption helpers (AES-256-GCM)
@@ -36,6 +38,135 @@ export function decryptPassword(stored: string): string {
   const decipher = createDecipheriv(ALGO, key, iv);
   decipher.setAuthTag(authTag);
   return Buffer.concat([decipher.update(data), decipher.final()]).toString("utf8");
+}
+
+// ---------------------------------------------------------------------------
+// SSRF protection — validate host/port before any outbound connection
+// ---------------------------------------------------------------------------
+
+/** Ports permitted for IMAP connections. */
+const ALLOWED_IMAP_PORTS = new Set([143, 585, 993]);
+
+/**
+ * Parse an IPv4 address into a 32-bit integer for range comparisons.
+ * Returns null if the string is not a valid IPv4 address.
+ */
+function ipv4ToInt(ip: string): number | null {
+  const parts = ip.split(".");
+  if (parts.length !== 4) return null;
+  let val = 0;
+  for (const part of parts) {
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 0 || n > 255) return null;
+    val = (val << 8) | n;
+  }
+  return val >>> 0;
+}
+
+/**
+ * Returns true if the IPv4 address falls in a private/reserved/loopback range.
+ * Blocks: loopback, private (RFC 1918), link-local, CG-NAT, documentation, and
+ * any other IANA special-purpose ranges.
+ */
+function isPrivateIPv4(ip: string): boolean {
+  const n = ipv4ToInt(ip);
+  if (n === null) return true; // treat parse failure as unsafe
+
+  const ranges: [number, number][] = [
+    [ipv4ToInt("0.0.0.0")!,       ipv4ToInt("0.255.255.255")!],   // "this" network
+    [ipv4ToInt("10.0.0.0")!,      ipv4ToInt("10.255.255.255")!],   // RFC 1918
+    [ipv4ToInt("100.64.0.0")!,    ipv4ToInt("100.127.255.255")!],  // Carrier-grade NAT
+    [ipv4ToInt("127.0.0.0")!,     ipv4ToInt("127.255.255.255")!],  // Loopback
+    [ipv4ToInt("169.254.0.0")!,   ipv4ToInt("169.254.255.255")!],  // Link-local
+    [ipv4ToInt("172.16.0.0")!,    ipv4ToInt("172.31.255.255")!],   // RFC 1918
+    [ipv4ToInt("192.0.0.0")!,     ipv4ToInt("192.0.0.255")!],      // IETF protocol assignments
+    [ipv4ToInt("192.0.2.0")!,     ipv4ToInt("192.0.2.255")!],      // TEST-NET-1
+    [ipv4ToInt("192.168.0.0")!,   ipv4ToInt("192.168.255.255")!],  // RFC 1918
+    [ipv4ToInt("198.18.0.0")!,    ipv4ToInt("198.19.255.255")!],   // Benchmark
+    [ipv4ToInt("198.51.100.0")!,  ipv4ToInt("198.51.100.255")!],   // TEST-NET-2
+    [ipv4ToInt("203.0.113.0")!,   ipv4ToInt("203.0.113.255")!],    // TEST-NET-3
+    [ipv4ToInt("240.0.0.0")!,     ipv4ToInt("255.255.255.255")!],  // Reserved / broadcast
+  ];
+
+  return ranges.some(([lo, hi]) => n >= lo && n <= hi);
+}
+
+/**
+ * Returns true if the IPv6 address is loopback, link-local, or unique-local.
+ */
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  // Loopback
+  if (lower === "::1") return true;
+  // Unspecified
+  if (lower === "::") return true;
+  // IPv4-mapped ::ffff:x.x.x.x — re-check mapped IPv4
+  const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateIPv4(mapped[1]);
+  // Link-local fe80::/10
+  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true;
+  // Unique local fc00::/7
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
+  // Loopback 0000::/8 range (::x)
+  if (/^::[0-9a-f]{0,4}$/i.test(lower) && lower !== "::1") return true;
+  return false;
+}
+
+function isPrivateIP(ip: string): boolean {
+  const version = isIP(ip);
+  if (version === 4) return isPrivateIPv4(ip);
+  if (version === 6) return isPrivateIPv6(ip);
+  return true; // treat unknowns as unsafe
+}
+
+/**
+ * Validates a host+port combination is safe to connect to:
+ *  1. Port must be in the IMAP allow-list (143, 585, 993).
+ *  2. The host (or all its resolved IPs) must not be private/reserved.
+ *
+ * Throws a descriptive Error if the target fails validation.
+ */
+export async function validateImapTarget(host: string, port: number): Promise<void> {
+  if (!ALLOWED_IMAP_PORTS.has(port)) {
+    throw new Error(
+      `Port ${port} is not allowed for IMAP connections. Use port 143, 585, or 993.`
+    );
+  }
+
+  // Normalise and trim the host
+  const cleanHost = host.trim().replace(/^\[|\]$/g, "");
+
+  // If the host is a raw IP address, check it directly
+  if (isIP(cleanHost)) {
+    if (isPrivateIP(cleanHost)) {
+      throw new Error("Connections to private or reserved IP addresses are not allowed.");
+    }
+    return;
+  }
+
+  // Resolve the hostname and validate every returned address
+  let addresses: string[] = [];
+  try {
+    // resolve4 + resolve6 to catch both families independently
+    const [v4, v6] = await Promise.allSettled([
+      dns.resolve4(cleanHost),
+      dns.resolve6(cleanHost),
+    ]);
+    if (v4.status === "fulfilled") addresses.push(...v4.value);
+    if (v6.status === "fulfilled") addresses.push(...v6.value);
+  } catch {
+    throw new Error(`Could not resolve hostname: ${cleanHost}`);
+  }
+
+  if (addresses.length === 0) {
+    throw new Error(`No DNS records found for host: ${cleanHost}`);
+  }
+
+  for (const addr of addresses) {
+    if (isPrivateIP(addr)) {
+      throw new Error("Connections to private or reserved addresses are not allowed.");
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -83,7 +214,7 @@ function decodeMsgId(virtualId: number): { credentialId: number; uid: number } |
 }
 
 // ---------------------------------------------------------------------------
-// ImapFlow client factory (TLS verification enabled by default)
+// ImapFlow client factory (TLS verification on by default)
 // ---------------------------------------------------------------------------
 function makeClient(cred: {
   host: string;
@@ -105,11 +236,11 @@ function makeClient(cred: {
 // Folder resolution
 // ---------------------------------------------------------------------------
 const FOLDER_MAP: Record<string, string[]> = {
-  Inbox: ["INBOX"],
-  Sent: ["Sent", "Sent Items", "Sent Messages", "[Gmail]/Sent Mail", "INBOX.Sent"],
-  Drafts: ["Drafts", "[Gmail]/Drafts", "INBOX.Drafts"],
-  Trash: ["Trash", "Deleted Items", "[Gmail]/Trash", "INBOX.Trash"],
-  Spam: ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "INBOX.Junk"],
+  Inbox:   ["INBOX"],
+  Sent:    ["Sent", "Sent Items", "Sent Messages", "[Gmail]/Sent Mail", "INBOX.Sent"],
+  Drafts:  ["Drafts", "[Gmail]/Drafts", "INBOX.Drafts"],
+  Trash:   ["Trash", "Deleted Items", "[Gmail]/Trash", "INBOX.Trash"],
+  Spam:    ["Spam", "Junk", "Junk Email", "[Gmail]/Spam", "INBOX.Junk"],
   Archive: ["Archive", "[Gmail]/All Mail", "INBOX.Archive"],
 };
 
@@ -134,8 +265,38 @@ function flattenTree(node: any): string[] {
 }
 
 // ---------------------------------------------------------------------------
+// Body parser
+// ---------------------------------------------------------------------------
+function parseBody(source: Buffer | undefined): { bodyText: string; bodyHtml: string | null } {
+  if (!source) return { bodyText: "", bodyHtml: null };
+  try {
+    const raw = source.toString();
+    const htmlMatch = raw.match(
+      /Content-Type: text\/html[\s\S]*?\r\n\r\n([\s\S]*?)(?=\r\n--|\r\n\r\nContent-Type|$)/i
+    );
+    const textMatch = raw.match(
+      /Content-Type: text\/plain[\s\S]*?\r\n\r\n([\s\S]*?)(?=\r\n--|\r\n\r\nContent-Type|$)/i
+    );
+    const bodyHtml = htmlMatch ? htmlMatch[1].replace(/=\r\n/g, "").trim() : null;
+    let bodyText = textMatch ? textMatch[1].replace(/=\r\n/g, "").trim() : "";
+    if (!bodyText && !bodyHtml) {
+      const parts = raw.split(/\r\n\r\n/);
+      bodyText = parts.slice(1).join("\n").replace(/=\r\n/g, "").trim().slice(0, 500);
+    }
+    return { bodyText, bodyHtml };
+  } catch {
+    return { bodyText: "", bodyHtml: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
+
+/**
+ * Test an IMAP connection with the given credentials.
+ * Validates the target host/port against SSRF rules before connecting.
+ */
 export async function testImapConnection(cred: {
   host: string;
   port: number;
@@ -143,6 +304,12 @@ export async function testImapConnection(cred: {
   username: string;
   password: string;
 }): Promise<{ ok: boolean; error?: string }> {
+  try {
+    await validateImapTarget(cred.host, cred.port);
+  } catch (err: any) {
+    return { ok: false, error: err.message };
+  }
+
   const client = makeClient(cred);
   try {
     await client.connect();
@@ -172,28 +339,6 @@ export async function getImapAccounts(userId: string) {
   }));
 }
 
-function parseBody(source: Buffer | undefined): { bodyText: string; bodyHtml: string | null } {
-  if (!source) return { bodyText: "", bodyHtml: null };
-  try {
-    const raw = source.toString();
-    const htmlMatch = raw.match(
-      /Content-Type: text\/html[\s\S]*?\r\n\r\n([\s\S]*?)(?=\r\n--|\r\n\r\nContent-Type|$)/i
-    );
-    const textMatch = raw.match(
-      /Content-Type: text\/plain[\s\S]*?\r\n\r\n([\s\S]*?)(?=\r\n--|\r\n\r\nContent-Type|$)/i
-    );
-    const bodyHtml = htmlMatch ? htmlMatch[1].replace(/=\r\n/g, "").trim() : null;
-    let bodyText = textMatch ? textMatch[1].replace(/=\r\n/g, "").trim() : "";
-    if (!bodyText && !bodyHtml) {
-      const parts = raw.split(/\r\n\r\n/);
-      bodyText = parts.slice(1).join("\n").replace(/=\r\n/g, "").trim().slice(0, 500);
-    }
-    return { bodyText, bodyHtml };
-  } catch {
-    return { bodyText: "", bodyHtml: null };
-  }
-}
-
 export async function listImapMessages(
   userId: string,
   credentialId: number,
@@ -213,6 +358,13 @@ export async function listImapMessages(
     return null;
   }
 
+  // Re-validate the stored target on every fetch (defends against DB tampering)
+  try {
+    await validateImapTarget(cred.host, cred.port);
+  } catch {
+    return null;
+  }
+
   const client = makeClient({ ...cred, password: plainPassword });
   try {
     await client.connect();
@@ -220,11 +372,7 @@ export async function listImapMessages(
     const lock = await client.getMailboxLock(resolvedFolder);
     try {
       const uids: number[] = [];
-      for await (const msg of client.fetch(
-        { seq: "1:*" },
-        { uid: true },
-        { uid: false }
-      )) {
+      for await (const msg of client.fetch({ seq: "1:*" }, { uid: true }, { uid: false })) {
         uids.push(msg.uid);
       }
 
@@ -292,10 +440,16 @@ export async function getImapMessage(userId: string, virtualId: number): Promise
     return null;
   }
 
+  try {
+    await validateImapTarget(cred.host, cred.port);
+  } catch {
+    return null;
+  }
+
   const client = makeClient({ ...cred, password: plainPassword });
 
   // Try folders in priority order; return the first successful match.
-  const foldersToTry = ["INBOX", "Sent", "Drafts", "Trash", "Spam", "Archive"];
+  const foldersToTry = ["Inbox", "Sent", "Drafts", "Trash", "Spam", "Archive"];
 
   try {
     await client.connect();
@@ -342,7 +496,7 @@ export async function getImapMessage(userId: string, virtualId: number): Promise
           };
         }
       } catch {
-        // uid not found in this folder, try next
+        // uid not found in this folder — try next
       } finally {
         lock.release();
       }
