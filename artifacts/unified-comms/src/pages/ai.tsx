@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
-  MessageSquare, Sparkles, Send, Plus, Trash2, Loader2, Crown,
+  MessageSquare, Brain, Send, Plus, Trash2, Loader2, Crown,
   Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle,
   Mic, MicOff, Settings, Search, Command,
 } from "lucide-react";
@@ -513,7 +513,7 @@ function AiChat() {
               className="w-8 h-8 rounded-full flex items-center justify-center shrink-0"
               style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
             >
-              <Sparkles className="h-4 w-4 text-white" />
+              <Brain className="h-4 w-4 text-white" />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -558,10 +558,10 @@ function AiChat() {
                 className="w-14 h-14 rounded-2xl flex items-center justify-center mb-3 border"
                 style={{ background: "rgba(99,102,241,0.12)", borderColor: "rgba(99,102,241,0.25)", boxShadow: "0 0 30px rgba(99,102,241,0.1)" }}
               >
-                <Sparkles className="h-7 w-7" style={{ color: "#a5b4fc" }} />
+                <Brain className="h-7 w-7" style={{ color: "#a5b4fc" }} />
               </div>
               <h2 className="text-lg font-light tracking-tight mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>
-                Hello, I'm your AI assistant
+                AI Assistant
               </h2>
               <p className="text-sm max-w-sm mb-6" style={{ color: "rgba(255,255,255,0.4)" }}>
                 I've synced with your inbox and calendar. What would you like to work on today?
@@ -590,7 +590,7 @@ function AiChat() {
                   className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 border"
                   style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderColor: "rgba(255,255,255,0.15)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
                 >
-                  <Sparkles className="h-3.5 w-3.5 text-white" />
+                  <Brain className="h-3.5 w-3.5 text-white" />
                 </div>
               )}
               <div
