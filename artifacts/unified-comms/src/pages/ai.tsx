@@ -389,27 +389,20 @@ function AiChat() {
   ];
 
   return (
-    <div className="flex h-full min-w-0 overflow-hidden relative" style={{ background: "#0d1117", color: "white" }}>
+    <div className="flex h-full min-w-0 overflow-hidden relative bg-background text-foreground">
       {/* Decorative orbs */}
       <div className="absolute top-[-8%] left-[-5%] w-[35%] h-[40%] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.18) 0%, transparent 70%)", filter: "blur(60px)", zIndex: 0 }} />
       <div className="absolute bottom-[-10%] right-[-5%] w-[30%] h-[45%] rounded-full pointer-events-none" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)", filter: "blur(80px)", zIndex: 0 }} />
 
       {/* Sidebar */}
       <div
-        className={cn(
-          "flex-col w-64 shrink-0 relative z-10 border-r",
-          showMobileChats ? "flex w-full md:w-64" : "hidden md:flex",
-        )}
-        style={{ background: "rgba(22,27,34,0.85)", borderColor: "#2d3139", backdropFilter: "blur(16px)" }}
+        className={cn("flex-col w-64 shrink-0 relative z-10 border-r bg-card border-border", showMobileChats ? "flex w-full md:w-64" : "hidden md:flex")}
       >
         {/* New conversation */}
         <div className="p-4 pt-5">
           <button
             onClick={newConversation}
-            className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 px-4 text-sm font-medium transition-colors border"
-            style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.85)" }}
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.10)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.06)")}
+            className="flex w-full items-center justify-center gap-2 rounded-xl py-2.5 px-4 text-sm font-medium transition-colors border border-border bg-muted/40 text-foreground hover:bg-muted"
           >
             <Plus className="h-4 w-4" style={{ color: "#a5b4fc" }} />
             New conversation
@@ -420,14 +413,13 @@ function AiChat() {
         {/* Search */}
         <div className="px-4 pb-3">
           <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5" style={{ color: "rgba(255,255,255,0.3)" }} />
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
             <input
               type="text"
               value={historySearch}
               onChange={e => setHistorySearch(e.target.value)}
               placeholder="Search history..."
-              className="w-full rounded-lg py-1.5 pl-8 pr-3 text-sm focus:outline-none transition-all border"
-              style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.06)", color: "rgba(255,255,255,0.8)" }}
+              className="w-full rounded-lg py-1.5 pl-8 pr-3 text-sm focus:outline-none transition-all border border-border bg-muted/30 text-foreground placeholder:text-muted-foreground"
             />
           </div>
         </div>
@@ -436,33 +428,29 @@ function AiChat() {
         <ScrollArea className="flex-1 px-3 pb-2">
           <div className="space-y-0.5">
             {grouped.length === 0 && (
-              <p className="px-2 py-8 text-xs text-center" style={{ color: "rgba(255,255,255,0.3)" }}>
+              <p className="px-2 py-8 text-xs text-center text-muted-foreground">
                 Start a new conversation to get help with your communications.
               </p>
             )}
             {grouped.map((group) => (
               <div key={group.label}>
-                <p className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider" style={{ color: "rgba(255,255,255,0.28)" }}>{group.label}</p>
+                <p className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{group.label}</p>
                 {group.items.map((conv) => (
                   <button
                     key={conv.id}
                     onClick={() => loadConversation(conv.id)}
-                    className="flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-all group relative"
-                    style={{
-                      background: activeConvId === conv.id ? "rgba(99,102,241,0.15)" : "transparent",
-                      borderLeft: activeConvId === conv.id ? "2px solid rgba(99,102,241,0.6)" : "2px solid transparent",
-                      color: activeConvId === conv.id ? "rgba(255,255,255,0.95)" : "rgba(255,255,255,0.55)",
-                    }}
+                    className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-all group relative hover:bg-muted/50", activeConvId === conv.id ? "text-foreground bg-primary/10" : "text-muted-foreground")}
+                    style={{ borderLeft: activeConvId === conv.id ? "2px solid rgba(99,102,241,0.6)" : "2px solid transparent" }}
                   >
-                    <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: activeConvId === conv.id ? "#818cf8" : "rgba(255,255,255,0.3)" }} />
+                    <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: activeConvId === conv.id ? "#818cf8" : undefined }} />
                     <span className="truncate flex-1">{formatTitle(conv)}</span>
-                    <button
-                      onClick={(e) => deleteConversation(conv.id, e)}
-                      className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity"
-                      style={{ color: "#f87171" }}
+                    <span
+                      role="button"
+                      onClick={(e) => deleteConversation(conv.id, e as unknown as React.MouseEvent)}
+                      className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-red-400 cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
-                    </button>
+                    </span>
                   </button>
                 ))}
               </div>
@@ -471,24 +459,20 @@ function AiChat() {
         </ScrollArea>
 
         {/* Footer */}
-        <div className="p-4 border-t" style={{ borderColor: "#2d3139" }}>
-          <button
-            className="flex items-center gap-3 w-full p-2 rounded-lg transition-colors"
-            onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
-            onMouseLeave={e => (e.currentTarget.style.background = "transparent")}
-          >
+        <div className="p-4 border-t border-border">
+          <div className="flex items-center gap-3 w-full p-2 rounded-lg">
             <div className="w-8 h-8 rounded-full p-[1.5px] shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
-              <div className="w-full h-full rounded-full flex items-center justify-center text-xs font-semibold" style={{ background: "#161b22", color: "white" }}>AI</div>
+              <div className="w-full h-full rounded-full flex items-center justify-center text-xs font-semibold bg-card text-foreground">AI</div>
             </div>
             <div className="flex-1 text-left">
-              <div className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.9)" }}>Pinnbox AI</div>
-              <div className="flex items-center gap-1 text-[11px]" style={{ color: "rgba(255,255,255,0.35)" }}>
+              <div className="text-sm font-medium text-foreground">Pinnbox AI</div>
+              <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
                 Connected
               </div>
             </div>
-            <Settings className="h-4 w-4" style={{ color: "rgba(255,255,255,0.3)" }} />
-          </button>
+            <Settings className="h-4 w-4 text-muted-foreground" />
+          </div>
         </div>
       </div>
 
@@ -496,14 +480,12 @@ function AiChat() {
       <div className={cn("flex-1 flex-col min-w-0 relative z-10", showMobileChats ? "hidden md:flex" : "flex")}>
         {/* Header */}
         <header
-          className="h-14 flex items-center justify-between px-4 sm:px-6 border-b shrink-0"
-          style={{ borderColor: "#2d3139", background: "rgba(13,17,23,0.85)", backdropFilter: "blur(12px)" }}
+          className="h-14 flex items-center justify-between px-4 sm:px-6 border-b border-border shrink-0 bg-background/90 backdrop-blur-md"
         >
           <div className="flex items-center gap-2.5">
             {/* Mobile: show chats button */}
             <button
-              className="md:hidden flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border transition-colors mr-1"
-              style={{ background: "rgba(255,255,255,0.06)", borderColor: "rgba(255,255,255,0.1)", color: "rgba(255,255,255,0.7)" }}
+              className="md:hidden flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs border border-border bg-muted/40 text-muted-foreground hover:bg-muted transition-colors mr-1"
               onClick={() => setShowMobileChats(true)}
             >
               <MessageSquare className="h-3.5 w-3.5" />
@@ -517,17 +499,14 @@ function AiChat() {
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h1 className="text-sm font-semibold text-white">Pinnbox Assistant</h1>
+                <h1 className="text-sm font-semibold text-foreground">Pinnbox Assistant</h1>
                 <Badge className="text-[10px] font-bold px-1.5 py-0.5 rounded border hidden sm:inline-flex" style={{ background: "rgba(99,102,241,0.15)", borderColor: "rgba(99,102,241,0.35)", color: "#a5b4fc" }}>PRO</Badge>
               </div>
             </div>
           </div>
 
           {/* Model switcher */}
-          <div
-            className="flex items-center p-1 rounded-full border"
-            style={{ background: "rgba(22,27,34,0.9)", borderColor: "#2d3139" }}
-          >
+          <div className="flex items-center p-1 rounded-full border border-border bg-card">
             {PROVIDERS.map((p) => (
               <button
                 key={p.id}
@@ -540,11 +519,10 @@ function AiChat() {
                   boxShadow: "0 0 12px rgba(99,102,241,0.2)",
                 } : {
                   background: "transparent",
-                  color: "rgba(255,255,255,0.4)",
                   border: "1px solid transparent",
                 }}
               >
-                {p.label}
+                <span className={provider === p.id ? "" : "text-muted-foreground"}>{p.label}</span>
               </button>
             ))}
           </div>
@@ -560,10 +538,10 @@ function AiChat() {
               >
                 <Brain className="h-7 w-7" style={{ color: "#a5b4fc" }} />
               </div>
-              <h2 className="text-lg font-light tracking-tight mb-1" style={{ color: "rgba(255,255,255,0.9)" }}>
+              <h2 className="text-lg font-light tracking-tight mb-1 text-foreground">
                 AI Assistant
               </h2>
-              <p className="text-sm max-w-sm mb-6" style={{ color: "rgba(255,255,255,0.4)" }}>
+              <p className="text-sm max-w-sm mb-6 text-muted-foreground">
                 I've synced with your inbox and calendar. What would you like to work on today?
               </p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-lg w-full">
@@ -571,10 +549,7 @@ function AiChat() {
                   <button
                     key={prompt}
                     onClick={() => { setInput(prompt); textareaRef.current?.focus(); }}
-                    className="text-left p-3 rounded-xl border text-sm transition-all"
-                    style={{ background: "rgba(255,255,255,0.04)", borderColor: "rgba(255,255,255,0.08)", color: "rgba(255,255,255,0.65)" }}
-                    onMouseEnter={e => { (e.currentTarget.style.background = "rgba(255,255,255,0.08)"); (e.currentTarget.style.color = "white"); }}
-                    onMouseLeave={e => { (e.currentTarget.style.background = "rgba(255,255,255,0.04)"); (e.currentTarget.style.color = "rgba(255,255,255,0.65)"); }}
+                    className="text-left p-3 rounded-xl border border-border bg-card text-muted-foreground text-sm transition-all hover:bg-muted hover:text-foreground"
                   >
                     {prompt}
                   </button>
@@ -652,7 +627,7 @@ function AiChat() {
         </div>
 
         {/* Input area — floating with gradient fade */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 pt-12 pointer-events-none" style={{ background: "linear-gradient(to top, #0d1117 55%, transparent)", zIndex: 20 }}>
+        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 pt-12 pointer-events-none" style={{ background: "linear-gradient(to top, var(--background) 55%, transparent)", zIndex: 20 }}>
           <div className="max-w-3xl mx-auto pointer-events-auto">
             {/* Hidden file inputs */}
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addAttachments(e.target.files)} />
@@ -661,10 +636,10 @@ function AiChat() {
 
             {/* Attach menu popover */}
             {showAttachMenu && (
-              <div className="mb-3 rounded-2xl border overflow-hidden shadow-2xl" style={{ background: "rgba(22,27,34,0.95)", borderColor: "rgba(255,255,255,0.12)", backdropFilter: "blur(20px)" }}>
-                <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: "rgba(255,255,255,0.08)" }}>
-                  <span className="font-semibold text-sm text-white/80">Add to Chat</span>
-                  <button onClick={() => setShowAttachMenu(false)} style={{ color: "rgba(255,255,255,0.4)" }} className="hover:text-white transition-colors">
+              <div className="mb-3 rounded-2xl border border-border bg-card overflow-hidden shadow-2xl backdrop-blur-xl">
+                <div className="flex items-center justify-between px-4 py-2.5 border-b border-border">
+                  <span className="font-semibold text-sm text-foreground/80">Add to Chat</span>
+                  <button onClick={() => setShowAttachMenu(false)} className="text-muted-foreground hover:text-foreground transition-colors">
                     <X className="w-4 h-4" />
                   </button>
                 </div>
@@ -675,10 +650,7 @@ function AiChat() {
                     { icon: FileText, label: "Files", ref: fileInputRef },
                   ].map(({ icon: Icon, label, ref }) => (
                     <button key={label} onClick={() => ref.current?.click()}
-                      className="flex flex-col items-center gap-2 p-3 rounded-xl text-sm font-medium transition-colors"
-                      style={{ background: "rgba(255,255,255,0.05)", color: "rgba(255,255,255,0.7)" }}
-                      onMouseEnter={e => (e.currentTarget.style.background = "rgba(255,255,255,0.10)")}
-                      onMouseLeave={e => (e.currentTarget.style.background = "rgba(255,255,255,0.05)")}
+                      className="flex flex-col items-center gap-2 p-3 rounded-xl text-sm font-medium transition-colors bg-muted/40 text-muted-foreground hover:bg-muted hover:text-foreground"
                     >
                       <Icon className="w-5 h-5" />
                       {label}
@@ -715,38 +687,30 @@ function AiChat() {
             )}
 
             {/* Input box */}
-            <div
-              className="rounded-[22px] p-2 border flex flex-col transition-all"
-              style={{ background: "rgba(255,255,255,0.07)", backdropFilter: "blur(24px)", borderColor: "rgba(255,255,255,0.14)", boxShadow: "0 10px 40px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.09)" }}
-            >
+            <div className="rounded-[22px] p-2 border border-border bg-card flex flex-col transition-all shadow-lg">
               <textarea
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
                 placeholder={isListening ? "🎙️ Listening… speak now" : "Ask about your emails, schedule, or contacts..."}
-                className="w-full bg-transparent resize-none text-sm px-3 pt-2 pb-1 focus:outline-none min-h-[44px] max-h-32"
-                style={{ color: isListening ? "#fbbf24" : "rgba(255,255,255,0.9)", caretColor: "#a5b4fc" }}
+                className="w-full bg-transparent resize-none text-sm px-3 pt-2 pb-1 focus:outline-none min-h-[44px] max-h-32 text-foreground placeholder:text-muted-foreground"
+                style={{ caretColor: "#a5b4fc", color: isListening ? "#fbbf24" : undefined }}
                 rows={1}
               />
               <div className="flex items-center justify-between px-2 pb-1">
                 <div className="flex items-center gap-1">
                   <button
-                    className="p-2 rounded-full transition-colors"
-                    style={{ color: "rgba(255,255,255,0.45)" }}
+                    className="p-2 rounded-full transition-colors text-muted-foreground hover:bg-muted hover:text-foreground"
                     onClick={() => setShowAttachMenu((v) => !v)}
-                    onMouseEnter={e => { (e.currentTarget.style.background = "rgba(255,255,255,0.08)"); (e.currentTarget.style.color = "white"); }}
-                    onMouseLeave={e => { (e.currentTarget.style.background = "transparent"); (e.currentTarget.style.color = "rgba(255,255,255,0.45)"); }}
                   >
                     <Plus className="h-4 w-4" />
                   </button>
                   {voiceSupported && (
                     <button
-                      className="p-2 rounded-full transition-all"
-                      style={isListening ? { background: "rgba(239,68,68,0.2)", color: "#f87171" } : { color: "rgba(255,255,255,0.45)" }}
+                      className="p-2 rounded-full transition-all text-muted-foreground hover:bg-muted hover:text-foreground"
+                      style={isListening ? { background: "rgba(239,68,68,0.2)", color: "#f87171" } : {}}
                       onClick={toggleVoice}
-                      onMouseEnter={e => { if (!isListening) { (e.currentTarget.style.background = "rgba(255,255,255,0.08)"); (e.currentTarget.style.color = "white"); } }}
-                      onMouseLeave={e => { if (!isListening) { (e.currentTarget.style.background = "transparent"); (e.currentTarget.style.color = "rgba(255,255,255,0.45)"); } }}
                     >
                       {isListening ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </button>
@@ -762,7 +726,7 @@ function AiChat() {
                 </button>
               </div>
             </div>
-            <p className="text-center mt-2 text-[10px]" style={{ color: "rgba(255,255,255,0.25)" }}>
+            <p className="text-center mt-2 text-[10px] text-muted-foreground/60">
               Press Enter to send · Shift+Enter for new line
             </p>
           </div>
