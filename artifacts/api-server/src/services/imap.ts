@@ -47,10 +47,6 @@ export function decryptPassword(stored: string): string {
 /** Ports permitted for IMAP connections. */
 const ALLOWED_IMAP_PORTS = new Set([143, 585, 993]);
 
-/**
- * Parse an IPv4 address into a 32-bit integer for range comparisons.
- * Returns null if the string is not a valid IPv4 address.
- */
 function ipv4ToInt(ip: string): number | null {
   const parts = ip.split(".");
   if (parts.length !== 4) return null;
@@ -63,52 +59,34 @@ function ipv4ToInt(ip: string): number | null {
   return val >>> 0;
 }
 
-/**
- * Returns true if the IPv4 address falls in a private/reserved/loopback range.
- * Blocks: loopback, private (RFC 1918), link-local, CG-NAT, documentation, and
- * any other IANA special-purpose ranges.
- */
 function isPrivateIPv4(ip: string): boolean {
   const n = ipv4ToInt(ip);
-  if (n === null) return true; // treat parse failure as unsafe
-
+  if (n === null) return true;
   const ranges: [number, number][] = [
-    [ipv4ToInt("0.0.0.0")!,       ipv4ToInt("0.255.255.255")!],   // "this" network
-    [ipv4ToInt("10.0.0.0")!,      ipv4ToInt("10.255.255.255")!],   // RFC 1918
-    [ipv4ToInt("100.64.0.0")!,    ipv4ToInt("100.127.255.255")!],  // Carrier-grade NAT
-    [ipv4ToInt("127.0.0.0")!,     ipv4ToInt("127.255.255.255")!],  // Loopback
-    [ipv4ToInt("169.254.0.0")!,   ipv4ToInt("169.254.255.255")!],  // Link-local
-    [ipv4ToInt("172.16.0.0")!,    ipv4ToInt("172.31.255.255")!],   // RFC 1918
-    [ipv4ToInt("192.0.0.0")!,     ipv4ToInt("192.0.0.255")!],      // IETF protocol assignments
-    [ipv4ToInt("192.0.2.0")!,     ipv4ToInt("192.0.2.255")!],      // TEST-NET-1
-    [ipv4ToInt("192.168.0.0")!,   ipv4ToInt("192.168.255.255")!],  // RFC 1918
-    [ipv4ToInt("198.18.0.0")!,    ipv4ToInt("198.19.255.255")!],   // Benchmark
-    [ipv4ToInt("198.51.100.0")!,  ipv4ToInt("198.51.100.255")!],   // TEST-NET-2
-    [ipv4ToInt("203.0.113.0")!,   ipv4ToInt("203.0.113.255")!],    // TEST-NET-3
-    [ipv4ToInt("240.0.0.0")!,     ipv4ToInt("255.255.255.255")!],  // Reserved / broadcast
+    [ipv4ToInt("0.0.0.0")!,      ipv4ToInt("0.255.255.255")!],
+    [ipv4ToInt("10.0.0.0")!,     ipv4ToInt("10.255.255.255")!],
+    [ipv4ToInt("100.64.0.0")!,   ipv4ToInt("100.127.255.255")!],
+    [ipv4ToInt("127.0.0.0")!,    ipv4ToInt("127.255.255.255")!],
+    [ipv4ToInt("169.254.0.0")!,  ipv4ToInt("169.254.255.255")!],
+    [ipv4ToInt("172.16.0.0")!,   ipv4ToInt("172.31.255.255")!],
+    [ipv4ToInt("192.0.0.0")!,    ipv4ToInt("192.0.0.255")!],
+    [ipv4ToInt("192.0.2.0")!,    ipv4ToInt("192.0.2.255")!],
+    [ipv4ToInt("192.168.0.0")!,  ipv4ToInt("192.168.255.255")!],
+    [ipv4ToInt("198.18.0.0")!,   ipv4ToInt("198.19.255.255")!],
+    [ipv4ToInt("198.51.100.0")!, ipv4ToInt("198.51.100.255")!],
+    [ipv4ToInt("203.0.113.0")!,  ipv4ToInt("203.0.113.255")!],
+    [ipv4ToInt("240.0.0.0")!,    ipv4ToInt("255.255.255.255")!],
   ];
-
   return ranges.some(([lo, hi]) => n >= lo && n <= hi);
 }
 
-/**
- * Returns true if the IPv6 address is loopback, link-local, or unique-local.
- */
 function isPrivateIPv6(ip: string): boolean {
   const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
-  // Loopback
-  if (lower === "::1") return true;
-  // Unspecified
-  if (lower === "::") return true;
-  // IPv4-mapped ::ffff:x.x.x.x — re-check mapped IPv4
+  if (lower === "::1" || lower === "::") return true;
   const mapped = lower.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
   if (mapped) return isPrivateIPv4(mapped[1]);
-  // Link-local fe80::/10
-  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true;
-  // Unique local fc00::/7
-  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;
-  // Loopback 0000::/8 range (::x)
-  if (/^::[0-9a-f]{0,4}$/i.test(lower) && lower !== "::1") return true;
+  if (/^fe[89ab][0-9a-f]:/i.test(lower)) return true; // link-local fe80::/10
+  if (/^f[cd][0-9a-f]{2}:/i.test(lower)) return true;  // unique local fc00::/7
   return false;
 }
 
@@ -116,27 +94,23 @@ function isPrivateIP(ip: string): boolean {
   const version = isIP(ip);
   if (version === 4) return isPrivateIPv4(ip);
   if (version === 6) return isPrivateIPv6(ip);
-  return true; // treat unknowns as unsafe
+  return true;
 }
 
 /**
- * Validates a host+port combination is safe to connect to:
- *  1. Port must be in the IMAP allow-list (143, 585, 993).
- *  2. The host (or all its resolved IPs) must not be private/reserved.
- *
- * Throws a descriptive Error if the target fails validation.
+ * Validates a host + port before any outbound IMAP connection attempt.
+ * Blocks private/reserved IPs, disallows non-IMAP ports, and resolves DNS
+ * to guard against hostname rebinding / SSRF attacks.
  */
 export async function validateImapTarget(host: string, port: number): Promise<void> {
   if (!ALLOWED_IMAP_PORTS.has(port)) {
     throw new Error(
-      `Port ${port} is not allowed for IMAP connections. Use port 143, 585, or 993.`
+      `Port ${port} is not allowed. Use 143 (IMAP), 993 (IMAPS), or 585.`
     );
   }
 
-  // Normalise and trim the host
   const cleanHost = host.trim().replace(/^\[|\]$/g, "");
 
-  // If the host is a raw IP address, check it directly
   if (isIP(cleanHost)) {
     if (isPrivateIP(cleanHost)) {
       throw new Error("Connections to private or reserved IP addresses are not allowed.");
@@ -144,10 +118,8 @@ export async function validateImapTarget(host: string, port: number): Promise<vo
     return;
   }
 
-  // Resolve the hostname and validate every returned address
   let addresses: string[] = [];
   try {
-    // resolve4 + resolve6 to catch both families independently
     const [v4, v6] = await Promise.allSettled([
       dns.resolve4(cleanHost),
       dns.resolve6(cleanHost),
@@ -170,17 +142,42 @@ export async function validateImapTarget(host: string, port: number): Promise<vo
 }
 
 // ---------------------------------------------------------------------------
-// Virtual ID scheme — fully deterministic, no in-memory map needed.
+// Virtual ID scheme
 //
-// Account IDs:  -(IMAP_ACCOUNT_BASE + credentialId)
-// Message IDs:  -(IMAP_MSG_BASE + credentialId * UID_MULTIPLIER + uid)
+// Account IDs:
+//   -(IMAP_ACCOUNT_BASE + credentialId)
+//   IMAP_ACCOUNT_BASE = 2_000_000_000
 //
-// IMAP UIDs are 32-bit (max 4,294,967,295). UID_MULTIPLIER = 10_000_000_000
-// allows credentialId up to ~898 within JS MAX_SAFE_INTEGER.
+// Message IDs — encodes credential + folder + UID so they are globally unique
+// across mailboxes and fully deterministic (no in-memory state required).
+//
+//   -(IMAP_MSG_BASE + credentialId * FOLDER_MULT + folderIndex * UID_MULT + uid)
+//
+//   IMAP_MSG_BASE  = 10_000_000_000_000  (10 trillion — separates from account IDs)
+//   FOLDER_MULT    = 50_000_000_000      (50 billion per credential slot)
+//   UID_MULT       = 5_000_000_000       (5 billion per folder slot)
+//
+//   Max safe credentialId ≈ 898 (well above any realistic deployment).
+//   UIDs are 32-bit (max 4,294,967,295) which fits within UID_MULT (5B). ✓
+//   Max encoded value ≈ −6 × 10^13 << MAX_SAFE_INTEGER (9 × 10^15).        ✓
 // ---------------------------------------------------------------------------
 export const IMAP_ACCOUNT_BASE = 2_000_000_000;
 const IMAP_MSG_BASE = 10_000_000_000_000;
-const UID_MULTIPLIER = 10_000_000_000;
+const FOLDER_MULT   =     50_000_000_000;
+const UID_MULT      =      5_000_000_000;
+
+/** Canonical folder name → stable numeric index (6 standard IMAP folders). */
+const FOLDER_TO_INDEX: Record<string, number> = {
+  Inbox:   0,
+  Sent:    1,
+  Drafts:  2,
+  Trash:   3,
+  Spam:    4,
+  Archive: 5,
+};
+const INDEX_TO_FOLDER: Record<number, string> = Object.fromEntries(
+  Object.entries(FOLDER_TO_INDEX).map(([k, v]) => [v, k])
+);
 
 export function imapVirtualAccountId(credentialId: number): number {
   return -(IMAP_ACCOUNT_BASE + credentialId);
@@ -200,21 +197,27 @@ export function isImapVirtualMsgId(msgId: number): boolean {
   return msgId <= -IMAP_MSG_BASE;
 }
 
-function imapVirtualMsgId(credentialId: number, uid: number): number {
-  return -(IMAP_MSG_BASE + credentialId * UID_MULTIPLIER + uid);
+function imapVirtualMsgId(credentialId: number, folder: string, uid: number): number {
+  const folderIndex = FOLDER_TO_INDEX[folder] ?? 0;
+  return -(IMAP_MSG_BASE + credentialId * FOLDER_MULT + folderIndex * UID_MULT + uid);
 }
 
-function decodeMsgId(virtualId: number): { credentialId: number; uid: number } | null {
+function decodeMsgId(
+  virtualId: number
+): { credentialId: number; folder: string; uid: number } | null {
   const abs = Math.abs(virtualId);
   if (abs < IMAP_MSG_BASE) return null;
-  const remainder = abs - IMAP_MSG_BASE;
-  const credentialId = Math.floor(remainder / UID_MULTIPLIER);
-  const uid = remainder % UID_MULTIPLIER;
-  return { credentialId, uid };
+  const remainder   = abs - IMAP_MSG_BASE;
+  const credentialId = Math.floor(remainder / FOLDER_MULT);
+  const rem2         = remainder % FOLDER_MULT;
+  const folderIndex  = Math.floor(rem2 / UID_MULT);
+  const uid          = rem2 % UID_MULT;
+  const folder       = INDEX_TO_FOLDER[folderIndex] ?? "Inbox";
+  return { credentialId, folder, uid };
 }
 
 // ---------------------------------------------------------------------------
-// ImapFlow client factory (TLS verification on by default)
+// ImapFlow client factory (TLS on, no rejectUnauthorized override)
 // ---------------------------------------------------------------------------
 function makeClient(cred: {
   host: string;
@@ -233,9 +236,9 @@ function makeClient(cred: {
 }
 
 // ---------------------------------------------------------------------------
-// Folder resolution
+// Folder resolution — maps canonical names to actual IMAP path on server
 // ---------------------------------------------------------------------------
-const FOLDER_MAP: Record<string, string[]> = {
+const FOLDER_CANDIDATES: Record<string, string[]> = {
   Inbox:   ["INBOX"],
   Sent:    ["Sent", "Sent Items", "Sent Messages", "[Gmail]/Sent Mail", "INBOX.Sent"],
   Drafts:  ["Drafts", "[Gmail]/Drafts", "INBOX.Drafts"],
@@ -245,7 +248,7 @@ const FOLDER_MAP: Record<string, string[]> = {
 };
 
 async function resolveFolder(client: ImapFlow, folder: string): Promise<string> {
-  const candidates = FOLDER_MAP[folder] ?? [folder];
+  const candidates = FOLDER_CANDIDATES[folder] ?? [folder];
   const tree = await client.listTree();
   const allFolders = flattenTree(tree);
   for (const candidate of candidates) {
@@ -258,14 +261,12 @@ async function resolveFolder(client: ImapFlow, folder: string): Promise<string> 
 function flattenTree(node: any): string[] {
   const names: string[] = [];
   if (node.path) names.push(node.path);
-  if (node.folders) {
-    for (const child of node.folders) names.push(...flattenTree(child));
-  }
+  if (node.folders) for (const child of node.folders) names.push(...flattenTree(child));
   return names;
 }
 
 // ---------------------------------------------------------------------------
-// Body parser
+// Helpers
 // ---------------------------------------------------------------------------
 function parseBody(source: Buffer | undefined): { bodyText: string; bodyHtml: string | null } {
   if (!source) return { bodyText: "", bodyHtml: null };
@@ -289,14 +290,14 @@ function parseBody(source: Buffer | undefined): { bodyText: string; bodyHtml: st
   }
 }
 
+function toDate(d: unknown): Date {
+  return d instanceof Date ? d : new Date();
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/**
- * Test an IMAP connection with the given credentials.
- * Validates the target host/port against SSRF rules before connecting.
- */
 export async function testImapConnection(cred: {
   host: string;
   port: number;
@@ -309,7 +310,6 @@ export async function testImapConnection(cred: {
   } catch (err: any) {
     return { ok: false, error: err.message };
   }
-
   const client = makeClient(cred);
   try {
     await client.connect();
@@ -325,7 +325,6 @@ export async function getImapAccounts(userId: string) {
     .select()
     .from(imapCredentialsTable)
     .where(eq(imapCredentialsTable.userId, userId));
-
   return creds.map((c) => ({
     id: imapVirtualAccountId(c.id),
     email: c.email,
@@ -358,7 +357,6 @@ export async function listImapMessages(
     return null;
   }
 
-  // Re-validate the stored target on every fetch (defends against DB tampering)
   try {
     await validateImapTarget(cred.host, cred.port);
   } catch {
@@ -387,9 +385,11 @@ export async function listImapMessages(
         const env = msg.envelope;
         const from = env?.from?.[0];
         const { bodyText, bodyHtml } = parseBody(msg.source);
+        const date = toDate(env?.date);
 
         messages.push({
-          id: imapVirtualMsgId(credentialId, msg.uid),
+          // ID encodes credential + folder + UID → globally unique across mailboxes
+          id: imapVirtualMsgId(credentialId, folder, msg.uid),
           accountId: imapVirtualAccountId(credentialId),
           accountEmail: cred.email,
           accountName: cred.displayName || cred.email,
@@ -406,8 +406,8 @@ export async function listImapMessages(
           isStarred: msg.flags?.has("\\Flagged") ?? false,
           hasAttachments: false,
           attachments: [],
-          receivedAt: (env?.date instanceof Date ? env.date : new Date()).toISOString(),
-          createdAt: (env?.date instanceof Date ? env.date : new Date()).toISOString(),
+          receivedAt: date.toISOString(),
+          createdAt: date.toISOString(),
         });
       }
 
@@ -425,7 +425,7 @@ export async function listImapMessages(
 export async function getImapMessage(userId: string, virtualId: number): Promise<any | null> {
   const decoded = decodeMsgId(virtualId);
   if (!decoded) return null;
-  const { credentialId, uid } = decoded;
+  const { credentialId, folder, uid } = decoded;
 
   const [cred] = await db
     .select()
@@ -447,62 +447,48 @@ export async function getImapMessage(userId: string, virtualId: number): Promise
   }
 
   const client = makeClient({ ...cred, password: plainPassword });
-
-  // Try folders in priority order; return the first successful match.
-  const foldersToTry = ["Inbox", "Sent", "Drafts", "Trash", "Spam", "Archive"];
-
   try {
     await client.connect();
+    // Folder is encoded in the virtual ID — go directly, no guessing required
+    const resolvedFolder = await resolveFolder(client, folder);
+    const lock = await client.getMailboxLock(resolvedFolder);
+    try {
+      for await (const msg of client.fetch(
+        [uid],
+        { uid: true, envelope: true, flags: true, source: true },
+        { uid: true }
+      )) {
+        const env = msg.envelope;
+        const from = env?.from?.[0];
+        const { bodyText, bodyHtml } = parseBody(msg.source);
+        const date = toDate(env?.date);
 
-    for (const folderName of foldersToTry) {
-      let resolvedFolder: string;
-      try {
-        resolvedFolder = await resolveFolder(client, folderName);
-      } catch {
-        continue;
+        return {
+          id: virtualId,
+          accountId: imapVirtualAccountId(credentialId),
+          accountEmail: cred.email,
+          accountName: cred.displayName || cred.email,
+          accountColor: cred.color,
+          folder,
+          subject: env?.subject ?? "(No subject)",
+          fromName: from?.name || from?.address || "Unknown",
+          fromEmail: from?.address || "unknown@example.com",
+          toList: env?.to?.map((a: any) => a.address).join(", ") ?? "",
+          ccList: env?.cc?.map((a: any) => a.address).join(", ") ?? null,
+          bodyText,
+          bodyHtml,
+          isRead: msg.flags?.has("\\Seen") ?? false,
+          isStarred: msg.flags?.has("\\Flagged") ?? false,
+          hasAttachments: false,
+          attachments: [],
+          receivedAt: date.toISOString(),
+          createdAt: date.toISOString(),
+        };
       }
-
-      const lock = await client.getMailboxLock(resolvedFolder);
-      try {
-        for await (const msg of client.fetch(
-          [uid],
-          { uid: true, envelope: true, flags: true, source: true },
-          { uid: true }
-        )) {
-          const env = msg.envelope;
-          const from = env?.from?.[0];
-          const { bodyText, bodyHtml } = parseBody(msg.source);
-
-          return {
-            id: virtualId,
-            accountId: imapVirtualAccountId(credentialId),
-            accountEmail: cred.email,
-            accountName: cred.displayName || cred.email,
-            accountColor: cred.color,
-            folder: folderName,
-            subject: env?.subject ?? "(No subject)",
-            fromName: from?.name || from?.address || "Unknown",
-            fromEmail: from?.address || "unknown@example.com",
-            toList: env?.to?.map((a: any) => a.address).join(", ") ?? "",
-            ccList: env?.cc?.map((a: any) => a.address).join(", ") ?? null,
-            bodyText,
-            bodyHtml,
-            isRead: msg.flags?.has("\\Seen") ?? false,
-            isStarred: msg.flags?.has("\\Flagged") ?? false,
-            hasAttachments: false,
-            attachments: [],
-            receivedAt: (env?.date instanceof Date ? env.date : new Date()).toISOString(),
-            createdAt: (env?.date instanceof Date ? env.date : new Date()).toISOString(),
-          };
-        }
-      } catch {
-        // uid not found in this folder — try next
-      } finally {
-        lock.release();
-      }
+      return null;
+    } finally {
+      lock.release();
     }
-
-    return null;
   } catch {
     return null;
   } finally {
