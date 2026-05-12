@@ -99,19 +99,13 @@ export default function Dashboard() {
                 <div className="p-6 text-center text-muted-foreground text-sm">No accounts configured.</div>
               ) : (
                 stats?.accountBreakdown?.map((acc) => (
-                  <div key={acc.accountId} className="flex items-center justify-between p-3 rounded-md hover:bg-muted/50">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded bg-muted flex items-center justify-center text-xs font-bold text-white shadow-sm" style={{ backgroundColor: acc.color || "#ccc" }}>
-                        {acc.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <div className="text-sm font-medium leading-none">{acc.name}</div>
-                        <div className="text-xs text-muted-foreground mt-1">{acc.email}</div>
-                      </div>
+                  <div key={acc.accountId} className="flex items-center gap-3 p-3 rounded-md hover:bg-muted/50">
+                    <div className="w-8 h-8 rounded flex items-center justify-center text-xs font-bold text-white shadow-sm flex-shrink-0" style={{ backgroundColor: acc.color || "#ccc" }}>
+                      {acc.name.charAt(0).toUpperCase()}
                     </div>
-                    <div className="text-right">
-                      <div className="text-sm font-bold">{acc.unread}</div>
-                      <div className="text-xs text-muted-foreground">unread</div>
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium leading-none">{acc.name}</div>
+                      <div className="text-xs text-muted-foreground mt-1 truncate">{acc.email}</div>
                     </div>
                   </div>
                 ))
