@@ -61,11 +61,6 @@ function ContactRow({ contact, onPress }: { contact: Contact; onPress: () => voi
           {contact.company || contact.email}
         </Text>
       </View>
-      {contact.unreadCount > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{contact.unreadCount > 9 ? "9+" : contact.unreadCount}</Text>
-        </View>
-      )}
       <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
     </Pressable>
   );

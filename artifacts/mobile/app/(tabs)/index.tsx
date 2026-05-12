@@ -1,13 +1,13 @@
-import { useGetContacts, useGetOverviewStats, useGetRecentMessages, type Contact } from "@workspace/api-client-react";
+import { useGetOverviewStats, useGetRecentMessages } from "@workspace/api-client-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
 import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
-import { ActivityIndicator, Alert, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatDistanceToNow } from "date-fns";
-import { useState } from "react";
+import { router } from "expo-router";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -34,27 +34,6 @@ function StatCard({
   );
 }
 
-function ContactAvatar({ contact, colors }: { contact: Contact; colors: any }) {
-  const initials = contact.name
-    .split(" ")
-    .map((n: string) => n[0])
-    .join("")
-    .substring(0, 2)
-    .toUpperCase();
-  return (
-    <View style={s.contactAvatarWrap}>
-      <View style={[s.contactAvatar, { backgroundColor: colors.primary + "18" }]}>
-        <Text style={[s.contactAvatarText, { color: colors.primary }]}>{initials}</Text>
-      </View>
-      {contact.unreadCount > 0 && (
-        <View style={s.unreadDot}>
-          <Text style={s.unreadDotText}>{contact.unreadCount > 9 ? "9+" : contact.unreadCount}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
 function RecentMessageRow({
   msg,
   colors,
@@ -64,7 +43,10 @@ function RecentMessageRow({
 }) {
   const ago = formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: true });
   return (
-    <View style={[s.recentRow, { borderBottomColor: colors.border }]}>
+    <Pressable
+      onPress={() => router.push("/(tabs)/inbox")}
+      style={({ pressed }) => [s.recentRow, { borderBottomColor: colors.border, backgroundColor: pressed ? colors.muted : "transparent" }]}
+    >
       <View style={[s.recentAvatar, { backgroundColor: msg.accountColor + "20" }]}>
         <Text style={[s.recentAvatarText, { color: msg.accountColor }]}>
           {(msg.fromName || "?").substring(0, 2).toUpperCase()}
@@ -83,20 +65,8 @@ function RecentMessageRow({
         </Text>
       </View>
       {!msg.isRead && <View style={[s.unreadBlip, { backgroundColor: colors.primary }]} />}
-    </View>
+    </Pressable>
   );
-}
-
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-  : "https://pinn-box-io.replit.app";
-
-async function getToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-  }
-  const SecureStore = await import("expo-secure-store");
-  return SecureStore.getItemAsync("commshub_session_token");
 }
 
 export default function DashboardScreen() {
@@ -105,48 +75,15 @@ export default function DashboardScreen() {
   const { mode, toggleMode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
-  const [syncing, setSyncing] = useState(false);
 
   const { data: stats, isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useGetOverviewStats();
-  const { data: contacts, isLoading: contactsLoading, isFetching: contactsFetching, refetch: refetchContacts } = useGetContacts({});
   const { data: recentData, isLoading: recentLoading, refetch: refetchRecent } = useGetRecentMessages({ limit: 5 });
 
-  const topContacts = contacts
-    ? [...contacts].sort((a, b) => b.messageCount - a.messageCount).filter((c) => c.messageCount > 0).slice(0, 6)
-    : [];
-
-  const isRefreshing = (statsFetching && !statsLoading) || (contactsFetching && !contactsLoading);
+  const isRefreshing = statsFetching && !statsLoading;
 
   function handleRefresh() {
     refetchStats();
-    refetchContacts();
     refetchRecent();
-  }
-
-  async function handleSyncContacts() {
-    setSyncing(true);
-    try {
-      const token = await getToken();
-      const res = await fetch(`${API_BASE}/api/contacts/sync`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        credentials: "include",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        refetchContacts();
-        Alert.alert("Contacts Synced", data.message ?? "Your contacts have been updated.");
-      } else {
-        Alert.alert("Sync Failed", "Could not sync contacts. Please try again.");
-      }
-    } catch {
-      Alert.alert("Sync Failed", "Could not sync contacts. Please try again.");
-    } finally {
-      setSyncing(false);
-    }
   }
 
   const greeting = () => {
@@ -200,10 +137,9 @@ export default function DashboardScreen() {
         </View>
       ) : (
         <View style={s.statsGrid}>
-          <StatCard label="Unread" value={stats?.totalUnread ?? 0} icon="mail" color="#ef4444" />
-          <StatCard label="Messages" value={stats?.totalMessages ?? 0} icon="inbox" color={colors.primary} />
           <StatCard label="Accounts" value={stats?.totalAccounts ?? 0} icon="layers" color="#8b5cf6" />
           <StatCard label="Contacts" value={stats?.totalContacts ?? 0} icon="users" color="#10b981" />
+          <StatCard label="Messages" value={stats?.totalMessages ?? 0} icon="inbox" color={colors.primary} />
         </View>
       )}
 
@@ -228,51 +164,6 @@ export default function DashboardScreen() {
         </View>
       )}
 
-      {/* Active contacts */}
-      <View style={[s.sectionRow, { marginTop: 8, paddingRight: 16 }]}>
-        <Text style={[s.sectionLabel, { color: colors.foreground }]}>Active Contacts</Text>
-        <Pressable
-          onPress={handleSyncContacts}
-          disabled={syncing}
-          style={({ pressed }) => [s.syncBtn, { backgroundColor: colors.primary + "15", opacity: pressed || syncing ? 0.6 : 1 }]}
-        >
-          {syncing ? (
-            <ActivityIndicator size="small" color={colors.primary} />
-          ) : (
-            <Feather name="refresh-cw" size={13} color={colors.primary} />
-          )}
-          <Text style={[s.syncBtnText, { color: colors.primary }]}>Sync</Text>
-        </Pressable>
-      </View>
-      {contactsLoading ? (
-        <View style={s.loadingRow}>
-          <ActivityIndicator color={colors.primary} size="small" />
-        </View>
-      ) : topContacts.length === 0 ? (
-        <View style={[s.emptyCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="users" size={28} color={colors.mutedForeground} />
-          <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No contacts yet</Text>
-        </View>
-      ) : (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={s.contactsRow}
-        >
-          {topContacts.map((c) => (
-            <View key={c.id} style={[s.contactCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <ContactAvatar contact={c} colors={colors} />
-              <Text style={[s.contactName, { color: colors.foreground }]} numberOfLines={1}>{c.name}</Text>
-              <Text style={[s.contactSub, { color: colors.mutedForeground }]} numberOfLines={1}>
-                {c.company || c.email || ""}
-              </Text>
-              <Text style={[s.contactMsgs, { color: colors.mutedForeground }]}>
-                {c.messageCount} msg{c.messageCount !== 1 ? "s" : ""}
-              </Text>
-            </View>
-          ))}
-        </ScrollView>
-      )}
     </ScrollView>
   );
 }
@@ -391,51 +282,4 @@ const s = StyleSheet.create({
   },
   emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
 
-  contactsRow: {
-    paddingHorizontal: 16,
-    paddingBottom: 4,
-    gap: 10,
-  },
-  contactCard: {
-    width: 120,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 14,
-    gap: 4,
-    alignItems: "flex-start",
-  },
-  contactAvatarWrap: { marginBottom: 6 },
-  contactAvatar: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  contactAvatarText: { fontSize: 14, fontFamily: "Inter_700Bold" },
-  unreadDot: {
-    position: "absolute",
-    top: -3,
-    right: -3,
-    backgroundColor: "#ef4444",
-    borderRadius: 9,
-    minWidth: 18,
-    height: 18,
-    paddingHorizontal: 4,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  unreadDotText: { color: "#fff", fontSize: 10, fontFamily: "Inter_700Bold" },
-  contactName: { fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  contactSub: { fontSize: 11, fontFamily: "Inter_400Regular" },
-  contactMsgs: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
-  syncBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 5,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 16,
-  },
-  syncBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
 });

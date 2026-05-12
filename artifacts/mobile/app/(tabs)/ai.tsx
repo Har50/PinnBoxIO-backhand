@@ -52,7 +52,7 @@ const SUGGESTIONS = [
   "Summarize my unread emails",
   "Who messaged me recently?",
   "Draft a reply to my latest email",
-  "Any important messages today?",
+  "Translate this to English",
 ];
 
 function parseEmailDraft(content: string): { before: string; draft: Record<string, string>; after: string } | null {
@@ -488,13 +488,17 @@ export default function AiScreen() {
       }
 
       if (Platform.OS === "web" && res.body) {
-        // Web: true streaming SSE
+        // Web: true streaming SSE with line-buffered decoder for multi-byte chars
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
+        let sseBuffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          parseSseChunk(decoder.decode(value));
+          sseBuffer += decoder.decode(value, { stream: true });
+          const lines = sseBuffer.split("\n");
+          sseBuffer = lines.pop() ?? "";
+          parseSseChunk(lines.join("\n") + "\n");
         }
       } else {
         // Native (iOS/Android): Hermes fetch doesn't support SSE streaming,
