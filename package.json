@@ -23,7 +23,7 @@
       "protobufjs@7.5.5": "7.5.6",
       "node-forge": ">=1.4.0",
       "minimatch": ">=5.1.8",
-      "@xmldom/xmldom": ">=0.8.13",
+      "@xmldom/xmldom": "~0.8.13",
       "fast-xml-builder": ">=1.1.7",
       "fast-uri": ">=3.1.2",
       "tar": ">=7.5.11",
@@ -44,6 +44,9 @@
       "bufferutil",
       "canvas",
       "utf-8-validate"
-    ]
+    ],
+    "patchedDependencies": {
+      "@expo/plist@0.4.8": "patches/@expo__plist@0.4.8.patch"
+    }
   }
 }

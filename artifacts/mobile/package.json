@@ -9,7 +9,9 @@
     "serve": "node server/serve.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "jest",
-    "test:e2e": "sh scripts/run-e2e.sh"
+    "test:e2e": "sh scripts/run-e2e.sh",
+    "android": "expo run:android",
+    "ios": "expo run:ios"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
@@ -74,6 +76,9 @@
     "expo-file-system": "~19.0.22",
     "expo-image-picker": "^55.0.19",
     "expo-secure-store": "~15.0.8",
-    "react-native-purchases": "9.7.2"
+    "react-native-purchases": "9.7.2",
+    "expo": "~54.0.34",
+    "react": "19.1.0",
+    "react-native": "0.81.5"
   }
 }

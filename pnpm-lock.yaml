@@ -76,7 +76,7 @@ overrides:
   protobufjs@7.5.5: 7.5.6
   node-forge: '>=1.4.0'
   minimatch: '>=5.1.8'
-  '@xmldom/xmldom': '>=0.8.13'
+  '@xmldom/xmldom': ~0.8.13
   fast-xml-builder: '>=1.1.7'
   fast-uri: '>=3.1.2'
   tar: '>=7.5.11'
@@ -89,6 +89,11 @@ overrides:
   '@protobufjs/utf8': '>=1.1.1'
   '@clerk/shared': '>=4.8.3'
   '@esbuild-kit/esm-loader': npm:tsx@^4.21.0
+
+patchedDependencies:
+  '@expo/plist@0.4.8':
+    hash: 59af23bb05311ee6103fb380145e019b951b14a0117d1423fde716b07be0331c
+    path: patches/@expo__plist@0.4.8.patch
 
 importers:
 
@@ -207,6 +212,9 @@ importers:
       date-fns:
         specifier: ^3.6.0
         version: 3.6.0
+      expo:
+        specifier: ~54.0.34
+        version: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(graphql@16.8.1)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-audio:
         specifier: ~1.1.1
         version: 1.1.1(expo-asset@12.0.13(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0))(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -228,6 +236,12 @@ importers:
       expo-secure-store:
         specifier: ~15.0.8
         version: 15.0.8(expo@54.0.34)
+      react:
+        specifier: 19.1.0
+        version: 19.1.0
+      react-native:
+        specifier: 0.81.5
+        version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-purchases:
         specifier: 9.7.2
         version: 9.7.2(react-native-web@0.21.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -292,9 +306,6 @@ importers:
       eas-cli:
         specifier: ^18.11.0
         version: 18.11.0(@types/node@25.5.2)(typescript@5.9.3)
-      expo:
-        specifier: ~54.0.34
-        version: 54.0.34(@babel/core@7.29.0)(@expo/metro-runtime@6.1.2)(expo-router@6.0.23)(graphql@16.8.1)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
       expo-auth-session:
         specifier: ~7.0.11
         version: 7.0.11(expo@54.0.34)(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -343,15 +354,9 @@ importers:
       jest-expo:
         specifier: ~54.0.17
         version: 54.0.17(@babel/core@7.29.0)(expo@54.0.34)(jest@29.7.0(@types/node@25.5.2)(ts-node@10.9.2(@types/node@25.5.2)(typescript@5.9.3)))(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
-      react:
-        specifier: 19.1.0
-        version: 19.1.0
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
-      react-native:
-        specifier: 0.81.5
-        version: 0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0)
       react-native-gesture-handler:
         specifier: ~2.28.0
         version: 2.28.0(react-native@0.81.5(@babel/core@7.29.0)(@types/react@19.1.17)(react@19.1.0))(react@19.1.0)
@@ -4036,9 +4041,9 @@ packages:
     resolution: {integrity: sha512-Gt8TnSlDZpAl+RWOOAB/kuvC7RpcdWAlFbHNoi4gsXsfaWa1QCT6LBcfIYTPdOZC9OVZUDwqGuGAcqZejDmHjg==}
     engines: {node: '>=16'}
 
-  '@xmldom/xmldom@0.9.10':
-    resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
-    engines: {node: '>=14.6'}
+  '@xmldom/xmldom@0.8.13':
+    resolution: {integrity: sha512-KRYzxepc14G/CEpEGc3Yn+JKaAeT63smlDr+vjB8jRfgTBBI9wRj/nkQEO+ucV8p8I9bfKLWp37uHgFrbntPvw==}
+    engines: {node: '>=10.0.0'}
 
   '@zone-eu/mailsplit@5.4.9':
     resolution: {integrity: sha512-Qq7k6FzA5SmGf5HFPcr17gE7M+O1gttlmWn7tlGUlhGsbbjUaBL/4cEWIwExeCzqu5+kyZJ91mcBZbQ9zEwwYA==}
@@ -9936,7 +9941,7 @@ snapshots:
       '@expo/metro-config': 54.0.14(expo@54.0.34)
       '@expo/osascript': 2.4.2
       '@expo/package-manager': 1.10.3
-      '@expo/plist': 0.4.8
+      '@expo/plist': 0.4.8(patch_hash=59af23bb05311ee6103fb380145e019b951b14a0117d1423fde716b07be0331c)
       '@expo/prebuild-config': 54.0.8(expo@54.0.34)
       '@expo/schema-utils': 0.1.8
       '@expo/spawn-async': 1.7.2
@@ -10011,7 +10016,7 @@ snapshots:
       '@expo/metro-config': 54.0.15(expo@54.0.34)
       '@expo/osascript': 2.4.2
       '@expo/package-manager': 1.10.3
-      '@expo/plist': 0.4.8
+      '@expo/plist': 0.4.8(patch_hash=59af23bb05311ee6103fb380145e019b951b14a0117d1423fde716b07be0331c)
       '@expo/prebuild-config': 54.0.8(expo@54.0.34)
       '@expo/schema-utils': 0.1.8
       '@expo/spawn-async': 1.7.2
@@ -10085,7 +10090,7 @@ snapshots:
     dependencies:
       '@expo/config-types': 54.0.10
       '@expo/json-file': 10.0.12
-      '@expo/plist': 0.4.8
+      '@expo/plist': 0.4.8(patch_hash=59af23bb05311ee6103fb380145e019b951b14a0117d1423fde716b07be0331c)
       '@expo/sdk-runtime-versions': 1.0.0
       chalk: 4.1.2
       debug: 4.4.3(supports-color@8.1.1)
@@ -10506,25 +10511,25 @@ snapshots:
 
   '@expo/plist@0.2.0':
     dependencies:
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.8.13
       base64-js: 1.5.1
       xmlbuilder: 14.0.0
 
   '@expo/plist@0.2.2':
     dependencies:
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.8.13
       base64-js: 1.5.1
       xmlbuilder: 14.0.0
 
-  '@expo/plist@0.4.8':
+  '@expo/plist@0.4.8(patch_hash=59af23bb05311ee6103fb380145e019b951b14a0117d1423fde716b07be0331c)':
     dependencies:
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.8.13
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
   '@expo/plist@0.5.3':
     dependencies:
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.8.13
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
@@ -13090,7 +13095,7 @@ snapshots:
     dependencies:
       '@wallet-standard/base': 1.1.0
 
-  '@xmldom/xmldom@0.9.10': {}
+  '@xmldom/xmldom@0.8.13': {}
 
   '@zone-eu/mailsplit@5.4.9':
     dependencies:
@@ -17001,7 +17006,7 @@ snapshots:
 
   plist@3.1.0:
     dependencies:
-      '@xmldom/xmldom': 0.9.10
+      '@xmldom/xmldom': 0.8.13
       base64-js: 1.5.1
       xmlbuilder: 15.1.1
 
