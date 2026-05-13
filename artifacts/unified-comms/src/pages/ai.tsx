@@ -474,7 +474,6 @@ function AiChat() {
                 Connected
               </div>
             </div>
-            <Settings className="h-4 w-4 text-muted-foreground" />
           </div>
         </div>
       </div>
