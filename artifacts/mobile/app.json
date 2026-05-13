@@ -23,7 +23,7 @@
         "NSMicrophoneUsageDescription": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant.",
         "NSCameraUsageDescription": "PinnboxIO uses your camera so you can scan and upload documents."
       },
-      "buildNumber": "14"
+      "buildNumber": "15"
     },
     "android": {
       "package": "com.pinnboxio.mobile",
@@ -32,7 +32,9 @@
         "backgroundColor": "#ffffff"
       },
       "permissions": [
-        "android.permission.CAMERA"
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.MODIFY_AUDIO_SETTINGS"
       ]
     },
     "web": {
@@ -67,7 +69,9 @@
     "marketingUrl": "https://pinnboxio.net",
     "privacyPolicyUrl": "https://pinnboxio.net/privacy",
     "extra": {
-      "eas": {}
+      "eas": {
+        "projectId": "fca24fe7-c2c3-40e4-a330-c783871ef968"
+      }
     }
   }
 }
