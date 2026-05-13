@@ -125,38 +125,22 @@ async function checkMetroHealth() {
   }
 }
 
-function getExpoPublicReplId() {
-  return process.env.REPL_ID || process.env.EXPO_PUBLIC_REPL_ID;
-}
-
-async function startMetro(expoPublicDomain, expoPublicReplId) {
+async function startMetro(expoPublicDomain) {
   const isRunning = await checkMetroHealth();
   if (isRunning) {
     console.log("Metro already running");
     return;
   }
 
-  // The auth redirect domain must always be the public-facing production domain
-  // so that the Replit OIDC callback URL registered with the app matches what
-  // the client sends. Fall back to the PUBLIC_URL env var or the compute domain.
-  const authRedirectDomain =
-    process.env.EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN ||
-    (process.env.PUBLIC_URL ? process.env.PUBLIC_URL.replace(/^https?:\/\//, "").replace(/\/$/, "") : null) ||
-    expoPublicDomain;
+  const clerkKey = process.env.CLERK_PUBLISHABLE_KEY || process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || "";
 
   console.log("Starting Metro...");
   console.log(`Setting EXPO_PUBLIC_DOMAIN=${expoPublicDomain}`);
-  console.log(`Setting EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN=${authRedirectDomain}`);
   const env = {
     ...process.env,
     EXPO_PUBLIC_DOMAIN: expoPublicDomain,
-    EXPO_PUBLIC_REPL_ID: expoPublicReplId,
-    EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN: authRedirectDomain,
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: clerkKey,
   };
-
-  if (expoPublicReplId) {
-    console.log(`Setting EXPO_PUBLIC_REPL_ID=${expoPublicReplId}`);
-  }
 
   metroProcess = spawn(
     "pnpm",
@@ -525,14 +509,13 @@ async function main() {
   setupSignalHandlers();
 
   const domain = getDeploymentDomain();
-  const expoPublicReplId = getExpoPublicReplId();
   const baseUrl = `https://${domain}`;
   const timestamp = `${Date.now()}-${process.pid}`;
 
   prepareDirectories(timestamp);
   clearMetroCache();
 
-  await startMetro(domain, expoPublicReplId);
+  await startMetro(domain);
 
   const downloadTimeout = 600000;
   const downloadPromise = downloadBundlesAndManifests(timestamp);

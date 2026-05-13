@@ -5,6 +5,8 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
+import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect, Stack, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
@@ -24,31 +26,15 @@ import {
 import { Feather } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { ThemeProvider, useThemeMode } from "@/contexts/ThemeContext";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 
-const REQUIRED_ENV: Record<string, string | undefined> = {
-  EXPO_PUBLIC_DOMAIN: process.env.EXPO_PUBLIC_DOMAIN,
-  EXPO_PUBLIC_REPL_ID: process.env.EXPO_PUBLIC_REPL_ID,
-};
-const MISSING_ENV = Object.entries(REQUIRED_ENV)
-  .filter(([, v]) => !v)
-  .map(([k]) => k);
+const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
+const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
 
-setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
-
-setAuthTokenGetter(async () => {
-  try {
-    if (Platform.OS === "web") {
-      return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-    }
-    const SecureStore = await import("expo-secure-store");
-    return await SecureStore.getItemAsync("commshub_session_token");
-  } catch {
-    return null;
-  }
-});
+if (process.env.EXPO_PUBLIC_DOMAIN) {
+  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+}
 
 SplashScreen.preventAutoHideAsync();
 
@@ -68,20 +54,19 @@ const queryClient = new QueryClient({
   },
 });
 
-const ALLOWED_UNAUTHED_PATHS = ["/login", "/signup", "/callback"];
+const ALLOWED_UNAUTHED_PATHS = ["/login", "/signup"];
 
-const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
-const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
+const publishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY!;
+const proxyUrl = process.env.EXPO_PUBLIC_CLERK_PROXY_URL || undefined;
 
 function GmailConnectModal({
   visible,
-  token,
   onDismiss,
 }: {
   visible: boolean;
-  token: string | null;
   onDismiss: () => void;
 }) {
+  const { getToken } = useAuth();
   const { mode } = useThemeMode();
   const isDark = mode === "dark";
 
@@ -93,12 +78,13 @@ function GmailConnectModal({
   const primary = "#3b82f6";
 
   const handleConnect = useCallback(async () => {
+    const token = await getToken();
     if (!token) return;
     const mobileCompleteUrl = `${API_BASE}/api/mobile-oauth-complete`;
     const url = `${API_BASE}/api/auth/gmail/connect?mobileToken=${encodeURIComponent(token)}`;
     await WebBrowser.openAuthSessionAsync(url, mobileCompleteUrl);
     onDismiss();
-  }, [token, onDismiss]);
+  }, [getToken, onDismiss]);
 
   return (
     <Modal
@@ -148,16 +134,23 @@ function GmailConnectModal({
   );
 }
 
-function AuthedStack({ token }: { token: string | null }) {
+function AuthedStack() {
+  const { getToken } = useAuth();
   const [showGmailPrompt, setShowGmailPrompt] = useState(false);
   const checkedRef = useRef(false);
 
   useEffect(() => {
-    if (!token || checkedRef.current) return;
+    setAuthTokenGetter(() => getToken());
+  }, [getToken]);
+
+  useEffect(() => {
+    if (checkedRef.current) return;
     checkedRef.current = true;
 
     (async () => {
       try {
+        const token = await getToken();
+        if (!token) return;
         const res = await fetch(`${API_BASE}/api/accounts/connected`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -169,7 +162,7 @@ function AuthedStack({ token }: { token: string | null }) {
         }
       } catch {}
     })();
-  }, [token]);
+  }, [getToken]);
 
   return (
     <ErrorBoundary label="TabsErrorBoundary">
@@ -178,7 +171,6 @@ function AuthedStack({ token }: { token: string | null }) {
       </Stack>
       <GmailConnectModal
         visible={showGmailPrompt}
-        token={token}
         onDismiss={() => setShowGmailPrompt(false)}
       />
     </ErrorBoundary>
@@ -186,10 +178,10 @@ function AuthedStack({ token }: { token: string | null }) {
 }
 
 function RootLayoutNav() {
-  const { user, token, isLoading } = useAuth();
+  const { isSignedIn, isLoaded } = useAuth();
   const pathname = usePathname();
 
-  if (isLoading) {
+  if (!isLoaded) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
         <ActivityIndicator size="large" />
@@ -197,21 +189,20 @@ function RootLayoutNav() {
     );
   }
 
-  if (!user) {
+  if (!isSignedIn) {
     const isAllowed = ALLOWED_UNAUTHED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
     return (
       <>
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="login" />
           <Stack.Screen name="signup" />
-          <Stack.Screen name="callback" />
         </Stack>
         {!isAllowed && <Redirect href="/login" />}
       </>
     );
   }
 
-  return <AuthedStack token={token} />;
+  return <AuthedStack />;
 }
 
 export default function RootLayout() {
@@ -230,17 +221,14 @@ export default function RootLayout() {
 
   if (!fontsLoaded && !fontError) return null;
 
-  if (MISSING_ENV.length > 0) {
+  if (!publishableKey) {
     return (
       <View style={{ flex: 1, alignItems: "center", justifyContent: "center", padding: 32, backgroundColor: "#fff" }}>
         <Text style={{ fontSize: 18, fontWeight: "700", color: "#dc2626", marginBottom: 12 }}>
           Configuration Error
         </Text>
         <Text style={{ fontSize: 14, color: "#374151", textAlign: "center", lineHeight: 22 }}>
-          {"The following required environment variables are not set:\n\n" + MISSING_ENV.join("\n")}
-        </Text>
-        <Text style={{ fontSize: 12, color: "#9ca3af", marginTop: 16, textAlign: "center" }}>
-          Set these variables in your project secrets and restart the app.
+          {"EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY is not set.\n\nSet this variable in your project secrets and restart the app."}
         </Text>
       </View>
     );
@@ -248,17 +236,23 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary label="RootErrorBoundary">
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <ThemeProvider>
-              <GestureHandlerRootView style={{ flex: 1 }}>
-                <RootLayoutNav />
-              </GestureHandlerRootView>
-            </ThemeProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ErrorBoundary>
+      <ClerkProvider
+        publishableKey={publishableKey}
+        tokenCache={tokenCache}
+        {...(proxyUrl ? { proxyUrl } : {})}
+      >
+        <ClerkLoaded>
+          <ErrorBoundary label="RootErrorBoundary">
+            <QueryClientProvider client={queryClient}>
+              <ThemeProvider>
+                <GestureHandlerRootView style={{ flex: 1 }}>
+                  <RootLayoutNav />
+                </GestureHandlerRootView>
+              </ThemeProvider>
+            </QueryClientProvider>
+          </ErrorBoundary>
+        </ClerkLoaded>
+      </ClerkProvider>
     </SafeAreaProvider>
   );
 }

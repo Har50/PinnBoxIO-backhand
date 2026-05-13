@@ -1,14 +1,16 @@
-import { useAuth } from "@/contexts/AuthContext";
+import { useSignIn, isClerkAPIResponseError } from "@clerk/expo";
 import { APP_NAME, LOGIN_TAGLINE } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   View,
 } from "react-native";
@@ -16,9 +18,12 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState } from "react";
 
 export default function LoginScreen() {
-  const { signIn, signInError } = useAuth();
+  const { signIn } = useSignIn();
   const insets = useSafeAreaInsets();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const colorScheme = useColorScheme();
   const isDark = colorScheme === "dark";
@@ -29,31 +34,37 @@ export default function LoginScreen() {
 
   async function handleSignIn() {
     setIsLoading(true);
+    setError(null);
     try {
-      await signIn();
+      const { error: createError } = await signIn.create({
+        identifier: email,
+        password,
+      });
+      if (createError) {
+        setError(createError.longMessage ?? createError.message ?? "Sign-in failed. Please try again.");
+        return;
+      }
+      if (signIn.status === "complete") {
+        await signIn.finalize();
+      }
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Sign-in failed. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
   }
 
-  function handleCreateAccount() {
-    router.push("/signup");
-  }
-
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 24 },
-      ]}
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 24 }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={styles.topSection}>
-        <View
-          style={[
-            styles.logoBox,
-            { backgroundColor: c.primary, shadowColor: c.primary },
-          ]}
-        >
+        <View style={[styles.logoBox, { backgroundColor: c.primary, shadowColor: c.primary }]}>
           <Text style={[styles.logoText, { color: c.primaryForeground }]}>PB</Text>
         </View>
         <Text style={[styles.appName, { color: c.foreground }]}>{APP_NAME}</Text>
@@ -61,54 +72,63 @@ export default function LoginScreen() {
       </View>
 
       <View style={[styles.card, { backgroundColor: c.card, borderColor: c.border }]}>
-        {signInError ? (
+        {error ? (
           <View
-            style={[
-              styles.errorBanner,
-              { backgroundColor: c.unreadLight, borderColor: isDark ? "#7f1d1d" : "#fecaca" },
-            ]}
+            style={[styles.errorBanner, { backgroundColor: c.unreadLight, borderColor: isDark ? "#7f1d1d" : "#fecaca" }]}
             accessibilityRole="alert"
             testID="login-error-banner"
           >
-            <Feather
-              name="alert-circle"
-              size={14}
-              color={c.destructive}
-              style={{ marginTop: 2 }}
-              accessibilityElementsHidden
-              importantForAccessibility="no"
-            />
-            <Text style={[styles.errorText, { color: c.destructive }]}>{signInError}</Text>
+            <Feather name="alert-circle" size={14} color={c.destructive} style={{ marginTop: 2 }} accessibilityElementsHidden importantForAccessibility="no" />
+            <Text style={[styles.errorText, { color: c.destructive }]}>{error}</Text>
           </View>
         ) : null}
 
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: c.mutedForeground }]}>Email</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: c.background, borderColor: c.border, color: c.foreground }]}
+            value={email}
+            onChangeText={setEmail}
+            placeholder="you@example.com"
+            placeholderTextColor={c.mutedForeground}
+            autoCapitalize="none"
+            keyboardType="email-address"
+            autoComplete="email"
+            testID="email-input"
+          />
+        </View>
+
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: c.mutedForeground }]}>Password</Text>
+          <TextInput
+            style={[styles.input, { backgroundColor: c.background, borderColor: c.border, color: c.foreground }]}
+            value={password}
+            onChangeText={setPassword}
+            placeholder="Your password"
+            placeholderTextColor={c.mutedForeground}
+            secureTextEntry
+            autoComplete="password"
+            testID="password-input"
+          />
+        </View>
+
         <Pressable
-          style={[
-            styles.signInButton,
-            { backgroundColor: c.primary },
-            isLoading && styles.signInButtonDisabled,
-          ]}
+          style={[styles.signInButton, { backgroundColor: c.primary }, (isLoading || !email || !password) && styles.buttonDisabled]}
           onPress={handleSignIn}
-          disabled={isLoading}
+          disabled={isLoading || !email || !password}
           testID="sign-in-button"
         >
-          {isLoading ? (
-            <ActivityIndicator color="#ffffff" size="small" />
-          ) : (
+          {isLoading ? <ActivityIndicator color="#fff" size="small" /> : (
             <>
-              <Feather name="log-in" size={18} color="#ffffff" />
+              <Feather name="log-in" size={18} color="#fff" />
               <Text style={styles.signInButtonText}>Sign in</Text>
             </>
           )}
         </Pressable>
 
         <Pressable
-          style={[
-            styles.signUpButton,
-            { borderColor: c.primary },
-            isLoading && styles.signInButtonDisabled,
-          ]}
-          onPress={handleCreateAccount}
+          style={[styles.signUpButton, { borderColor: c.primary }]}
+          onPress={() => router.push("/signup")}
           disabled={isLoading}
           testID="sign-up-button"
         >
@@ -122,7 +142,7 @@ export default function LoginScreen() {
           Terms · Privacy · Refunds · Cookies
         </Text>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -168,7 +188,7 @@ const styles = StyleSheet.create({
   card: {
     borderRadius: 20,
     padding: 24,
-    gap: 16,
+    gap: 12,
     borderWidth: 1,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
@@ -177,6 +197,21 @@ const styles = StyleSheet.create({
     elevation: 3,
     marginBottom: 16,
   },
+  inputGroup: {
+    gap: 6,
+  },
+  inputLabel: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    fontFamily: "Inter_400Regular",
+  },
   signInButton: {
     borderRadius: 12,
     paddingVertical: 15,
@@ -184,9 +219,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     flexDirection: "row",
     gap: 8,
+    marginTop: 4,
   },
-  signInButtonDisabled: {
-    opacity: 0.6,
+  buttonDisabled: {
+    opacity: 0.5,
   },
   signInButtonText: {
     color: "#ffffff",

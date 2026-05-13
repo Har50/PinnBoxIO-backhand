@@ -1,5 +1,5 @@
 import { useGetUserPreferences, useUpdateUserPreferences, getGetUserPreferencesQueryKey } from "@workspace/api-client-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
 import { Feather } from "@expo/vector-icons";
@@ -128,7 +128,8 @@ function ConnectBadge({ connected, loading }: { connected: boolean; loading: boo
   );
 }
 
-function EmailAccountsSection({ token }: { token: string | null }) {
+function EmailAccountsSection() {
+  const { getToken } = useAuth();
   const colors = useColors();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [outlookConnected, setOutlookConnected] = useState(false);
@@ -136,6 +137,7 @@ function EmailAccountsSection({ token }: { token: string | null }) {
   const [actionLoading, setActionLoading] = useState<"gmail" | "outlook" | null>(null);
 
   const fetchConnected = useCallback(async () => {
+    const token = await getToken();
     if (!token) return;
     try {
       const res = await fetch(`${API_BASE}/api/accounts/connected`, {
@@ -148,13 +150,14 @@ function EmailAccountsSection({ token }: { token: string | null }) {
       }
     } catch {}
     setLoading(false);
-  }, [token]);
+  }, [getToken]);
 
   useEffect(() => {
     fetchConnected();
   }, [fetchConnected]);
 
   const connectAccount = async (provider: "gmail" | "outlook") => {
+    const token = await getToken();
     if (!token) return;
     const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
     await WebBrowser.openBrowserAsync(url, {
@@ -175,6 +178,7 @@ function EmailAccountsSection({ token }: { token: string | null }) {
           text: "Disconnect",
           style: "destructive",
           onPress: async () => {
+            const token = await getToken();
             if (!token) return;
             setActionLoading(provider);
             try {
@@ -273,7 +277,8 @@ function EmailAccountsSection({ token }: { token: string | null }) {
 export default function SettingsScreen() {
   const colors = useColors();
   const { mode, toggleMode } = useThemeMode();
-  const { user, token, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { user } = useUser();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -281,7 +286,7 @@ export default function SettingsScreen() {
   const displayName =
     user?.firstName && user?.lastName
       ? `${user.firstName} ${user.lastName}`
-      : user?.email ?? "My Workspace";
+      : user?.primaryEmailAddress?.emailAddress ?? "My Workspace";
 
   return (
     <ScrollView
@@ -301,15 +306,15 @@ export default function SettingsScreen() {
             </View>
             <View style={styles.profileInfo}>
               <Text style={[styles.profileName, { color: colors.foreground }]} numberOfLines={1}>{displayName}</Text>
-              {user?.email ? (
-                <Text style={[styles.profileEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{user.email}</Text>
+              {user?.primaryEmailAddress?.emailAddress ? (
+                <Text style={[styles.profileEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{user.primaryEmailAddress.emailAddress}</Text>
               ) : null}
             </View>
           </View>
         </SettingsCard>
       </View>
 
-      <EmailAccountsSection token={token} />
+      <EmailAccountsSection />
 
       <View style={styles.section}>
         <SectionHeader title="Appearance" />
@@ -364,7 +369,7 @@ export default function SettingsScreen() {
           <SettingsRow
             icon="log-out"
             label="Sign out"
-            onPress={signOut}
+            onPress={() => signOut()}
             destructive
           />
         </SettingsCard>

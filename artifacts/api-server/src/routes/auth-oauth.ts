@@ -1,5 +1,5 @@
 import { Router, type IRouter } from "express";
-import { getAuth } from "@clerk/express";
+import { getAuth, clerkClient } from "@clerk/express";
 import { upsertOAuthToken, deleteOAuthToken, ensureUser } from "../services/tokenManager";
 import { db, mobileSessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -51,8 +51,12 @@ async function getMobileUserId(token: string): Promise<string | null> {
 async function resolveUserId(req: any): Promise<{ userId: string | null; isMobile: boolean }> {
   const mobileToken = req.query.mobileToken as string | undefined;
   if (mobileToken) {
-    const userId = await getMobileUserId(mobileToken);
-    return { userId, isMobile: true };
+    const sessionUserId = await getMobileUserId(mobileToken);
+    if (sessionUserId) return { userId: sessionUserId, isMobile: true };
+    try {
+      const payload = await clerkClient.verifyToken(mobileToken);
+      if (payload?.sub) return { userId: payload.sub, isMobile: true };
+    } catch {}
   }
   const auth = getAuth(req);
   return { userId: auth?.userId ?? null, isMobile: false };

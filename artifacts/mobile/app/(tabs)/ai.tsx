@@ -43,7 +43,7 @@ async function getAuthToken(): Promise<string | null> {
 
 type Provider = "openai" | "claude" | "gemini";
 const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "openai", label: "GPT-4o" },
+  { id: "openai", label: "AI" },
   { id: "claude", label: "Claude" },
   { id: "gemini", label: "Gemini" },
 ];
@@ -375,7 +375,7 @@ export default function AiScreen() {
       let base64 = "";
       try {
         base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: FileSystem.EncodingType.Base64,
+          encoding: 'base64' as const,
         });
       } catch (readErr) {
         Alert.alert("Could not read file", "The file could not be read. Try a different file.");

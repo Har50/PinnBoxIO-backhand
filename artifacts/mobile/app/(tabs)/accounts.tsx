@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useGetAccounts } from "@workspace/api-client-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useAuth, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
 import type { ComponentProps } from "react";
@@ -450,12 +450,13 @@ function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
 }
 
 function UserCard() {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
+  const { user } = useUser();
   const colors = useColors();
   const initials = ((user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")).toUpperCase();
   const displayName = user?.firstName && user?.lastName
     ? `${user.firstName} ${user.lastName}`
-    : user?.email ?? "My Workspace";
+    : user?.primaryEmailAddress?.emailAddress ?? "My Workspace";
 
   return (
     <View style={[styles.userCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -464,11 +465,11 @@ function UserCard() {
       </View>
       <View style={styles.userInfo}>
         <Text style={[styles.userName, { color: colors.foreground }]} numberOfLines={1}>{displayName}</Text>
-        {user?.email && (
-          <Text style={[styles.userEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{user.email}</Text>
+        {user?.primaryEmailAddress?.emailAddress && (
+          <Text style={[styles.userEmail, { color: colors.mutedForeground }]} numberOfLines={1}>{user.primaryEmailAddress.emailAddress}</Text>
         )}
       </View>
-      <Pressable onPress={signOut} style={styles.signOutBtn} testID="sign-out-button">
+      <Pressable onPress={() => signOut()} style={styles.signOutBtn} testID="sign-out-button">
         <Feather name="log-out" size={18} color={colors.destructive} />
       </Pressable>
     </View>

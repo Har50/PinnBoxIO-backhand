@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect } from "react";
 import { Platform } from "react-native";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import Constants from "expo-constants";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUser } from "@clerk/expo";
 
 const REVENUECAT_TEST_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY;
 const REVENUECAT_IOS_API_KEY = process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY;
@@ -56,7 +56,7 @@ export function initializeRevenueCat(): void {
 }
 
 function useSubscriptionContext() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const Purchases = getPurchasesModule();
   const apiKey = getRevenueCatApiKey();
   const isAvailable = Boolean(Purchases && apiKey);

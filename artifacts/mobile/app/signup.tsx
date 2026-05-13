@@ -1,4 +1,4 @@
-import { useAuth } from "@/contexts/AuthContext";
+import { useSignUp, isClerkAPIResponseError } from "@clerk/expo";
 import { APP_NAME } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
@@ -13,11 +13,13 @@ import {
   AccessibilityInfo,
   ActivityIndicator,
   Animated,
+  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   useColorScheme,
   useWindowDimensions,
   View,
@@ -55,12 +57,17 @@ const SLIDE_DATA = [
 const TOTAL = SLIDE_DATA.length;
 
 export default function SignUpScreen() {
-  const { signUp, signInError } = useAuth();
+  const { signUp } = useSignUp();
   const insets = useSafeAreaInsets();
   const { width: SCREEN_WIDTH } = useWindowDimensions();
-  const [isLoading, setIsLoading] = useState(false);
   const [activeIndex, setActiveIndex] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
+  const [verifyMode, setVerifyMode] = useState(false);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [code, setCode] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
@@ -110,46 +117,20 @@ export default function SignUpScreen() {
     text.descTranslateY.setValue(8);
 
     Animated.parallel([
-      Animated.timing(anim.opacity, {
-        toValue: 1,
-        duration: 300,
-        useNativeDriver: true,
-      }),
-      Animated.spring(anim.scale, {
-        toValue: 1,
-        useNativeDriver: true,
-        damping: 16,
-        stiffness: 220,
-        mass: 1,
-      }),
+      Animated.timing(anim.opacity, { toValue: 1, duration: 300, useNativeDriver: true }),
+      Animated.spring(anim.scale, { toValue: 1, useNativeDriver: true, damping: 16, stiffness: 220, mass: 1 }),
       Animated.sequence([
         Animated.delay(80),
         Animated.parallel([
-          Animated.timing(text.titleOpacity, {
-            toValue: 1,
-            duration: 220,
-            useNativeDriver: true,
-          }),
-          Animated.timing(text.titleTranslateY, {
-            toValue: 0,
-            duration: 220,
-            useNativeDriver: true,
-          }),
+          Animated.timing(text.titleOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+          Animated.timing(text.titleTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
         ]),
       ]),
       Animated.sequence([
         Animated.delay(120),
         Animated.parallel([
-          Animated.timing(text.descOpacity, {
-            toValue: 1,
-            duration: 220,
-            useNativeDriver: true,
-          }),
-          Animated.timing(text.descTranslateY, {
-            toValue: 0,
-            duration: 220,
-            useNativeDriver: true,
-          }),
+          Animated.timing(text.descOpacity, { toValue: 1, duration: 220, useNativeDriver: true }),
+          Animated.timing(text.descTranslateY, { toValue: 0, duration: 220, useNativeDriver: true }),
         ]),
       ]),
     ]).start();
@@ -166,34 +147,64 @@ export default function SignUpScreen() {
 
   function renderIllustration(key: string) {
     switch (key) {
-      case "inbox":
-        return <InboxIllustration primary={c.primary} dark={isDark} />;
-      case "search":
-        return <SearchIllustration emerald={c.emerald} dark={isDark} />;
-      case "ai":
-        return <AIIllustration amber={c.amber} dark={isDark} />;
-      case "free":
-        return <FreeIllustration primary={c.primary} dark={isDark} />;
-      default:
-        return null;
+      case "inbox": return <InboxIllustration primary={c.primary} dark={isDark} />;
+      case "search": return <SearchIllustration emerald={c.emerald} dark={isDark} />;
+      case "ai": return <AIIllustration amber={c.amber} dark={isDark} />;
+      case "free": return <FreeIllustration primary={c.primary} dark={isDark} />;
+      default: return null;
     }
   }
 
-  async function handleContinue() {
+  async function handleCreateAccount() {
     setIsLoading(true);
+    setError(null);
     try {
-      await signUp();
+      const { error: createError } = await signUp.create({ emailAddress: email, password });
+      if (createError) {
+        setError(createError.longMessage ?? createError.message ?? "Sign-up failed. Please try again.");
+        return;
+      }
+      const { error: sendError } = await signUp.verifications.sendEmailCode();
+      if (sendError) {
+        setError(sendError.longMessage ?? sendError.message ?? "Failed to send verification code.");
+        return;
+      }
+      setVerifyMode(true);
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Sign-up failed. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }
+
+  async function handleVerify() {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { error: verifyError } = await signUp.verifications.verifyEmailCode({ code });
+      if (verifyError) {
+        setError(verifyError.longMessage ?? verifyError.message ?? "Verification failed. Please try again.");
+        return;
+      }
+      await signUp.finalize();
+    } catch (err) {
+      if (isClerkAPIResponseError(err)) {
+        setError(err.errors[0]?.longMessage ?? err.errors[0]?.message ?? "Verification failed. Please try again.");
+      } else {
+        setError("An unexpected error occurred. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }
   }
 
   function handleBack() {
-    if (router.canGoBack()) {
-      router.back();
-    } else {
-      router.replace("/login");
-    }
+    if (router.canGoBack()) router.back();
+    else router.replace("/login");
   }
 
   function goToSlide(index: number) {
@@ -201,25 +212,105 @@ export default function SignUpScreen() {
   }
 
   function handleNext() {
-    if (activeIndex < TOTAL - 1) {
-      goToSlide(activeIndex + 1);
-    }
+    if (activeIndex < TOTAL - 1) goToSlide(activeIndex + 1);
   }
 
   function handleScroll(event: { nativeEvent: { contentOffset: { x: number } } }) {
     const offsetX = event.nativeEvent.contentOffset.x;
     const index = Math.round(offsetX / SCREEN_WIDTH);
-    if (index !== activeIndex && index >= 0 && index < TOTAL) {
-      setActiveIndex(index);
-    }
+    if (index !== activeIndex && index >= 0 && index < TOTAL) setActiveIndex(index);
+  }
+
+  if (verifyMode) {
+    return (
+      <KeyboardAvoidingView
+        style={[styles.container, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 16 }]}
+        behavior={Platform.OS === "ios" ? "padding" : undefined}
+      >
+        <View style={[styles.header, { paddingTop: 8 }]}>
+          <Pressable onPress={() => setVerifyMode(false)} style={styles.backButton}>
+            <Feather name="arrow-left" size={20} color={c.foreground} />
+          </Pressable>
+          <Text style={[styles.headerTitle, { color: c.foreground }]}>Verify email</Text>
+          <View style={styles.backButton} />
+        </View>
+
+        <View style={styles.heroSection}>
+          <View style={[styles.logoBox, { backgroundColor: c.primary, shadowColor: c.primary }]}>
+            <Text style={[styles.logoText, { color: c.primaryForeground }]}>PB</Text>
+          </View>
+          <Text style={[styles.heroTitle, { color: c.foreground }]}>Check your inbox</Text>
+          <Text style={[styles.verifySubtitle, { color: c.mutedForeground }]}>
+            We sent a 6-digit code to {email}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1 }} />
+
+        <View style={[styles.footer, { borderTopColor: c.border }]}>
+          {error ? (
+            <View
+              style={[styles.errorBanner, isDark && { backgroundColor: "#450a0a", borderColor: "#7f1d1d" }]}
+              accessibilityRole="alert"
+            >
+              <Feather name="alert-circle" size={14} color={isDark ? "#f87171" : "#dc2626"} style={{ marginTop: 2 }} />
+              <Text style={[styles.errorText, isDark && { color: "#f87171" }]}>{error}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: c.mutedForeground }]}>Verification code</Text>
+            <TextInput
+              style={[styles.input, { backgroundColor: c.card, borderColor: c.border, color: c.foreground }]}
+              value={code}
+              onChangeText={setCode}
+              placeholder="Enter 6-digit code"
+              placeholderTextColor={c.mutedForeground}
+              keyboardType="numeric"
+              autoFocus
+            />
+          </View>
+
+          <Pressable
+            style={[styles.continueButton, { backgroundColor: c.primary }, (isLoading || !code) && styles.continueButtonDisabled]}
+            onPress={handleVerify}
+            disabled={isLoading || !code}
+          >
+            {isLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+              <>
+                <Feather name="check" size={18} color="#fff" />
+                <Text style={styles.continueButtonText}>Verify & continue</Text>
+              </>
+            )}
+          </Pressable>
+
+          <Pressable
+            onPress={async () => {
+              try {
+                await signUp.verifications.sendEmailCode();
+              } catch {}
+            }}
+            style={{ alignItems: "center" }}
+          >
+            <Text style={[styles.resendText, { color: c.primary }]}>Resend code</Text>
+          </Pressable>
+
+          <Text style={[styles.footerNote, { color: c.mutedForeground }]}>
+            By continuing you agree to our{" "}
+            <Text style={[styles.footerLink, { color: c.primary }]}>Terms</Text> and{" "}
+            <Text style={[styles.footerLink, { color: c.primary }]}>Privacy Policy</Text>.
+          </Text>
+        </View>
+
+        <View nativeID="clerk-captcha" />
+      </KeyboardAvoidingView>
+    );
   }
 
   return (
-    <View
-      style={[
-        styles.container,
-        { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 16 },
-      ]}
+    <KeyboardAvoidingView
+      style={[styles.container, { backgroundColor: c.background, paddingTop: topPad, paddingBottom: bottomPad + 16 }]}
+      behavior={Platform.OS === "ios" ? "padding" : undefined}
     >
       <View style={[styles.header, { paddingTop: 8 }]}>
         <Pressable onPress={handleBack} style={styles.backButton} testID="signup-back-button">
@@ -265,10 +356,7 @@ export default function SignUpScreen() {
               style={[
                 styles.slideTitle,
                 { color: c.foreground },
-                {
-                  opacity: textAnims[i].titleOpacity,
-                  transform: [{ translateY: textAnims[i].titleTranslateY }],
-                },
+                { opacity: textAnims[i].titleOpacity, transform: [{ translateY: textAnims[i].titleTranslateY }] },
               ]}
             >
               {slide.title}
@@ -277,10 +365,7 @@ export default function SignUpScreen() {
               style={[
                 styles.slideDescription,
                 { color: c.mutedForeground },
-                {
-                  opacity: textAnims[i].descOpacity,
-                  transform: [{ translateY: textAnims[i].descTranslateY }],
-                },
+                { opacity: textAnims[i].descOpacity, transform: [{ translateY: textAnims[i].descTranslateY }] },
               ]}
             >
               {slide.description}
@@ -294,11 +379,7 @@ export default function SignUpScreen() {
           <Pressable
             key={slide.key}
             onPress={() => goToSlide(i)}
-            style={[
-              styles.dot,
-              { backgroundColor: c.border },
-              i === activeIndex && { width: 22, backgroundColor: c.primary },
-            ]}
+            style={[styles.dot, { backgroundColor: c.border }, i === activeIndex && { width: 22, backgroundColor: c.primary }]}
             testID={`signup-dot-${i}`}
             accessibilityLabel={`Go to slide ${i + 1}`}
           />
@@ -306,45 +387,66 @@ export default function SignUpScreen() {
       </View>
 
       <View style={[styles.footer, { borderTopColor: c.border }]}>
-        {signInError ? (
+        {error ? (
           <View
-            style={[
-              styles.errorBanner,
-              isDark && { backgroundColor: "#450a0a", borderColor: "#7f1d1d" },
-            ]}
+            style={[styles.errorBanner, isDark && { backgroundColor: "#450a0a", borderColor: "#7f1d1d" }]}
             accessibilityRole="alert"
             testID="signup-error-banner"
           >
-            <Feather
-              name="alert-circle"
-              size={14}
-              color={isDark ? "#f87171" : "#dc2626"}
-              style={{ marginTop: 2 }}
-            />
-            <Text style={[styles.errorText, isDark && { color: "#f87171" }]}>{signInError}</Text>
+            <Feather name="alert-circle" size={14} color={isDark ? "#f87171" : "#dc2626"} style={{ marginTop: 2 }} />
+            <Text style={[styles.errorText, isDark && { color: "#f87171" }]}>{error}</Text>
           </View>
         ) : null}
 
         {isFinal ? (
-          <Pressable
-            style={[
-              styles.continueButton,
-              { backgroundColor: c.primary },
-              isLoading && styles.continueButtonDisabled,
-            ]}
-            onPress={handleContinue}
-            disabled={isLoading}
-            testID="signup-continue-button"
-          >
-            {isLoading ? (
-              <ActivityIndicator color="#ffffff" size="small" />
-            ) : (
-              <>
-                <Feather name="user-plus" size={18} color="#ffffff" />
-                <Text style={styles.continueButtonText}>Create my free account</Text>
-              </>
-            )}
-          </Pressable>
+          <>
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: c.mutedForeground }]}>Email</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: c.card, borderColor: c.border, color: c.foreground }]}
+                value={email}
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                placeholderTextColor={c.mutedForeground}
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                testID="signup-email-input"
+              />
+            </View>
+
+            <View style={styles.inputGroup}>
+              <Text style={[styles.inputLabel, { color: c.mutedForeground }]}>Password</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: c.card, borderColor: c.border, color: c.foreground }]}
+                value={password}
+                onChangeText={setPassword}
+                placeholder="Create a password"
+                placeholderTextColor={c.mutedForeground}
+                secureTextEntry
+                autoComplete="new-password"
+                testID="signup-password-input"
+              />
+            </View>
+
+            <Pressable
+              style={[
+                styles.continueButton,
+                { backgroundColor: c.primary },
+                (isLoading || !email || !password) && styles.continueButtonDisabled,
+              ]}
+              onPress={handleCreateAccount}
+              disabled={isLoading || !email || !password}
+              testID="signup-continue-button"
+            >
+              {isLoading ? <ActivityIndicator color="#fff" size="small" /> : (
+                <>
+                  <Feather name="user-plus" size={18} color="#fff" />
+                  <Text style={styles.continueButtonText}>Create my free account</Text>
+                </>
+              )}
+            </Pressable>
+          </>
         ) : (
           <Pressable
             style={[styles.nextButton, { borderColor: c.primary }]}
@@ -362,7 +464,9 @@ export default function SignUpScreen() {
           <Text style={[styles.footerLink, { color: c.primary }]}>Privacy Policy</Text>.
         </Text>
       </View>
-    </View>
+
+      <View nativeID="clerk-captcha" />
+    </KeyboardAvoidingView>
   );
 }
 
@@ -417,6 +521,13 @@ const styles = StyleSheet.create({
     letterSpacing: -0.4,
     textAlign: "center",
   },
+  verifySubtitle: {
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
+    textAlign: "center",
+    lineHeight: 20,
+    paddingHorizontal: 24,
+  },
   carousel: {
     flex: 1,
   },
@@ -464,8 +575,23 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: 24,
     paddingTop: 12,
-    gap: 12,
+    gap: 10,
     borderTopWidth: 1,
+  },
+  inputGroup: {
+    gap: 5,
+  },
+  inputLabel: {
+    fontSize: 12,
+    fontFamily: "Inter_500Medium",
+  },
+  input: {
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    fontSize: 14,
+    fontFamily: "Inter_400Regular",
   },
   continueButton: {
     borderRadius: 12,
@@ -476,7 +602,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   continueButtonDisabled: {
-    opacity: 0.6,
+    opacity: 0.5,
   },
   continueButtonText: {
     color: "#ffffff",
@@ -506,6 +632,11 @@ const styles = StyleSheet.create({
   },
   footerLink: {
     fontFamily: "Inter_500Medium",
+  },
+  resendText: {
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    textAlign: "center",
   },
   errorBanner: {
     backgroundColor: "#fef2f2",

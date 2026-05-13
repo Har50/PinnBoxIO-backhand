@@ -1,5 +1,5 @@
 import { useGetOverviewStats, useGetRecentMessages } from "@workspace/api-client-react";
-import { useAuth } from "@/contexts/AuthContext";
+import { useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
 import { Feather } from "@expo/vector-icons";
@@ -70,7 +70,7 @@ function RecentMessageRow({
 }
 
 export default function DashboardScreen() {
-  const { user } = useAuth();
+  const { user } = useUser();
   const colors = useColors();
   const { mode, toggleMode } = useThemeMode();
   const insets = useSafeAreaInsets();
@@ -95,7 +95,7 @@ export default function DashboardScreen() {
 
   const displayName = user?.firstName
     ? user.firstName
-    : user?.email?.split("@")[0] ?? "there";
+    : user?.primaryEmailAddress?.emailAddress?.split("@")[0] ?? "there";
 
   const avatarInitials = ((user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")).toUpperCase() || displayName[0]?.toUpperCase() || "?";
 
