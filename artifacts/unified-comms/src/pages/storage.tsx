@@ -29,7 +29,7 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 interface Quota { id: number; userId: string; totalBytes: number; usedBytes: number; planName: string; }
 interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; isPublic?: boolean; shareToken?: string | null; category?: string | null; }
 interface StorageFolder { path: string; name: string; }
-interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; currency: string; name?: string; }
+interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; priceInr?: number; currency: string; name?: string; }
 
 type FileFilter = "all" | "photos" | "videos" | "audio" | "docs";
 
@@ -577,17 +577,59 @@ export default function StoragePage() {
   const handleUpgrade = useCallback(async (plan: Plan) => {
     setUpgradeLoading(plan.gb);
     try {
-      const { url } = await apiFetch<{ url: string }>("/storage/checkout", {
+      const { orderId, amount, currency, keyId } = await apiFetch<{
+        orderId: string; amount: number; currency: string; keyId: string;
+      }>("/payments/razorpay/storage/order", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ priceId: plan.priceId, gb: plan.gb }),
+        body: JSON.stringify({ gb: plan.gb }),
       });
-      window.location.href = url;
+
+      const RzpCheckout = (window as any).Razorpay;
+      if (!RzpCheckout) {
+        showToast("error", "Payment system not loaded. Please refresh and try again.");
+        setUpgradeLoading(null);
+        return;
+      }
+
+      const rzp = new RzpCheckout({
+        key: keyId,
+        amount,
+        currency,
+        name: "PinnboxIO",
+        description: `${plan.label} Storage – Monthly`,
+        order_id: orderId,
+        handler: async (response: any) => {
+          try {
+            await apiFetch("/payments/razorpay/storage/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                razorpay_order_id: response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature: response.razorpay_signature,
+                gb: plan.gb,
+              }),
+            });
+            showToast("success", `Storage upgraded to ${plan.label}!`);
+            setShowUpgradePlans(false);
+            await loadData(currentFolder);
+          } catch (err: any) {
+            showToast("error", err.message ?? "Payment verification failed");
+          } finally {
+            setUpgradeLoading(null);
+          }
+        },
+        modal: { ondismiss: () => setUpgradeLoading(null) },
+        theme: { color: "#6366f1" },
+      });
+
+      rzp.open();
     } catch (err: any) {
-      showToast("error", err.message);
+      showToast("error", err.message ?? "Could not start payment");
       setUpgradeLoading(null);
     }
-  }, []);
+  }, [loadData, currentFolder]);
 
   const openFilePicker = () => fileInputRef.current?.click();
   const openPhotoPicker = () => photoInputRef.current?.click();
@@ -949,7 +991,7 @@ export default function StoragePage() {
                     </div>
                     <div>
                       <p className="font-semibold text-white text-sm">{plan.gb} GB</p>
-                      <p className="text-xs text-gray-500">{plan.unitAmount ? `$${(plan.unitAmount / 100).toFixed(2)}/mo` : "Free"}</p>
+                      <p className="text-xs text-gray-500">{plan.unitAmount ? `₹${(plan.unitAmount / 100).toFixed(0)}/mo` : "Free"}</p>
                     </div>
                   </div>
                   <button

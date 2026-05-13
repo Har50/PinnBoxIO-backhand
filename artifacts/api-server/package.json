@@ -29,6 +29,7 @@
     "pino": "^9",
     "pino-http": "^10",
     "protobufjs": "^8.0.1",
+    "razorpay": "^2.9.6",
     "zod": "catalog:"
   },
   "devDependencies": {

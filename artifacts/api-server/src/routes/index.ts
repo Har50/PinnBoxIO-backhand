@@ -16,6 +16,7 @@ import authImapRouter from "./auth-imap";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
 import calendarRouter from "./calendar";
+import paymentsRouter from "./payments";
 import { ensureUser } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
@@ -188,6 +189,7 @@ router.use(statsRouter);
 router.use(aiRouter);
 router.use(linkedinRouter);
 router.use(storageRouter);
+router.use(paymentsRouter);
 router.use(preferencesRouter);
 router.use(calendarRouter);
 

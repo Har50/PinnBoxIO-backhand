@@ -605,7 +605,46 @@ function AiChat() {
                     <button
                       className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
                       style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
-                      onClick={() => window.location.assign(`${import.meta.env.BASE_URL}storage`)}
+                      onClick={async () => {
+                        try {
+                          const headers = await getAuthHeaders();
+                          const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+                          const orderRes = await fetch(`${base}/api/payments/razorpay/pro/order`, {
+                            method: "POST",
+                            headers: { ...headers, "Content-Type": "application/json" },
+                            credentials: "include",
+                          });
+                          if (!orderRes.ok) throw new Error();
+                          const { orderId, amount, currency, keyId } = await orderRes.json();
+                          const RzpCheckout = (window as any).Razorpay;
+                          if (!RzpCheckout) { window.location.assign(`${import.meta.env.BASE_URL}storage`); return; }
+                          const rzp = new RzpCheckout({
+                            key: keyId,
+                            amount,
+                            currency,
+                            name: "PinnboxIO",
+                            description: "Pro Plan – Unlimited AI",
+                            order_id: orderId,
+                            handler: async (response: any) => {
+                              const verifyRes = await fetch(`${base}/api/payments/razorpay/pro/verify`, {
+                                method: "POST",
+                                headers: { ...headers, "Content-Type": "application/json" },
+                                credentials: "include",
+                                body: JSON.stringify({
+                                  razorpay_order_id: response.razorpay_order_id,
+                                  razorpay_payment_id: response.razorpay_payment_id,
+                                  razorpay_signature: response.razorpay_signature,
+                                }),
+                              });
+                              if (verifyRes.ok) window.location.reload();
+                            },
+                            theme: { color: "#6366f1" },
+                          });
+                          rzp.open();
+                        } catch {
+                          window.location.assign(`${import.meta.env.BASE_URL}storage`);
+                        }
+                      }}
                     >
                       <Crown className="w-4 h-4" />
                       Upgrade to Pro

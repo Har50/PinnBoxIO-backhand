@@ -32,9 +32,9 @@ const router: IRouter = Router();
 const FREE_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
 const STORAGE_PLANS = [
-  { gb: 10, label: "10 GB", priceUsd: 299 },
-  { gb: 50, label: "50 GB", priceUsd: 699 },
-  { gb: 100, label: "100 GB", priceUsd: 999 },
+  { gb: 10, label: "10 GB", priceUsd: 299, priceInr: 29900 },
+  { gb: 50, label: "50 GB", priceUsd: 699, priceInr: 69900 },
+  { gb: 100, label: "100 GB", priceUsd: 999, priceInr: 99900 },
 ];
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
@@ -425,7 +425,7 @@ router.delete("/storage/folders", async (req: any, res) => {
 
 router.get("/storage/plans", async (_req, res) => {
   try {
-    res.json({ plans: STORAGE_PLANS.map((p) => ({ ...p, priceId: null, currency: "usd", unitAmount: p.priceUsd })) });
+    res.json({ plans: STORAGE_PLANS.map((p) => ({ ...p, priceId: null, currency: "inr", unitAmount: p.priceInr })) });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
