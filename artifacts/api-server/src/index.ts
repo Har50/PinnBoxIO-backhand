@@ -6,6 +6,10 @@ process.on("unhandledRejection", (reason) => {
   logger.warn({ reason }, "Unhandled promise rejection — continuing");
 });
 
+process.on("uncaughtException", (err) => {
+  logger.error({ err }, "Uncaught exception — continuing");
+});
+
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
@@ -20,7 +24,7 @@ if (Number.isNaN(port) || port <= 0) {
   throw new Error(`Invalid PORT value: "${rawPort}"`);
 }
 
-app.listen(port, (err) => {
+const server = app.listen(port, (err) => {
   if (err) {
     logger.error({ err }, "Error listening on port");
     process.exit(1);
@@ -37,3 +41,20 @@ app.listen(port, (err) => {
     );
   }, 3000);
 });
+
+function shutdown(signal: string) {
+  logger.info({ signal }, "Received signal — starting graceful shutdown");
+  server.close(() => {
+    logger.info("HTTP server closed — exiting");
+    process.exit(0);
+  });
+
+  // Force-exit after 10 s if connections don't drain in time
+  setTimeout(() => {
+    logger.warn("Graceful shutdown timed out — forcing exit");
+    process.exit(1);
+  }, 10_000).unref();
+}
+
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));

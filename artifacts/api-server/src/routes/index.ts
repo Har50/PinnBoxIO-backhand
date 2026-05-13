@@ -25,11 +25,21 @@ const router: IRouter = Router();
 // In-memory set of user IDs whose email has been successfully synced this
 // server session. Only added once email is confirmed stored, so that a
 // transient Clerk API failure doesn't permanently prevent mobile↔web linking.
+// Capped to avoid unbounded memory growth on long-running deployments.
+const MAX_SEEN_USERS = 10_000;
 const seenUsers = new Set<string>();
 
 // Tracks Replit user IDs already checked for Clerk counterparts this session.
 // Prevents repeated DB lookups on every request.
 const checkedReplicUsers = new Set<string>();
+
+function addCapped(set: Set<string>, value: string, max: number): void {
+  if (set.size >= max) {
+    const first = set.values().next().value;
+    if (first !== undefined) set.delete(first);
+  }
+  set.add(value);
+}
 
 router.use(healthRouter);
 router.use(linkedinPublicRouter);
@@ -132,7 +142,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
           logger.info({ clerkUserId, email: email ?? "(none)" }, "Clerk email sync: fetched user");
           await ensureUser(clerkUserId, { email });
           if (email) {
-            seenUsers.add(clerkUserId);
+            addCapped(seenUsers, clerkUserId, MAX_SEEN_USERS);
             await migrateLinkedMobileSessions(clerkUserId, email);
           }
         })
@@ -164,13 +174,13 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     // account with the same email and migrate the session if so.
     let canonicalUserId = userId;
     if (!checkedReplicUsers.has(userId)) {
-      checkedReplicUsers.add(userId);
+      addCapped(checkedReplicUsers, userId, MAX_SEEN_USERS);
       canonicalUserId = await resolveAndMigrateMobileSession(bearerToken, userId);
     }
 
     (req as any).userId = canonicalUserId;
     if (!seenUsers.has(canonicalUserId)) {
-      seenUsers.add(canonicalUserId);
+      addCapped(seenUsers, canonicalUserId, MAX_SEEN_USERS);
       ensureUser(canonicalUserId).catch(() => {});
     }
     next();
