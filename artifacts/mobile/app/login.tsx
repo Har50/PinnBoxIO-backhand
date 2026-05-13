@@ -33,6 +33,10 @@ export default function LoginScreen() {
   const bottomPad = Platform.OS === "web" ? 34 : insets.bottom;
 
   async function handleSignIn() {
+    if (!signIn) {
+      setError("Authentication is not ready. Please try again.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -142,6 +146,8 @@ export default function LoginScreen() {
           Terms · Privacy · Refunds · Cookies
         </Text>
       </View>
+
+      <View nativeID="clerk-captcha" />
     </KeyboardAvoidingView>
   );
 }

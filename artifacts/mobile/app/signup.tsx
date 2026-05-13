@@ -156,6 +156,10 @@ export default function SignUpScreen() {
   }
 
   async function handleCreateAccount() {
+    if (!signUp) {
+      setError("Authentication is not ready. Please try again.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
@@ -182,6 +186,10 @@ export default function SignUpScreen() {
   }
 
   async function handleVerify() {
+    if (!signUp) {
+      setError("Authentication is not ready. Please try again.");
+      return;
+    }
     setIsLoading(true);
     setError(null);
     try {
