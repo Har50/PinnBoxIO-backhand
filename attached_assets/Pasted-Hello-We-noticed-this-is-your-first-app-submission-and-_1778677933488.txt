@@ -1,0 +1,73 @@
+Hello, 
+
+We noticed this is your first app submission and want to congratulate you on joining the Apple Developer Program. We look forward to working together on your submissions.
+
+When App Review identifies an issue with a submission, we’ll contact you with a message in App Store Connect with details about what we found and how to resolve the issue. Learn more about App Review and tips for a smooth review experience. 
+
+See below for additional information about the issues that require your attention for this submission. If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: 08bf8b6f-939c-458b-ad76-0768f51b4251
+Review date: May 13, 2026
+Review Device: iPhone 17 Pro Max
+Version reviewed: 1.0 (12)
+
+Guideline 2.1(a) - Performance - App Completeness
+Issue Description
+
+The app exhibited one or more bugs that would negatively impact users.
+
+Bug description: we were unable to login or create an account due to an error.
+
+Review device details:
+
+- Device type: iPhone 17 Pro Max 
+- OS version: iOS 26.5
+- Internet Connection: Active
+
+Next Steps
+
+Test the app on supported devices to identify and resolve bugs and stability issues before submitting for review.
+
+If the bug cannot be reproduced, try the following:
+
+- For new apps, uninstall all previous versions of the app from a device, then install and follow the steps to reproduce.
+- For app updates, install the new version as an update to the previous version, then follow the steps to reproduce.
+
+Note that users expect apps they download to function on all the devices where they are available. For example, apps that may be downloaded onto iPad devices should function as expected for iPad users. 
+
+Resources
+
+- For information about testing apps and preparing them for review, see Testing a Release Build.
+- To learn about troubleshooting networking issues, see Networking Overview.
+
+
+Guideline 5 - Legal
+
+Issue Description
+
+As you may know, the Chinese government has been tightening regulations associated with deep synthesis technologies (DST) and generative AI services, including ChatGPT. DST must fulfill permitting requirements to operate in China, including securing a license from the Ministry of Industry and Information Technology (MIIT) if the services are provided while connected to the Internet. 
+
+Based on our review, the app appears to be associated with ChatGPT, which does not have requisite permits to operate in China. Specifically, the app's metadata includes the following references to ChatGPT and/or OpenAI: GPT.
+
+Accordingly, pursuant to local Chinese law, this functionality must be deactivated in the version of the app that you make available on the China App Store and all references to ChatGPT or OpenAI must be removed from metadata fields such as app name, subtitle, promotional text, app description, and screenshots.
+
+Next Steps
+
+Since this app cannot be approved with ChatGPT functionality and/or metadata references in China, it would be appropriate to make the necessary changes, update the Review Notes to confirm you've suppressed this functionality, and resubmit the app for review. 
+
+If you do not wish to make these changes, you can choose to not distribute this app in China by deselecting the China mainland storefront in the Availability settings in App Store Connect.
+
+If you believe you are already in compliance with the above-mentioned local law, you may reply to this message in App Store Connect and provide additional information. Apps with ChatGPT functionality or metadata references can continue to be used in apps outside of China.
+
+To offer the app in China with this functionality, please seek professional advice on compliance with the Administrative Provisions on Deep Synthesis of Internet-based Information Services.
+
+Resources
+
+- See how to change the app's Availability setting in App Store Connect.
+- Learn more about legal requirements for apps on the App Store in guideline 5.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.
+
