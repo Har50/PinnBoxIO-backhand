@@ -384,14 +384,14 @@ export default function Inbox() {
   // ----- Message Detail -----
   const messageDetailView = (
     <div className="flex flex-col h-full bg-background">
-      {/* Back bar */}
-      <div className="h-13 px-4 border-b flex items-center gap-3 shrink-0 bg-background/95 backdrop-blur z-10">
+      {/* Sticky top toolbar */}
+      <div className="sticky top-0 z-10 px-4 py-2 border-b flex items-center gap-3 shrink-0 bg-background/95 backdrop-blur">
         <Button variant="ghost" size="sm" className="gap-1.5 px-2 text-muted-foreground hover:text-foreground" onClick={handleBackToList}>
           <ChevronLeft className="h-4 w-4" />
           Back
         </Button>
         {!messageLoading && activeMessage && (
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 ml-auto flex-wrap">
             <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("reply")}>
               <Reply className="h-4 w-4" /><span className="hidden sm:inline">Reply</span>
             </Button>
@@ -404,7 +404,7 @@ export default function Inbox() {
             <Button variant="ghost" size="icon" onClick={e => handleToggleRead(activeMessage.id, activeMessage.isRead, e)}>
               <InboxIcon className="h-4 w-4 text-muted-foreground" />
             </Button>
-            <div className="hidden md:flex items-center gap-1 rounded-md border bg-background ml-2">
+            <div className="flex items-center gap-1 rounded-md border bg-background ml-2">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
               <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
@@ -420,13 +420,13 @@ export default function Inbox() {
       </div>
 
       {messageLoading ? (
-        <div className="p-8 space-y-6">
+        <div className="p-8 space-y-6 overflow-y-auto flex-1">
           <div className="space-y-2"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-4 w-1/4" /></div>
           <div className="flex gap-4 items-center"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-32" /></div></div>
           <div className="space-y-3 pt-6"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /></div>
         </div>
       ) : activeMessage ? (
-        <ScrollArea className="flex-1">
+        <div className="flex-1 overflow-y-auto">
           <div className="p-6 md:p-8 max-w-4xl mx-auto">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-foreground tracking-tight leading-tight mb-4">{activeMessage.subject}</h1>
@@ -517,7 +517,7 @@ export default function Inbox() {
               </div>
             )}
           </div>
-        </ScrollArea>
+        </div>
       ) : null}
     </div>
   );
@@ -525,7 +525,7 @@ export default function Inbox() {
   // Mobile and desktop both now use the same drill-down pattern
   if (selectedMessageId) {
     return (
-      <div className="h-full bg-background overflow-hidden">
+      <div className="h-full flex flex-col bg-background">
         {messageDetailView}
         <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
         <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
@@ -534,7 +534,7 @@ export default function Inbox() {
   }
 
   return (
-    <div className="h-full bg-background overflow-hidden">
+    <div className="h-full flex flex-col bg-background overflow-hidden">
       {messageListView}
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
       <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />

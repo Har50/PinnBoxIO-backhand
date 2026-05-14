@@ -192,30 +192,30 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden bg-background">
-        <main className="flex-1 overflow-auto relative">
+        <main className="flex-1 overflow-auto relative min-h-0">
           {children}
-          <footer className="border-t border-border px-6 py-4 mt-8">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} PinnboxIO. All rights reserved.</p>
-              <nav className="flex flex-wrap items-center gap-4">
-                {[
-                  { href: "/privacy", label: "Privacy Policy" },
-                  { href: "/terms", label: "Terms of Service" },
-                  { href: "/refunds", label: "Refunds & Cancellations" },
-                  { href: "/cookies", label: "Cookie Policy" },
-                ].map((item) => (
-                  <a
-                    key={item.href}
-                    href={item.href}
-                    className="text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {item.label}
-                  </a>
-                ))}
-              </nav>
-            </div>
-          </footer>
         </main>
+        <footer className="border-t border-border px-6 py-4 flex-shrink-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} PinnboxIO. All rights reserved.</p>
+            <nav className="flex flex-wrap items-center gap-4">
+              {[
+                { href: "/privacy", label: "Privacy Policy" },
+                { href: "/terms", label: "Terms of Service" },
+                { href: "/refunds", label: "Refunds & Cancellations" },
+                { href: "/cookies", label: "Cookie Policy" },
+              ].map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                >
+                  {item.label}
+                </a>
+              ))}
+            </nav>
+          </div>
+        </footer>
       </div>
 
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} />
