@@ -221,16 +221,26 @@ function MessageDetail({
     if (!message) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const subject = message.subject.startsWith("Re:") ? message.subject : `Re: ${message.subject}`;
-    const body = `\n\nOn ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}, ${message.fromName} wrote:\n${message.bodyText || ""}`;
-    onReply({ to: message.fromEmail, subject, body });
+    onReply({
+      to: message.fromEmail,
+      subject,
+      body: "",
+      quotedMeta: `On ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}, ${message.fromName} <${message.fromEmail}> wrote:`,
+      quotedText: message.bodyText || "",
+    });
   }
 
   function handleForward() {
     if (!message) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const subject = message.subject.startsWith("Fwd:") ? message.subject : `Fwd: ${message.subject}`;
-    const body = `\n\nForwarded message\nFrom: ${message.fromName} <${message.fromEmail}>\nDate: ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}\nSubject: ${message.subject}\nTo: ${message.toList}\n\n${message.bodyText || ""}`;
-    onForward({ to: "", subject, body });
+    onForward({
+      to: "",
+      subject,
+      body: "",
+      quotedMeta: `---------- Forwarded message ----------\nFrom: ${message.fromName} <${message.fromEmail}>\nDate: ${format(receivedDate, "MMM d, yyyy 'at' h:mm a")}\nSubject: ${message.subject}\nTo: ${message.toList}`,
+      quotedText: message.bodyText || "",
+    });
   }
 
   return (

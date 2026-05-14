@@ -192,7 +192,9 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           <Pressable onPress={onClose} style={s.headerBtn}>
             <Text style={[s.headerBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
           </Pressable>
-          <Text style={s.headerTitle}>New Message</Text>
+          <Text style={s.headerTitle}>
+            {initialDraft?.subject?.startsWith("Re:") ? "Reply" : initialDraft?.subject?.startsWith("Fwd:") ? "Forward" : "New Message"}
+          </Text>
           <Pressable onPress={handleSend} style={s.sendBtn} disabled={sending}>
             {sending ? (
               <ActivityIndicator size="small" color="#fff" />
@@ -353,6 +355,22 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
               textAlignVertical="top"
             />
           </View>
+
+          {/* Quoted original message */}
+          {(initialDraft?.quotedText || initialDraft?.quotedMeta) && (
+            <View style={[s.quotedBlock, { borderLeftColor: colors.mutedForeground, borderTopColor: colors.border }]}>
+              {initialDraft.quotedMeta && (
+                <Text style={[s.quotedMeta, { color: colors.mutedForeground }]}>
+                  {initialDraft.quotedMeta}
+                </Text>
+              )}
+              {initialDraft.quotedText && (
+                <Text style={[s.quotedBody, { color: colors.mutedForeground }]}>
+                  {initialDraft.quotedText}
+                </Text>
+              )}
+            </View>
+          )}
         </ScrollView>
 
         {/* Formatting / More panel (animated) */}
@@ -619,7 +637,27 @@ function makeStyles(colors: any) {
       fontFamily: "Inter_400Regular",
       lineHeight: 24,
       paddingTop: 12,
-      minHeight: 260,
+      minHeight: 180,
+    },
+    quotedBlock: {
+      marginHorizontal: 16,
+      marginTop: 0,
+      marginBottom: 16,
+      borderTopWidth: StyleSheet.hairlineWidth,
+      paddingTop: 12,
+      borderLeftWidth: 3,
+      paddingLeft: 12,
+    },
+    quotedMeta: {
+      fontSize: 11,
+      fontFamily: "Inter_400Regular",
+      marginBottom: 6,
+      lineHeight: 16,
+    },
+    quotedBody: {
+      fontSize: 13,
+      fontFamily: "Inter_400Regular",
+      lineHeight: 20,
     },
     // Bottom toolbar
     toolbar: {

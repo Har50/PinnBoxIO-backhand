@@ -438,7 +438,7 @@ export default function Inbox() {
         </div>
       ) : activeMessage ? (
         <div className="flex-1 overflow-y-auto">
-          <div className="p-6 md:p-8 max-w-4xl mx-auto">
+          <div className="p-4 md:p-6 w-full">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-foreground tracking-tight leading-tight mb-4">{activeMessage.subject}</h1>
               <div className="flex items-start gap-4">
