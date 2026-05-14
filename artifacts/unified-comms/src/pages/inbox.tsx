@@ -1,7 +1,8 @@
 import { useState, useCallback } from "react";
 import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage, useGetFolderCounts } from "@workspace/api-client-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Inbox as InboxIcon, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw, Paperclip, Star } from "lucide-react";
+import { Mail, Inbox as InboxIcon, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw, Paperclip, Star, Trash2 } from "lucide-react";
 import { format, formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,8 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComposeModal } from "@/components/compose-modal";
 import { PreviewPanel, type PreviewItem } from "@/components/preview-panel";
-
-type MobileView = "messages" | "detail";
+import { apiFetch } from "@/lib/api-client";
+import { useToast } from "@/hooks/use-toast";
 
 type TabKey = "all" | "unread" | "starred" | "sent" | "drafts" | "saved" | "spam" | "trash";
 
@@ -32,16 +33,19 @@ const TABS: { key: TabKey; label: string; folder: string | null; filter?: string
 
 export default function Inbox() {
   const isMobile = useIsMobile();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
   const [selectedAccountId, setSelectedAccountId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [selectedMessageId, setSelectedMessageId] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [mobileView, setMobileView] = useState<MobileView>("messages");
   const [bodyZoom, setBodyZoom] = useState(100);
   const [composeDraft, setComposeDraft] = useState<{ accountId?: string; to?: string; subject?: string; body?: string } | undefined>();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [previewItem, setPreviewItem] = useState<PreviewItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const handleBodyLinkClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest("a");
@@ -90,7 +94,10 @@ export default function Inbox() {
   const handleMessageSelect = (messageId: number) => {
     setSelectedMessageId(messageId);
     setBodyZoom(100);
-    if (isMobile) setMobileView("detail");
+  };
+
+  const handleBackToList = () => {
+    setSelectedMessageId(null);
   };
 
   const openComposeAction = (type: "reply" | "forward") => {
@@ -113,6 +120,25 @@ export default function Inbox() {
     setIsComposeOpen(true);
   };
 
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    setIsDeleting(true);
+    const ids = Array.from(selectedIds);
+    try {
+      await Promise.all(ids.map(id => apiFetch(`/api/messages/${id}`, { method: "DELETE" })));
+      setSelectedIds(new Set());
+      if (selectedMessageId && selectedIds.has(selectedMessageId)) {
+        setSelectedMessageId(null);
+      }
+      queryClient.invalidateQueries({ queryKey: ["/api/messages"] });
+      toast({ title: `${ids.length} message${ids.length > 1 ? "s" : ""} deleted` });
+    } catch {
+      toast({ title: "Failed to delete some messages", variant: "destructive" });
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const filteredMessages = (messagesData?.messages ?? []).filter(msg => {
     if (debouncedSearch && !msg.subject.toLowerCase().includes(debouncedSearch.toLowerCase()) && !msg.fromName.toLowerCase().includes(debouncedSearch.toLowerCase())) return false;
     if (currentTab.filter === "unread") return !msg.isRead;
@@ -132,33 +158,19 @@ export default function Inbox() {
     }
   };
 
-  const toggleSelectOne = (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedIds(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
   const folderCountMap = new Map(
     (folderCounts ?? []).map((fc) => [fc.folder, fc])
   );
   const inboxUnread = folderCountMap.get("Inbox")?.unread ?? 0;
 
-  const messageListPanel = (
+  // ----- Message List -----
+  const messageListView = (
     <div className="flex flex-col h-full min-w-0 bg-background">
       {/* Header */}
       <div className="px-6 pt-5 pb-0 shrink-0">
-        {isMobile && (
-          <Button variant="ghost" size="sm" className="w-fit gap-1 px-1 mb-2 text-muted-foreground" onClick={() => {}}>
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-        )}
         <div className="flex items-center justify-between mb-4">
           <h1 className="text-2xl font-bold text-foreground">Inbox</h1>
           <div className="flex items-center gap-2">
-            {/* Account selector */}
             {!accountsLoading && accounts && accounts.length > 0 && (
               <Select
                 value={selectedAccountId === null ? "all" : String(selectedAccountId)}
@@ -213,8 +225,6 @@ export default function Inbox() {
         <div className="flex items-center gap-1 overflow-x-auto no-scrollbar pb-0">
           {TABS.map(tab => {
             const isActive = activeTab === tab.key;
-            const fc = tab.folder ? folderCountMap.get(tab.folder) : null;
-            const badge = tab.folder === "Inbox" ? inboxUnread : fc?.unread ?? 0;
             return (
               <button
                 key={tab.key}
@@ -226,9 +236,9 @@ export default function Inbox() {
                 }`}
               >
                 {tab.label}
-                {badge > 0 && tab.key === "all" && (
+                {tab.key === "all" && inboxUnread > 0 && (
                   <span className={`ml-1.5 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${isActive ? "bg-primary-foreground/20 text-primary-foreground" : "bg-destructive text-destructive-foreground"}`}>
-                    {badge > 99 ? "99+" : badge}
+                    {inboxUnread > 99 ? "99+" : inboxUnread}
                   </span>
                 )}
               </button>
@@ -236,21 +246,31 @@ export default function Inbox() {
           })}
         </div>
 
-        {/* Divider */}
         <div className="mt-3 border-b border-border/40" />
 
-        {/* Select all row */}
+        {/* Select all / delete bar */}
         <div className="flex items-center gap-3 py-2.5 px-1">
           <Checkbox
             checked={allSelected}
             onCheckedChange={toggleSelectAll}
             className="border-border/60"
             aria-label="Select all messages"
-            data-state={someSelected && !allSelected ? "indeterminate" : undefined}
           />
           <span className="text-sm text-muted-foreground">
             {someSelected ? `${selectedIds.size} selected` : "Select all"}
           </span>
+          {someSelected && (
+            <Button
+              variant="destructive"
+              size="sm"
+              className="ml-2 h-7 px-3 text-xs gap-1.5"
+              onClick={handleDeleteSelected}
+              disabled={isDeleting}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              {isDeleting ? "Deleting…" : `Delete ${selectedIds.size > 1 ? `(${selectedIds.size})` : ""}`}
+            </Button>
+          )}
           <span className="ml-auto text-xs text-muted-foreground">{filteredMessages.length} messages</span>
         </div>
         <div className="border-b border-border/30" />
@@ -290,23 +310,21 @@ export default function Inbox() {
             </div>
           ) : (
             filteredMessages.map(msg => {
-              const isSelected = selectedMessageId === msg.id;
               const isChecked = selectedIds.has(msg.id);
               return (
                 <div
                   key={msg.id}
-                  className={`flex items-start gap-3 px-6 py-4 border-b border-border/20 cursor-pointer group transition-colors ${
-                    isSelected ? "bg-primary/8 border-l-2 border-l-primary" : "hover:bg-muted/30 border-l-2 border-l-transparent"
+                  className={`flex items-start gap-3 px-6 py-4 border-b border-border/20 cursor-pointer group transition-colors border-l-2 ${
+                    isChecked ? "bg-primary/5 border-l-primary" : "hover:bg-muted/30 border-l-transparent"
                   }`}
                   onClick={() => handleMessageSelect(msg.id)}
                 >
                   {/* Checkbox */}
-                  <div className="mt-0.5 flex-shrink-0" onClick={e => toggleSelectOne(msg.id, e)}>
+                  <div className="mt-0.5 flex-shrink-0" onClick={e => e.stopPropagation()}>
                     <Checkbox
                       checked={isChecked}
                       className="border-border/50 data-[state=checked]:bg-primary data-[state=checked]:border-primary"
                       aria-label={`Select message from ${msg.fromName}`}
-                      onClick={e => e.stopPropagation()}
                       onCheckedChange={() => {
                         setSelectedIds(prev => {
                           const next = new Set(prev);
@@ -319,7 +337,6 @@ export default function Inbox() {
 
                   {/* Content */}
                   <div className="flex-1 min-w-0">
-                    {/* Row 1: sender + time */}
                     <div className="flex items-center justify-between gap-2 mb-1">
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className={`text-sm truncate ${!msg.isRead ? "font-bold text-foreground" : "font-semibold text-foreground/80"}`}>
@@ -332,19 +349,15 @@ export default function Inbox() {
                         {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: false }).replace("about ", "")}
                       </span>
                     </div>
-
-                    {/* Row 2: subject */}
                     <div className={`text-sm truncate mb-1 ${!msg.isRead ? "font-semibold text-foreground/90" : "font-medium text-foreground/70"}`}>
                       {msg.subject}
                     </div>
-
-                    {/* Row 3: preview */}
                     <div className="text-xs text-muted-foreground line-clamp-2 leading-relaxed">
                       {msg.bodyText}
                     </div>
                   </div>
 
-                  {/* Star — show on hover or if starred */}
+                  {/* Star */}
                   <button
                     onClick={e => handleToggleStar(msg.id, msg.isStarred, e)}
                     className={`flex-shrink-0 mt-0.5 transition-opacity ${msg.isStarred ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
@@ -360,139 +373,130 @@ export default function Inbox() {
     </div>
   );
 
-  const messageDetailPanel = (
-    <div className="bg-background flex flex-col h-full min-w-0 border-l border-border/40">
-      {isMobile && selectedMessageId && (
-        <div className="h-12 px-3 border-b flex items-center shrink-0">
-          <Button variant="ghost" size="sm" className="gap-1 px-1 text-muted-foreground" onClick={() => setMobileView("messages")}>
-            <ChevronLeft className="h-4 w-4" />
-            Back
-          </Button>
-        </div>
-      )}
-      {!selectedMessageId ? (
-        <div className="flex-1 flex flex-col items-center justify-center text-muted-foreground">
-          <Mail className="h-16 w-16 mb-4 opacity-15" />
-          <p className="font-medium text-sm text-muted-foreground/60">Select a message to read</p>
-        </div>
-      ) : messageLoading ? (
+  // ----- Message Detail -----
+  const messageDetailView = (
+    <div className="flex flex-col h-full bg-background">
+      {/* Back bar */}
+      <div className="h-13 px-4 border-b flex items-center gap-3 shrink-0 bg-background/95 backdrop-blur z-10">
+        <Button variant="ghost" size="sm" className="gap-1.5 px-2 text-muted-foreground hover:text-foreground" onClick={handleBackToList}>
+          <ChevronLeft className="h-4 w-4" />
+          Back
+        </Button>
+        {!messageLoading && activeMessage && (
+          <div className="flex items-center gap-1 ml-auto">
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("reply")}>
+              <Reply className="h-4 w-4" /><span className="hidden sm:inline">Reply</span>
+            </Button>
+            <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("forward")}>
+              <Forward className="h-4 w-4" /><span className="hidden sm:inline">Forward</span>
+            </Button>
+            <Button variant="ghost" size="icon" onClick={e => handleToggleStar(activeMessage.id, activeMessage.isStarred, e)}>
+              <Star className={`h-4 w-4 ${activeMessage.isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
+            </Button>
+            <Button variant="ghost" size="icon" onClick={e => handleToggleRead(activeMessage.id, activeMessage.isRead, e)}>
+              <InboxIcon className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            <div className="hidden md:flex items-center gap-1 rounded-md border bg-background ml-2">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
+              <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(100)}><RotateCcw className="h-3.5 w-3.5" /></Button>
+            </div>
+            <div className="text-xs text-muted-foreground flex items-center gap-1 ml-2">
+              <Clock className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">{format(new Date(activeMessage.receivedAt), "MMM d, yyyy 'at' h:mm a")}</span>
+              <span className="sm:hidden">{format(new Date(activeMessage.receivedAt), "MMM d")}</span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {messageLoading ? (
         <div className="p-8 space-y-6">
           <div className="space-y-2"><Skeleton className="h-8 w-3/4" /><Skeleton className="h-4 w-1/4" /></div>
           <div className="flex gap-4 items-center"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2"><Skeleton className="h-4 w-48" /><Skeleton className="h-3 w-32" /></div></div>
           <div className="space-y-3 pt-6"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /></div>
         </div>
       ) : activeMessage ? (
-        <div className="flex flex-col h-full overflow-hidden">
-          <div className="h-14 px-4 border-b flex items-center justify-between shrink-0 bg-background/95 backdrop-blur z-10 sticky top-0">
-            <div className="flex gap-1">
-              <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("reply")}>
-                <Reply className="h-4 w-4" /><span className="hidden sm:inline">Reply</span>
-              </Button>
-              <Button variant="ghost" size="sm" className="gap-1" onClick={() => openComposeAction("forward")}>
-                <Forward className="h-4 w-4" /><span className="hidden sm:inline">Forward</span>
-              </Button>
-              <Button variant="ghost" size="icon" onClick={e => handleToggleStar(activeMessage.id, activeMessage.isStarred, e)}>
-                <Star className={`h-4 w-4 ${activeMessage.isStarred ? "fill-amber-400 text-amber-400" : "text-muted-foreground"}`} />
-              </Button>
-              <Button variant="ghost" size="icon" onClick={e => handleToggleRead(activeMessage.id, activeMessage.isRead, e)}>
-                <InboxIcon className="h-4 w-4 text-muted-foreground" />
-              </Button>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="hidden md:flex items-center gap-1 rounded-md border bg-background">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
-                <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(100)}><RotateCcw className="h-3.5 w-3.5" /></Button>
-              </div>
-              <div className="text-xs text-muted-foreground flex items-center gap-1">
-                <Clock className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline">{format(new Date(activeMessage.receivedAt), "MMM d, yyyy 'at' h:mm a")}</span>
-                <span className="sm:hidden">{format(new Date(activeMessage.receivedAt), "MMM d")}</span>
-              </div>
-            </div>
-          </div>
-
-          <ScrollArea className="flex-1">
-            <div className="p-6 md:p-8 max-w-4xl mx-auto">
-              <div className="mb-8">
-                <h1 className="text-2xl font-bold text-foreground tracking-tight leading-tight mb-4">{activeMessage.subject}</h1>
-                <div className="flex items-start gap-4">
-                  <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0 border border-primary/20">
-                    {activeMessage.fromName.charAt(0).toUpperCase()}
+        <ScrollArea className="flex-1">
+          <div className="p-6 md:p-8 max-w-4xl mx-auto">
+            <div className="mb-8">
+              <h1 className="text-2xl font-bold text-foreground tracking-tight leading-tight mb-4">{activeMessage.subject}</h1>
+              <div className="flex items-start gap-4">
+                <div className="w-10 h-10 rounded bg-primary/10 flex items-center justify-center text-primary font-bold text-sm shrink-0 border border-primary/20">
+                  {activeMessage.fromName.charAt(0).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-semibold text-base truncate">{activeMessage.fromName}</div>
+                  <div className="text-sm text-muted-foreground truncate">&lt;{activeMessage.fromEmail}&gt;</div>
+                  <div className="text-xs text-muted-foreground mt-1 flex gap-2">
+                    <span className="font-medium text-foreground/60">To:</span><span className="truncate">{activeMessage.toList}</span>
                   </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-base truncate">{activeMessage.fromName}</div>
-                    <div className="text-sm text-muted-foreground truncate">&lt;{activeMessage.fromEmail}&gt;</div>
-                    <div className="text-xs text-muted-foreground mt-1 flex gap-2">
-                      <span className="font-medium text-foreground/60">To:</span><span className="truncate">{activeMessage.toList}</span>
+                  {activeMessage.ccList && (
+                    <div className="text-xs text-muted-foreground flex gap-2 mt-0.5">
+                      <span className="font-medium text-foreground/60">Cc:</span><span className="truncate">{activeMessage.ccList}</span>
                     </div>
-                    {activeMessage.ccList && (
-                      <div className="text-xs text-muted-foreground flex gap-2 mt-0.5">
-                        <span className="font-medium text-foreground/60">Cc:</span><span className="truncate">{activeMessage.ccList}</span>
-                      </div>
-                    )}
-                  </div>
+                  )}
                 </div>
               </div>
+            </div>
 
-              <Separator className="my-6 opacity-50" />
+            <Separator className="my-6 opacity-50" />
 
-              <div className="md:hidden mb-4 flex items-center gap-1 rounded-md border bg-background w-fit">
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
-                <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
-                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
-              </div>
+            <div className="md:hidden mb-4 flex items-center gap-1 rounded-md border bg-background w-fit">
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
+              <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
+              <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
+            </div>
 
-              <div
-                className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary"
-                style={{ fontSize: `${bodyZoom}%` }}
-                onClick={handleBodyLinkClick}
-              >
-                {activeMessage.bodyHtml ? (
-                  <div dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
-                ) : (
-                  <div className="whitespace-pre-wrap font-sans">{activeMessage.bodyText}</div>
-                )}
-              </div>
-
-              {activeMessage.attachments?.length > 0 && (
-                <div className="mt-10 pt-6 border-t border-border/50">
-                  <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
-                    <File className="w-4 h-4 text-muted-foreground" />
-                    Attachments ({activeMessage.attachments.length})
-                  </h3>
-                  <div className="flex flex-wrap gap-3">
-                    {activeMessage.attachments.map(att => (
-                      <div
-                        key={att.id}
-                        className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 hover:border-primary/30 transition-colors max-w-[240px] cursor-pointer group"
-                        onClick={() => setPreviewItem({ kind: "attachment", filename: att.filename, url: att.url ?? "", size: att.size, mimeType: att.mimeType ?? undefined })}
-                      >
-                        <div className="p-2 bg-background rounded border shadow-sm group-hover:border-primary/30 transition-colors">
-                          <File className="w-5 h-5 text-primary" />
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium truncate" title={att.filename}>{att.filename}</div>
-                          <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+            <div
+              className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary"
+              style={{ fontSize: `${bodyZoom}%` }}
+              onClick={handleBodyLinkClick}
+            >
+              {activeMessage.bodyHtml ? (
+                <div dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
+              ) : (
+                <div className="whitespace-pre-wrap font-sans">{activeMessage.bodyText}</div>
               )}
             </div>
-          </ScrollArea>
-        </div>
+
+            {activeMessage.attachments?.length > 0 && (
+              <div className="mt-10 pt-6 border-t border-border/50">
+                <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
+                  <File className="w-4 h-4 text-muted-foreground" />
+                  Attachments ({activeMessage.attachments.length})
+                </h3>
+                <div className="flex flex-wrap gap-3">
+                  {activeMessage.attachments.map(att => (
+                    <div
+                      key={att.id}
+                      className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 hover:border-primary/30 transition-colors max-w-[240px] cursor-pointer group"
+                      onClick={() => setPreviewItem({ kind: "attachment", filename: att.filename, url: att.url ?? "", size: att.size, mimeType: att.mimeType ?? undefined })}
+                    >
+                      <div className="p-2 bg-background rounded border shadow-sm group-hover:border-primary/30 transition-colors">
+                        <File className="w-5 h-5 text-primary" />
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="text-sm font-medium truncate" title={att.filename}>{att.filename}</div>
+                        <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </ScrollArea>
       ) : null}
     </div>
   );
 
-  if (isMobile) {
+  // Mobile and desktop both now use the same drill-down pattern
+  if (selectedMessageId) {
     return (
       <div className="h-full bg-background overflow-hidden">
-        {mobileView === "messages" && messageListPanel}
-        {mobileView === "detail" && messageDetailPanel}
+        {messageDetailView}
         <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
         <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
       </div>
@@ -500,17 +504,8 @@ export default function Inbox() {
   }
 
   return (
-    <div className="h-full flex bg-background overflow-hidden">
-      {/* Message list — fixed width */}
-      <div className="w-[480px] xl:w-[520px] flex-shrink-0 flex flex-col h-full border-r border-border/40">
-        {messageListPanel}
-      </div>
-
-      {/* Message detail — takes remaining space */}
-      <div className="flex-1 flex flex-col h-full overflow-hidden">
-        {messageDetailPanel}
-      </div>
-
+    <div className="h-full bg-background overflow-hidden">
+      {messageListView}
       <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
       <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
     </div>
