@@ -3,7 +3,7 @@ import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage, useGet
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Mail, Inbox as InboxIcon, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw, Paperclip, Star, Trash2 } from "lucide-react";
-import { format, formatDistanceToNow } from "date-fns";
+import { format, isToday, isThisWeek, isThisYear } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,6 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
+function formatEmailDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isToday(date)) return format(date, "h:mm a");
+  if (isThisWeek(date, { weekStartsOn: 1 })) return format(date, "EEE");
+  if (isThisYear(date)) return format(date, "MMM d");
+  return format(date, "MMM d, yyyy");
+}
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ComposeModal } from "@/components/compose-modal";
 import { PreviewPanel, type PreviewItem } from "@/components/preview-panel";
@@ -353,7 +361,7 @@ export default function Inbox() {
                           </span>
                         )}
                         <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: false }).replace("about ", "")}
+                          {formatEmailDate(msg.receivedAt)}
                         </span>
                       </div>
                     </div>

@@ -16,9 +16,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useCallback, useEffect, useRef } from "react";
-import { formatDistanceToNow, format } from "date-fns";
+import { format, isToday, isThisWeek, isThisYear } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
+
+function formatEmailDate(dateStr: string): string {
+  const date = new Date(dateStr);
+  if (isToday(date)) return format(date, "h:mm a");
+  if (isThisWeek(date, { weekStartsOn: 1 })) return format(date, "EEE");
+  if (isThisYear(date)) return format(date, "MMM d");
+  return format(date, "MMM d, yyyy");
+}
 
 const PAGE_SIZE = 20;
 
@@ -156,7 +164,7 @@ function MessageRow({
               </View>
             ) : null}
             <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
-              {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false }).replace("about ", "")}
+              {formatEmailDate(message.receivedAt)}
             </Text>
           </View>
         </View>
