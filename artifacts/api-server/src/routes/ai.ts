@@ -441,8 +441,10 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       .insert(aiMessagesTable)
       .values({ conversationId: id, role: "assistant", content: fullResponse });
 
-    res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
-    res.end();
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ done: true })}\n\n`);
+      res.end();
+    }
 
     // Auto-generate a title after the first message if the conversation still has a generic title
     const isFirstMessage = history.length === 1;
@@ -469,7 +471,12 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
       });
     }
   } catch (err: any) {
-    res.status(500).json({ error: err.message || "AI request failed" });
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: err.message || "AI request failed" })}\n\n`);
+      if (!res.writableEnded) res.end();
+    } else {
+      res.status(500).json({ error: err.message || "AI request failed" });
+    }
   }
 });
 
