@@ -15,7 +15,7 @@
       }
     },
     "production": {
-      "autoIncrement": true,
+      "autoIncrement": false,
       "env": {
         "EXPO_PUBLIC_DOMAIN": "pinnboxio.net",
         "EXPO_PUBLIC_API_DOMAIN": "38defd90-5362-4523-ab8a-d909d0a8000a-00-rdlmxu7tmz57.picard.replit.dev",
