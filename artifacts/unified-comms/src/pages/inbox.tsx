@@ -345,9 +345,17 @@ export default function Inbox() {
                         {msg.hasAttachments && <Paperclip className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />}
                         {!msg.isRead && <span className="w-1.5 h-1.5 rounded-full bg-primary flex-shrink-0" />}
                       </div>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap flex-shrink-0">
-                        {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: false }).replace("about ", "")}
-                      </span>
+                      <div className="flex items-center gap-2 flex-shrink-0">
+                        {msg.accountName && (
+                          <span className="flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full border border-border/40 text-muted-foreground bg-muted/30">
+                            <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: msg.accountColor || "#888" }} />
+                            {msg.accountName}
+                          </span>
+                        )}
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {formatDistanceToNow(new Date(msg.receivedAt), { addSuffix: false }).replace("about ", "")}
+                        </span>
+                      </div>
                     </div>
                     <div className={`text-sm truncate mb-1 ${!msg.isRead ? "font-semibold text-foreground/90" : "font-medium text-foreground/70"}`}>
                       {msg.subject}
