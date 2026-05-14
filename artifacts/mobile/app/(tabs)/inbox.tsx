@@ -201,27 +201,13 @@ function MessageDetail({
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [bodyScale, setBodyScale] = useState(1);
 
-  if (isLoading) {
-    return (
-      <View style={[styles.detailContainer, { backgroundColor: colors.background, paddingTop: topPad + 8 }]}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={colors.primary} />
-          <Text style={[styles.backText, { color: colors.primary }]}>Inbox</Text>
-        </Pressable>
-        <View style={styles.loadingCenter}><ActivityIndicator color={colors.primary} size="large" /></View>
-      </View>
-    );
-  }
-
-  if (!message) return null;
+  const receivedDate = isLoading ? new Date() : message ? new Date(message.receivedAt) : new Date();
 
   function toggleStar() {
     if (!message) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     updateMessage.mutate({ id: message.id, data: { isStarred: !message.isStarred } });
   }
-
-  const receivedDate = new Date(message.receivedAt);
 
   function handleReply() {
     if (!message) return;
@@ -240,109 +226,121 @@ function MessageDetail({
   }
 
   return (
-    <ScrollView
-      style={[styles.detailContainer, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPad + 8, paddingBottom: 100, paddingHorizontal: 20 }}
-      showsVerticalScrollIndicator={false}
-    >
-      <View style={styles.detailHeader}>
-        <Pressable onPress={onBack} style={styles.backButton}>
-          <Feather name="arrow-left" size={20} color={colors.primary} />
-          <Text style={[styles.backText, { color: colors.primary }]}>Inbox</Text>
-        </Pressable>
-        <Pressable onPress={toggleStar} style={styles.starButton}>
-          <Ionicons name={message.isStarred ? "star" : "star-outline"} size={22} color={message.isStarred ? "#f59e0b" : colors.mutedForeground} />
-        </Pressable>
-      </View>
-
-      <View style={styles.actionRow}>
-        <Pressable onPress={handleReply} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="corner-up-left" size={14} color={colors.primary} />
-          <Text style={[styles.actionText, { color: colors.primary }]}>Reply</Text>
-        </Pressable>
-        <Pressable onPress={handleForward} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="corner-up-right" size={14} color={colors.primary} />
-          <Text style={[styles.actionText, { color: colors.primary }]}>Forward</Text>
-        </Pressable>
-        <Pressable onPress={() => setBodyScale((v) => Math.max(0.8, Number((v - 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="zoom-out" size={15} color={colors.foreground} />
-        </Pressable>
-        <Pressable onPress={() => setBodyScale((v) => Math.min(1.6, Number((v + 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Feather name="zoom-in" size={15} color={colors.foreground} />
-        </Pressable>
-      </View>
-
-      <Text style={[styles.detailSubject, { color: colors.foreground }]}>{message.subject}</Text>
-
-      <View style={[styles.senderBlock, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <View style={[styles.senderBlockAvatar, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.senderAvatarText, { color: colors.primary, fontSize: 16 }]}>
-            {message.fromName.substring(0, 2).toUpperCase()}
-          </Text>
-        </View>
-        <View style={styles.senderBlockInfo}>
-          <Text style={[styles.senderBlockName, { color: colors.foreground }]}>{message.fromName}</Text>
-          <Text style={[styles.senderBlockEmail, { color: colors.mutedForeground }]}>{message.fromEmail}</Text>
-          <Text style={[styles.senderBlockDate, { color: colors.mutedForeground }]}>{format(receivedDate, "MMM d, yyyy 'at' h:mm a")}</Text>
-        </View>
-      </View>
-
-      <View style={[styles.metaRow, { borderColor: colors.border }]}>
-        <View style={styles.metaItem}>
-          <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>To</Text>
-          <Text style={[styles.metaValue, { color: colors.foreground }]} numberOfLines={2}>{message.toList}</Text>
-        </View>
-        {message.ccList && (
-          <View style={styles.metaItem}>
-            <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>CC</Text>
-            <Text style={[styles.metaValue, { color: colors.foreground }]} numberOfLines={2}>{message.ccList}</Text>
-          </View>
-        )}
-        <View style={styles.metaItem}>
-          <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Account</Text>
-          <View style={[styles.accountBadge, { backgroundColor: message.accountColor + "20" }]}>
-            <Text style={[styles.accountBadgeText, { color: message.accountColor }]}>{message.accountName}</Text>
+    <View style={[styles.detailContainer, { backgroundColor: colors.background }]}>
+      {/* Sticky toolbar — always visible at the top */}
+      <View style={[styles.detailToolbar, { paddingTop: topPad + 4, backgroundColor: colors.background, borderBottomColor: colors.border }]}>
+        <View style={styles.detailToolbarRow}>
+          <Pressable onPress={onBack} style={styles.backButton}>
+            <Feather name="arrow-left" size={20} color={colors.primary} />
+            <Text style={[styles.backText, { color: colors.primary }]}>Inbox</Text>
+          </Pressable>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+            {message && (
+              <>
+                <Pressable onPress={handleReply} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="corner-up-left" size={13} color={colors.primary} />
+                  <Text style={[styles.actionText, { color: colors.primary }]}>Reply</Text>
+                </Pressable>
+                <Pressable onPress={handleForward} style={[styles.actionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="corner-up-right" size={13} color={colors.primary} />
+                  <Text style={[styles.actionText, { color: colors.primary }]}>Fwd</Text>
+                </Pressable>
+                <Pressable onPress={() => setBodyScale((v) => Math.max(0.8, Number((v - 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="zoom-out" size={14} color={colors.foreground} />
+                </Pressable>
+                <Pressable onPress={() => setBodyScale((v) => Math.min(1.6, Number((v + 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="zoom-in" size={14} color={colors.foreground} />
+                </Pressable>
+                <Pressable onPress={toggleStar} style={styles.starButton}>
+                  <Ionicons name={message.isStarred ? "star" : "star-outline"} size={20} color={message.isStarred ? "#f59e0b" : colors.mutedForeground} />
+                </Pressable>
+              </>
+            )}
           </View>
         </View>
       </View>
 
-      <View style={[styles.bodyContainer, { borderTopColor: colors.border }]}>
-        <Text style={[styles.bodyText, { color: colors.foreground, fontSize: 15 * bodyScale, lineHeight: 24 * bodyScale }]}>
-          {message.bodyText || "No message content."}
-        </Text>
-      </View>
-
-      {/* Gmail-style reply/forward buttons at the bottom */}
-      <View style={[styles.replyForwardRow, { borderTopColor: colors.border }]}>
-        <Pressable
-          onPress={handleReply}
-          style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
+      {isLoading ? (
+        <View style={styles.loadingCenter}><ActivityIndicator color={colors.primary} size="large" /></View>
+      ) : !message ? null : (
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: 100, paddingHorizontal: 20, paddingTop: 16 }}
+          showsVerticalScrollIndicator={true}
         >
-          <Feather name="corner-up-left" size={15} color={colors.foreground} />
-          <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Reply</Text>
-        </Pressable>
-        <Pressable
-          onPress={handleForward}
-          style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
-        >
-          <Feather name="corner-up-right" size={15} color={colors.foreground} />
-          <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Forward</Text>
-        </Pressable>
-      </View>
+          <Text style={[styles.detailSubject, { color: colors.foreground }]}>{message.subject}</Text>
 
-      {message.hasAttachments && message.attachments && message.attachments.length > 0 && (
-        <View style={[styles.attachmentsSection, { borderTopColor: colors.border }]}>
-          <Text style={[styles.attachmentsTitle, { color: colors.mutedForeground }]}>Attachments ({message.attachments.length})</Text>
-          {message.attachments.map((att) => (
-            <View key={att.id} style={[styles.attachmentRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-              <Feather name="paperclip" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.attachmentName, { color: colors.foreground }]} numberOfLines={1}>{att.filename}</Text>
-              <Text style={[styles.attachmentSize, { color: colors.mutedForeground }]}>{(att.size / 1024).toFixed(0)} KB</Text>
+          <View style={[styles.senderBlock, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.senderBlockAvatar, { backgroundColor: colors.accent }]}>
+              <Text style={[styles.senderAvatarText, { color: colors.primary, fontSize: 16 }]}>
+                {message.fromName.substring(0, 2).toUpperCase()}
+              </Text>
             </View>
-          ))}
-        </View>
+            <View style={styles.senderBlockInfo}>
+              <Text style={[styles.senderBlockName, { color: colors.foreground }]}>{message.fromName}</Text>
+              <Text style={[styles.senderBlockEmail, { color: colors.mutedForeground }]}>{message.fromEmail}</Text>
+              <Text style={[styles.senderBlockDate, { color: colors.mutedForeground }]}>{format(receivedDate, "MMM d, yyyy 'at' h:mm a")}</Text>
+            </View>
+          </View>
+
+          <View style={[styles.metaRow, { borderColor: colors.border }]}>
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>To</Text>
+              <Text style={[styles.metaValue, { color: colors.foreground }]} numberOfLines={2}>{message.toList}</Text>
+            </View>
+            {message.ccList && (
+              <View style={styles.metaItem}>
+                <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>CC</Text>
+                <Text style={[styles.metaValue, { color: colors.foreground }]} numberOfLines={2}>{message.ccList}</Text>
+              </View>
+            )}
+            <View style={styles.metaItem}>
+              <Text style={[styles.metaLabel, { color: colors.mutedForeground }]}>Account</Text>
+              <View style={[styles.accountBadge, { backgroundColor: message.accountColor + "20" }]}>
+                <Text style={[styles.accountBadgeText, { color: message.accountColor }]}>{message.accountName}</Text>
+              </View>
+            </View>
+          </View>
+
+          <View style={[styles.bodyContainer, { borderTopColor: colors.border }]}>
+            <Text style={[styles.bodyText, { color: colors.foreground, fontSize: 15 * bodyScale, lineHeight: 24 * bodyScale }]}>
+              {message.bodyText || "No message content."}
+            </Text>
+          </View>
+
+          {/* Gmail-style reply/forward buttons at the bottom */}
+          <View style={[styles.replyForwardRow, { borderTopColor: colors.border }]}>
+            <Pressable
+              onPress={handleReply}
+              style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
+            >
+              <Feather name="corner-up-left" size={15} color={colors.foreground} />
+              <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Reply</Text>
+            </Pressable>
+            <Pressable
+              onPress={handleForward}
+              style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
+            >
+              <Feather name="corner-up-right" size={15} color={colors.foreground} />
+              <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Forward</Text>
+            </Pressable>
+          </View>
+
+          {message.hasAttachments && message.attachments && message.attachments.length > 0 && (
+            <View style={[styles.attachmentsSection, { borderTopColor: colors.border }]}>
+              <Text style={[styles.attachmentsTitle, { color: colors.mutedForeground }]}>Attachments ({message.attachments.length})</Text>
+              {message.attachments.map((att) => (
+                <View key={att.id} style={[styles.attachmentRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                  <Feather name="paperclip" size={14} color={colors.mutedForeground} />
+                  <Text style={[styles.attachmentName, { color: colors.foreground }]} numberOfLines={1}>{att.filename}</Text>
+                  <Text style={[styles.attachmentSize, { color: colors.mutedForeground }]}>{(att.size / 1024).toFixed(0)} KB</Text>
+                </View>
+              ))}
+            </View>
+          )}
+        </ScrollView>
       )}
-    </ScrollView>
+    </View>
   );
 }
 
@@ -711,6 +709,18 @@ const styles = StyleSheet.create({
   accountBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexShrink: 0 },
   accountBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   detailContainer: { flex: 1 },
+  detailToolbar: {
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  detailToolbarRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    flexWrap: "wrap",
+    gap: 6,
+  },
   detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 16 },
   backButton: { flexDirection: "row", alignItems: "center", gap: 6, paddingVertical: 4 },
   backText: { fontSize: 16, fontFamily: "Inter_500Medium" },
