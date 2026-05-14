@@ -146,9 +146,19 @@ function MessageRow({
               <Feather name="paperclip" size={12} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
             )}
           </View>
-          <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
-            {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false }).replace("about ", "")}
-          </Text>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 0 }}>
+            {message.accountName ? (
+              <View style={[styles.accountBadge, { backgroundColor: (message.accountColor || "#888") + "22", flexDirection: "row", alignItems: "center", gap: 3 }]}>
+                <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: message.accountColor || "#888" }} />
+                <Text style={[styles.accountBadgeText, { color: message.accountColor || colors.mutedForeground }]}>
+                  {message.accountName}
+                </Text>
+              </View>
+            ) : null}
+            <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
+              {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false }).replace("about ", "")}
+            </Text>
+          </View>
         </View>
 
         <Text
