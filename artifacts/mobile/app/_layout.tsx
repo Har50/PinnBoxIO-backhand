@@ -5,7 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
-import { ClerkProvider, ClerkLoaded, useAuth } from "@clerk/expo";
+import { ClerkProvider, ClerkLoaded, ClerkLoading, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Redirect, Stack, usePathname } from "expo-router";
@@ -219,7 +219,13 @@ export default function RootLayout() {
     }
   }, [fontsLoaded, fontError]);
 
-  if (!fontsLoaded && !fontError) return null;
+  if (!fontsLoaded && !fontError) {
+    return (
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
+      </View>
+    );
+  }
 
   if (!publishableKey) {
     return (
@@ -241,6 +247,11 @@ export default function RootLayout() {
         tokenCache={tokenCache}
         {...(proxyUrl ? { proxyUrl } : {})}
       >
+        <ClerkLoading>
+          <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
+            <ActivityIndicator size="large" color="#3b82f6" />
+          </View>
+        </ClerkLoading>
         <ClerkLoaded>
           <ErrorBoundary label="RootErrorBoundary">
             <QueryClientProvider client={queryClient}>
