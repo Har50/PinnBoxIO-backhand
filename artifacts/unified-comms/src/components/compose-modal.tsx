@@ -182,7 +182,9 @@ export function ComposeModal({
       <DialogContent className="sm:max-w-[680px] p-0 overflow-hidden border-0 shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
         <div className="bg-muted/30 px-6 py-4 border-b flex items-center justify-between shrink-0">
-          <DialogTitle className="text-lg font-semibold">New Message</DialogTitle>
+          <DialogTitle className="text-lg font-semibold">
+            {initialDraft?.subject?.startsWith("Re:") ? "Reply" : initialDraft?.subject?.startsWith("Fwd:") ? "Forward" : "New Message"}
+          </DialogTitle>
         </div>
 
         <Form {...form}>

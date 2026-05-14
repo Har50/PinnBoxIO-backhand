@@ -115,10 +115,13 @@ export default function Inbox() {
     const subject = activeMessage.subject.startsWith(subjectPrefix)
       ? activeMessage.subject
       : `${subjectPrefix} ${activeMessage.subject}`;
-    const body =
-      type === "reply"
-        ? `\n\nOn ${received}, ${activeMessage.fromName} wrote:\n${activeMessage.bodyText || ""}`
-        : `\n\nForwarded message\nFrom: ${activeMessage.fromName} <${activeMessage.fromEmail}>\nDate: ${received}\nSubject: ${activeMessage.subject}\nTo: ${activeMessage.toList}\n\n${activeMessage.bodyText || ""}`;
+    const originalHtml = activeMessage.bodyHtml
+      || (activeMessage.bodyText || "").replace(/\n/g, "<br>");
+    const quoteStyle = "border-left:3px solid #94a3b8;padding-left:12px;margin-top:12px;color:#64748b;font-size:13px";
+    const metaStyle = "font-size:12px;margin-bottom:6px;color:#94a3b8";
+    const body = type === "reply"
+      ? `<br><br><div style="${quoteStyle}"><div style="${metaStyle}">On ${received}, <b>${activeMessage.fromName}</b> &lt;${activeMessage.fromEmail}&gt; wrote:</div>${originalHtml}</div>`
+      : `<br><br><div style="border-top:1px solid #e2e8f0;margin-top:16px;padding-top:12px;color:#64748b;font-size:13px"><div style="${metaStyle}">---------- Forwarded message ----------<br>From: <b>${activeMessage.fromName}</b> &lt;${activeMessage.fromEmail}&gt;<br>Date: ${received}<br>Subject: ${activeMessage.subject}<br>To: ${activeMessage.toList}</div>${originalHtml}</div>`;
     setComposeDraft({
       accountId: String(activeMessage.accountId),
       to: type === "reply" ? activeMessage.fromEmail : "",

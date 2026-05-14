@@ -23,6 +23,8 @@ export interface ComposeDraft {
   to?: string;
   subject?: string;
   body?: string;
+  quotedText?: string;
+  quotedMeta?: string;
   accountId?: number;
 }
 
