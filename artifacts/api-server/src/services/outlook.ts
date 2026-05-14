@@ -103,6 +103,16 @@ function stripHtml(value?: string) {
     .replace(/<style[\s\S]*?<\/style>/gi, " ")
     .replace(/<script[\s\S]*?<\/script>/gi, " ")
     .replace(/<[^>]+>/g, " ")
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&#8203;/g, "")
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(parseInt(code, 10)))
+    .replace(/&[a-z]+;/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -249,6 +259,21 @@ export async function getOutlookMessage(_userId: string, virtualId: number) {
     return toMessageResponse(message, profile);
   } catch {
     return null;
+  }
+}
+
+export async function deleteOutlookMessage(_userId: string, virtualId: number): Promise<boolean> {
+  const outlookId = outlookIdsByVirtualId.get(virtualId);
+  if (!outlookId) return false;
+  try {
+    const res = await outlookFetch(`/v1.0/me/messages/${encodeURIComponent(outlookId)}/move`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ destinationId: "deleteditems" }),
+    });
+    return res.ok;
+  } catch {
+    return false;
   }
 }
 

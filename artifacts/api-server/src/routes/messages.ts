@@ -1,8 +1,8 @@
 import { Router, type IRouter } from "express";
 import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
 import { db, accountsTable, messagesTable, attachmentsTable, imapCredentialsTable } from "@workspace/db";
-import { getGmailMessage, listGmailMessages, sendGmailMessage } from "../services/gmail";
-import { getOutlookMessage, listOutlookMessages, sendOutlookMessage } from "../services/outlook";
+import { getGmailMessage, listGmailMessages, sendGmailMessage, deleteGmailMessage } from "../services/gmail";
+import { getOutlookMessage, listOutlookMessages, sendOutlookMessage, deleteOutlookMessage } from "../services/outlook";
 import { listImapMessages, getImapMessage, isImapVirtualAccountId, isImapVirtualMsgId, credentialIdFromVirtualAccountId } from "../services/imap";
 import {
   CreateMessageBody,
@@ -315,7 +315,27 @@ router.delete("/messages/:id", async (req: any, res): Promise<void> => {
     return;
   }
 
-  const [deleted] = await db.delete(messagesTable).where(eq(messagesTable.id, params.data.id)).returning();
+  const { id } = params.data;
+  const userId = req.userId as string;
+
+  if (id < 0) {
+    if (isImapVirtualMsgId(id)) {
+      res.status(400).json({ error: "IMAP messages cannot be deleted via this endpoint" });
+      return;
+    }
+    const [gmailOk, outlookOk] = await Promise.all([
+      deleteGmailMessage(userId, id).catch(() => false),
+      deleteOutlookMessage(userId, id).catch(() => false),
+    ]);
+    if (gmailOk || outlookOk) {
+      res.sendStatus(204);
+    } else {
+      res.status(404).json({ error: "Message not found or could not be deleted" });
+    }
+    return;
+  }
+
+  const [deleted] = await db.delete(messagesTable).where(eq(messagesTable.id, id)).returning();
   if (!deleted) {
     res.status(404).json({ error: "Message not found" });
     return;

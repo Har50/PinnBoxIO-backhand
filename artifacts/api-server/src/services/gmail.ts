@@ -69,6 +69,20 @@ function decodeBase64Url(value?: string) {
   return Buffer.from(padded, "base64").toString("utf8");
 }
 
+function decodeHtmlEntities(text: string): string {
+  return text
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&#160;/g, " ")
+    .replace(/&#8203;/g, "")
+    .replace(/&#(\d+);/g, (_m, code) => String.fromCodePoint(parseInt(code, 10)))
+    .replace(/&[a-z]+;/gi, " ");
+}
+
 async function gmailFetch(accessToken: string, path: string) {
   return fetch(`https://gmail.googleapis.com${path}`, {
     headers: { Authorization: `Bearer ${accessToken}` },
@@ -120,7 +134,7 @@ function folderFromLabels(labels: string[] | undefined, requestedFolder?: string
 function toMessageResponse(message: GmailMessage, profile: GmailProfile | null, requestedFolder?: string | null) {
   const from = parseAddress(getHeader(message, "From"));
   const receivedAt = message.internalDate ? new Date(Number(message.internalDate)) : new Date();
-  const bodyText = findBodyPart(message.payload, "text/plain") || message.snippet || "";
+  const bodyText = decodeHtmlEntities(findBodyPart(message.payload, "text/plain") || message.snippet || "");
   const bodyHtml = findBodyPart(message.payload, "text/html") || null;
 
   return {
@@ -254,6 +268,22 @@ export async function getGmailMessage(userId: string, virtualId: number) {
 
   const message = (await response.json()) as GmailMessage;
   return toMessageResponse(message, profile);
+}
+
+export async function deleteGmailMessage(userId: string, virtualId: number): Promise<boolean> {
+  const gmailId = gmailIdsByVirtualId.get(virtualId);
+  if (!gmailId) return false;
+  const accessToken = await getValidGmailToken(userId);
+  if (!accessToken) return false;
+  try {
+    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}/trash`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 export async function listGmailMessageSenders(userId: string, limit = 25): Promise<Array<{ name: string; email: string }>> {
