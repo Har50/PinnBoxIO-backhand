@@ -36,7 +36,13 @@ if (process.env.EXPO_PUBLIC_DOMAIN) {
   setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
 }
 
-SplashScreen.preventAutoHideAsync();
+SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Force-hide splash after 4 seconds so a slow/failed font download never
+// leaves the user staring at a blank white screen.
+setTimeout(() => {
+  SplashScreen.hideAsync().catch(() => {});
+}, 4000);
 
 const queryClient = new QueryClient({
   defaultOptions: {
