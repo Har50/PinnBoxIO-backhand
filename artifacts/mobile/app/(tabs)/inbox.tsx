@@ -1,7 +1,18 @@
 import { useGetMessages, useGetMessage, useUpdateMessage, useGetAccounts } from "@workspace/api-client-react";
 import { useColors } from "@/hooks/useColors";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { ActivityIndicator, FlatList, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from "react-native";
+import {
+  ActivityIndicator,
+  FlatList,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { formatDistanceToNow, format } from "date-fns";
@@ -10,8 +21,18 @@ import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 
 const PAGE_SIZE = 20;
 
-const FOLDERS = ["All", "Inbox", "Sent", "Drafts", "Archive", "Trash", "Spam"] as const;
-type Folder = (typeof FOLDERS)[number];
+type TabKey = "all" | "unread" | "starred" | "sent" | "drafts" | "saved" | "spam" | "trash";
+
+const TABS: { key: TabKey; label: string; folder?: string; filter?: string }[] = [
+  { key: "all",     label: "All Mail" },
+  { key: "unread",  label: "Unread",  filter: "unread" },
+  { key: "starred", label: "Starred", filter: "starred" },
+  { key: "sent",    label: "Sent",    folder: "Sent" },
+  { key: "drafts",  label: "Drafts",  folder: "Drafts" },
+  { key: "saved",   label: "Saved",   folder: "Archive" },
+  { key: "spam",    label: "Spam",    folder: "Spam" },
+  { key: "trash",   label: "Trash",   folder: "Trash" },
+];
 
 type Message = {
   id: number;
@@ -40,38 +61,64 @@ function MessageRow({ message, onPress }: { message: Message; onPress: () => voi
       onPress={onPress}
       style={({ pressed }) => [
         styles.messageRow,
-        { borderBottomColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background },
-        !message.isRead && { borderLeftWidth: 3, borderLeftColor: colors.primary },
+        {
+          borderBottomColor: colors.border,
+          backgroundColor: pressed ? colors.muted : colors.background,
+          borderLeftColor: !message.isRead ? colors.primary : "transparent",
+        },
       ]}
     >
-      <View style={styles.messageLeft}>
-        <View style={[styles.senderAvatar, { backgroundColor: colors.accent }]}>
-          <Text style={[styles.senderAvatarText, { color: colors.primary }]}>
-            {message.fromName.substring(0, 2).toUpperCase()}
-          </Text>
-        </View>
+      {/* Unread dot */}
+      <View style={styles.unreadDotCol}>
+        {!message.isRead && (
+          <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+        )}
       </View>
+
+      {/* Content */}
       <View style={styles.messageContent}>
+        {/* Row 1: sender + time */}
         <View style={styles.messageTopRow}>
-          <Text style={[styles.senderName, { color: colors.foreground, fontFamily: message.isRead ? "Inter_400Regular" : "Inter_600SemiBold" }]} numberOfLines={1}>
-            {message.fromName}
-          </Text>
+          <View style={styles.senderRow}>
+            <Text
+              style={[
+                styles.senderName,
+                { color: colors.foreground, fontFamily: message.isRead ? "Inter_500Medium" : "Inter_700Bold" },
+              ]}
+              numberOfLines={1}
+            >
+              {message.fromName}
+            </Text>
+            {message.hasAttachments && (
+              <Feather name="paperclip" size={12} color={colors.mutedForeground} style={{ marginLeft: 4 }} />
+            )}
+          </View>
           <Text style={[styles.messageTime, { color: colors.mutedForeground }]}>
-            {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false })}
+            {formatDistanceToNow(new Date(message.receivedAt), { addSuffix: false }).replace("about ", "")}
           </Text>
         </View>
-        <Text style={[styles.messageSubject, { color: colors.foreground, fontFamily: message.isRead ? "Inter_400Regular" : "Inter_500Medium" }]} numberOfLines={1}>
+
+        {/* Row 2: subject */}
+        <Text
+          style={[
+            styles.messageSubject,
+            { color: colors.foreground, fontFamily: message.isRead ? "Inter_400Regular" : "Inter_600SemiBold" },
+          ]}
+          numberOfLines={1}
+        >
           {message.subject}
         </Text>
-        <View style={styles.messageBottomRow}>
-          <Text style={[styles.messagePreview, { color: colors.mutedForeground }]} numberOfLines={1}>
-            {message.bodyText || "No preview available"}
-          </Text>
-          <View style={[styles.accountBadge, { backgroundColor: message.accountColor + "20" }]}>
-            <Text style={[styles.accountBadgeText, { color: message.accountColor }]}>{message.accountName}</Text>
-          </View>
-        </View>
+
+        {/* Row 3: preview */}
+        <Text style={[styles.messagePreview, { color: colors.mutedForeground }]} numberOfLines={2}>
+          {message.bodyText || "No preview available"}
+        </Text>
       </View>
+
+      {/* Star */}
+      {message.isStarred && (
+        <Ionicons name="star" size={14} color="#f59e0b" style={{ marginTop: 2, flexShrink: 0 }} />
+      )}
     </Pressable>
   );
 }
@@ -226,8 +273,9 @@ export default function InboxScreen() {
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const [activeFolder, setActiveFolder] = useState<Folder>("All");
+  const [activeTab, setActiveTab] = useState<TabKey>("all");
   const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
   const [offset, setOffset] = useState(0);
   const [allMessages, setAllMessages] = useState<Message[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -236,15 +284,18 @@ export default function InboxScreen() {
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
 
-  const folderParam = activeFolder === "All" ? undefined : activeFolder;
+  const currentTab = TABS.find(t => t.key === activeTab)!;
+  const folderParam = currentTab.folder;
+
   const { data, isLoading, isFetching, refetch } = useGetMessages({ limit: PAGE_SIZE, offset, folder: folderParam } as any);
   const { data: accounts, isLoading: accountsLoading } = useGetAccounts();
   const noAccountsConnected = !accountsLoading && (!accounts || accounts.length === 0);
+  const updateMessage = useUpdateMessage();
 
   useEffect(() => {
     setOffset(0);
     setAllMessages([]);
-  }, [activeFolder]);
+  }, [activeTab]);
 
   useEffect(() => {
     if (!data?.messages) return;
@@ -259,9 +310,18 @@ export default function InboxScreen() {
     }
   }, [data]);
 
+  const filteredMessages = allMessages.filter(msg => {
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase();
+      if (!msg.subject.toLowerCase().includes(q) && !msg.fromName.toLowerCase().includes(q)) return false;
+    }
+    if (currentTab.filter === "unread") return !msg.isRead;
+    if (currentTab.filter === "starred") return msg.isStarred;
+    return true;
+  });
+
   const total = data?.total ?? 0;
   const hasMore = allMessages.length < total;
-  const updateMessage = useUpdateMessage();
 
   const handlePressMessage = useCallback((msg: Message) => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -301,7 +361,8 @@ export default function InboxScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <View style={[styles.listHeader, { paddingTop: topPad + 12 }]}>
+      {/* Header */}
+      <View style={[styles.listHeader, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
         <Text style={[styles.screenTitle, { color: colors.foreground }]}>Inbox</Text>
         <Pressable onPress={() => openCompose()} style={[styles.composeBtn, { backgroundColor: colors.primary }]}>
           <Feather name="edit-2" size={15} color="#fff" />
@@ -309,38 +370,62 @@ export default function InboxScreen() {
         </Pressable>
       </View>
 
-      <View style={[styles.folderTabsWrapper, { borderBottomColor: colors.border }]}>
+      {/* Search */}
+      <View style={[styles.searchWrapper, { backgroundColor: colors.background }]}>
+        <View style={[styles.searchBar, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+          <Feather name="search" size={15} color={colors.mutedForeground} />
+          <TextInput
+            style={[styles.searchInput, { color: colors.foreground }]}
+            placeholder="Search emails..."
+            placeholderTextColor={colors.mutedForeground}
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            returnKeyType="search"
+            clearButtonMode="while-editing"
+          />
+        </View>
+      </View>
+
+      {/* Tabs — pill style */}
+      <View style={[styles.tabsWrapper, { backgroundColor: colors.background }]}>
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.folderTabsContent}
-          style={styles.folderTabs}
+          contentContainerStyle={styles.tabsContent}
         >
-          {FOLDERS.map((folder) => (
-            <Pressable
-              key={folder}
-              onPress={() => setActiveFolder(folder)}
-              style={[styles.folderTab, activeFolder === folder && { borderBottomColor: colors.primary }]}
-            >
-              <Text style={[
-                styles.folderTabText,
-                { color: activeFolder === folder ? colors.primary : colors.mutedForeground },
-                activeFolder === folder && { fontFamily: "Inter_600SemiBold" },
-              ]}>
-                {folder}
-              </Text>
-            </Pressable>
-          ))}
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <Pressable
+                key={tab.key}
+                onPress={() => { setActiveTab(tab.key); setSearchQuery(""); }}
+                style={[
+                  styles.tabPill,
+                  isActive
+                    ? { backgroundColor: colors.primary }
+                    : { backgroundColor: colors.muted },
+                ]}
+              >
+                <Text style={[
+                  styles.tabPillText,
+                  { color: isActive ? "#ffffff" : colors.mutedForeground },
+                  isActive && { fontFamily: "Inter_600SemiBold" },
+                ]}>
+                  {tab.label}
+                </Text>
+              </Pressable>
+            );
+          })}
         </ScrollView>
-        <View
-          style={[styles.folderTabsFade, { backgroundColor: colors.background }]}
-          pointerEvents="none"
-        />
       </View>
 
+      {/* Divider */}
+      <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {/* Message list */}
       {isLoading && allMessages.length === 0 ? (
         <View style={styles.loadingCenter}><ActivityIndicator color={colors.primary} size="large" /></View>
-      ) : allMessages.length === 0 ? (
+      ) : filteredMessages.length === 0 ? (
         <View style={styles.emptyState}>
           <Feather name="inbox" size={48} color={colors.mutedForeground} />
           {noAccountsConnected ? (
@@ -351,13 +436,13 @@ export default function InboxScreen() {
           ) : (
             <>
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>All caught up</Text>
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No messages in {activeFolder === "All" ? "your inbox" : activeFolder}</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>No messages found.</Text>
             </>
           )}
         </View>
       ) : (
         <FlatList
-          data={allMessages}
+          data={filteredMessages}
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => <MessageRow message={item} onPress={() => handlePressMessage(item)} />}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
@@ -394,37 +479,50 @@ const styles = StyleSheet.create({
   screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
   composeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   composeBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
-  folderTabsWrapper: { borderBottomWidth: StyleSheet.hairlineWidth, position: "relative" },
-  folderTabs: {},
-  folderTabsContent: { paddingLeft: 12, paddingRight: 40, flexDirection: "row" },
-  folderTab: { paddingHorizontal: 12, paddingVertical: 12, borderBottomWidth: 2.5, borderBottomColor: "transparent" },
-  folderTabText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  folderTabsFade: {
-    position: "absolute",
-    right: 0,
-    top: 0,
-    bottom: 0,
-    width: 36,
-    opacity: 0.92,
+  searchWrapper: { paddingHorizontal: 16, paddingBottom: 10 },
+  searchBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+    paddingHorizontal: 12,
+    paddingVertical: 9,
   },
+  searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", padding: 0 },
+  tabsWrapper: { paddingBottom: 10 },
+  tabsContent: { paddingHorizontal: 16, gap: 6, flexDirection: "row" },
+  tabPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+  },
+  tabPillText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  divider: { height: StyleSheet.hairlineWidth, marginBottom: 0 },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
-  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular" },
+  emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", paddingHorizontal: 32 },
   footerLoader: { paddingVertical: 16, alignItems: "center" },
   loadMoreButton: { paddingVertical: 14, alignItems: "center" },
   loadMoreText: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  messageRow: { flexDirection: "row", paddingVertical: 14, paddingRight: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  messageLeft: { width: 64, alignItems: "center", justifyContent: "flex-start", paddingTop: 2 },
-  senderAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: "center", justifyContent: "center" },
-  senderAvatarText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
+  messageRow: {
+    flexDirection: "row",
+    paddingVertical: 14,
+    paddingRight: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderLeftWidth: 3,
+    alignItems: "flex-start",
+  },
+  unreadDotCol: { width: 20, alignItems: "center", paddingTop: 5 },
+  unreadDot: { width: 7, height: 7, borderRadius: 4 },
   messageContent: { flex: 1, gap: 3 },
   messageTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
-  senderName: { flex: 1, fontSize: 14 },
+  senderRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 },
+  senderName: { fontSize: 14, flexShrink: 1 },
   messageTime: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
   messageSubject: { fontSize: 13 },
-  messageBottomRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 8 },
-  messagePreview: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
+  messagePreview: { fontSize: 12, fontFamily: "Inter_400Regular", lineHeight: 17 },
   accountBadge: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, flexShrink: 0 },
   accountBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
   detailContainer: { flex: 1 },
@@ -443,12 +541,13 @@ const styles = StyleSheet.create({
   senderBlockName: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   senderBlockEmail: { fontSize: 12, fontFamily: "Inter_400Regular" },
   senderBlockDate: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
+  senderAvatarText: { fontFamily: "Inter_600SemiBold" },
   metaRow: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 12, marginBottom: 16, gap: 8 },
   metaItem: { flexDirection: "row", alignItems: "center", gap: 8 },
   metaLabel: { fontSize: 12, fontFamily: "Inter_500Medium", width: 48 },
   metaValue: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   bodyContainer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, marginBottom: 16 },
-  bodyText: { fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 24 },
+  bodyText: { fontFamily: "Inter_400Regular", lineHeight: 24 },
   attachmentsSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
   attachmentsTitle: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4 },
   attachmentRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
