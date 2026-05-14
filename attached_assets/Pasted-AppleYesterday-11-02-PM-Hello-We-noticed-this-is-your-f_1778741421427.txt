@@ -1,0 +1,60 @@
+AppleYesterday 11:02 PM
+Hello, 
+
+We noticed this is your first app submission and want to congratulate you on joining the Apple Developer Program. We look forward to working together on your submissions.
+
+When App Review identifies an issue with a submission, we’ll contact you with a message in App Store Connect with details about what we found and how to resolve the issue. Learn more about App Review and tips for a smooth review experience. 
+
+See below for additional information about the issues that require your attention for this submission. If you have any questions, we are here to help. Reply to this message in App Store Connect and let us know.
+
+Review Environment
+Submission ID: f5ab814c-bea7-466a-9f98-1b64e18f9809
+Review date: May 13, 2026
+Review Device: iPhone 17 Pro Max and iPad Air 11-inch (M4)
+Version reviewed: 1.0 (13)
+
+Guideline 2.1 - Information Needed
+
+We were unable to sign in with the following demo account credentials you provided in App Store Connect:
+
+User name: dhillon.harsh@icloud.com
+Password: Pinkylove86
+
+To avoid delays, it is essential to provide access to the app's full features and functionality with every submission.
+
+Next Steps
+
+Provide the username and password for a valid demo account in App Store Connect that provides full access to the app's features and functionality or include a demonstration mode that shows all of the features and functionality available in the app. Note that we cannot use a demo video showing the app in use to continue the review.
+
+Resources
+
+Learn how to share information when submitting an app for review.
+Guideline 5 - Legal
+
+Issue Description
+
+As you may know, the Chinese government has been tightening regulations associated with deep synthesis technologies (DST) and generative AI services, including ChatGPT. DST must fulfill permitting requirements to operate in China, including securing a license from the Ministry of Industry and Information Technology (MIIT) if the services are provided while connected to the Internet. 
+
+Based on our review, the app appears to be associated with ChatGPT, which does not have requisite permits to operate in China. Specifically, the app's metadata includes the following references to ChatGPT and/or OpenAI: GPT, GPT-4o.
+
+Accordingly, pursuant to local Chinese law, this functionality must be deactivated in the version of the app that you make available on the China App Store and all references to ChatGPT or OpenAI must be removed from metadata fields such as app name, subtitle, promotional text, app description, and screenshots.
+
+Next Steps
+
+Since this app cannot be approved with ChatGPT functionality and/or metadata references in China, it would be appropriate to make the necessary changes, update the Review Notes to confirm you've suppressed this functionality, and resubmit the app for review. 
+
+If you do not wish to make these changes, you can choose to not distribute this app in China by deselecting the China mainland storefront in the Availability settings in App Store Connect.
+
+If you believe you are already in compliance with the above-mentioned local law, you may reply to this message in App Store Connect and provide additional information. Apps with ChatGPT functionality or metadata references can continue to be used in apps outside of China.
+
+To offer the app in China with this functionality, please seek professional advice on compliance with the Administrative Provisions on Deep Synthesis of Internet-based Information Services.
+
+Resources
+
+- See how to change the app's Availability setting in App Store Connect.
+- Learn more about legal requirements for apps on the App Store in guideline 5.
+Support
+- Reply to this message in your preferred language if you need assistance. If you need additional support, use the Contact Us module.
+- Consult with fellow developers and Apple engineers on the Apple Developer Forums.
+- Provide feedback on this message and your review experience by completing a short survey.
+
