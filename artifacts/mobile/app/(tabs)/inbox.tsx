@@ -312,6 +312,24 @@ function MessageDetail({
         </Text>
       </View>
 
+      {/* Gmail-style reply/forward buttons at the bottom */}
+      <View style={[styles.replyForwardRow, { borderTopColor: colors.border }]}>
+        <Pressable
+          onPress={handleReply}
+          style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
+        >
+          <Feather name="corner-up-left" size={15} color={colors.foreground} />
+          <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Reply</Text>
+        </Pressable>
+        <Pressable
+          onPress={handleForward}
+          style={({ pressed }) => [styles.replyForwardBtn, { borderColor: colors.border, backgroundColor: pressed ? colors.muted : colors.background }]}
+        >
+          <Feather name="corner-up-right" size={15} color={colors.foreground} />
+          <Text style={[styles.replyForwardText, { color: colors.foreground }]}>Forward</Text>
+        </Pressable>
+      </View>
+
       {message.hasAttachments && message.attachments && message.attachments.length > 0 && (
         <View style={[styles.attachmentsSection, { borderTopColor: colors.border }]}>
           <Text style={[styles.attachmentsTitle, { color: colors.mutedForeground }]}>Attachments ({message.attachments.length})</Text>
@@ -715,6 +733,9 @@ const styles = StyleSheet.create({
   metaValue: { fontSize: 12, fontFamily: "Inter_400Regular", flex: 1 },
   bodyContainer: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, marginBottom: 16 },
   bodyText: { fontFamily: "Inter_400Regular", lineHeight: 24 },
+  replyForwardRow: { flexDirection: "row", gap: 12, borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, marginBottom: 16 },
+  replyForwardBtn: { flexDirection: "row", alignItems: "center", gap: 7, borderWidth: 1, borderRadius: 999, paddingHorizontal: 18, paddingVertical: 10 },
+  replyForwardText: { fontSize: 14, fontFamily: "Inter_600SemiBold" },
   attachmentsSection: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: 16, gap: 8 },
   attachmentsTitle: { fontSize: 12, fontFamily: "Inter_500Medium", marginBottom: 4 },
   attachmentRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },

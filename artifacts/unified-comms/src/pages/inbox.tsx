@@ -469,6 +469,28 @@ export default function Inbox() {
               )}
             </div>
 
+            {/* Gmail-style reply/forward buttons at the bottom of the message */}
+            <div className="mt-8 pt-5 border-t border-border/30 flex items-center gap-3">
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 rounded-full px-5 h-9 font-medium border-border/60 hover:bg-muted/50"
+                onClick={() => openComposeAction("reply")}
+              >
+                <Reply className="h-4 w-4" />
+                Reply
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-2 rounded-full px-5 h-9 font-medium border-border/60 hover:bg-muted/50"
+                onClick={() => openComposeAction("forward")}
+              >
+                <Forward className="h-4 w-4" />
+                Forward
+              </Button>
+            </div>
+
             {activeMessage.attachments?.length > 0 && (
               <div className="mt-10 pt-6 border-t border-border/50">
                 <h3 className="text-sm font-semibold mb-3 flex items-center gap-2">
