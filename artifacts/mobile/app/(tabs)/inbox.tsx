@@ -3,6 +3,7 @@ import { useColors } from "@/hooks/useColors";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   Platform,
   Pressable,
@@ -20,6 +21,12 @@ import * as Haptics from "expo-haptics";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 
 const PAGE_SIZE = 20;
+
+const API_BASE = process.env.EXPO_PUBLIC_API_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
+  : process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : "https://pinn-box-io.replit.app";
 
 type TabKey = "all" | "unread" | "starred" | "sent" | "drafts" | "saved" | "spam" | "trash";
 
@@ -54,30 +61,76 @@ type Message = {
   createdAt: string;
 };
 
-function MessageRow({ message, onPress }: { message: Message; onPress: () => void }) {
+async function getAuthToken(): Promise<string | null> {
+  if (Platform.OS === "web") {
+    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
+  }
+  const SecureStore = await import("expo-secure-store");
+  return SecureStore.getItemAsync("commshub_session_token");
+}
+
+async function deleteMessage(id: number): Promise<void> {
+  const token = await getAuthToken();
+  const res = await fetch(`${API_BASE}/api/messages/${id}`, {
+    method: "DELETE",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  });
+  if (!res.ok && res.status !== 204) throw new Error("Failed");
+}
+
+function MessageRow({
+  message,
+  onPress,
+  onLongPress,
+  isSelected,
+  selectionMode,
+}: {
+  message: Message;
+  onPress: () => void;
+  onLongPress: () => void;
+  isSelected: boolean;
+  selectionMode: boolean;
+}) {
   const colors = useColors();
   return (
     <Pressable
       onPress={onPress}
+      onLongPress={onLongPress}
       style={({ pressed }) => [
         styles.messageRow,
         {
           borderBottomColor: colors.border,
-          backgroundColor: pressed ? colors.muted : colors.background,
+          backgroundColor: isSelected
+            ? colors.primary + "18"
+            : pressed
+              ? colors.muted
+              : colors.background,
           borderLeftColor: !message.isRead ? colors.primary : "transparent",
         },
       ]}
     >
-      {/* Unread dot */}
+      {/* Selection checkbox / unread dot */}
       <View style={styles.unreadDotCol}>
-        {!message.isRead && (
-          <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+        {selectionMode ? (
+          <View style={[
+            styles.checkbox,
+            {
+              borderColor: isSelected ? colors.primary : colors.border,
+              backgroundColor: isSelected ? colors.primary : "transparent",
+            },
+          ]}>
+            {isSelected && <Feather name="check" size={10} color="#fff" />}
+          </View>
+        ) : (
+          !message.isRead && (
+            <View style={[styles.unreadDot, { backgroundColor: colors.primary }]} />
+          )
         )}
       </View>
 
       {/* Content */}
       <View style={styles.messageContent}>
-        {/* Row 1: sender + time */}
         <View style={styles.messageTopRow}>
           <View style={styles.senderRow}>
             <Text
@@ -98,7 +151,6 @@ function MessageRow({ message, onPress }: { message: Message; onPress: () => voi
           </Text>
         </View>
 
-        {/* Row 2: subject */}
         <Text
           style={[
             styles.messageSubject,
@@ -109,14 +161,12 @@ function MessageRow({ message, onPress }: { message: Message; onPress: () => voi
           {message.subject}
         </Text>
 
-        {/* Row 3: preview */}
         <Text style={[styles.messagePreview, { color: colors.mutedForeground }]} numberOfLines={2}>
           {message.bodyText || "No preview available"}
         </Text>
       </View>
 
-      {/* Star */}
-      {message.isStarred && (
+      {message.isStarred && !selectionMode && (
         <Ionicons name="star" size={14} color="#f59e0b" style={{ marginTop: 2, flexShrink: 0 }} />
       )}
     </Pressable>
@@ -281,6 +331,12 @@ export default function InboxScreen() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
+
+  // Multi-select / delete
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
   const offsetRef = useRef(offset);
   offsetRef.current = offset;
 
@@ -295,6 +351,8 @@ export default function InboxScreen() {
   useEffect(() => {
     setOffset(0);
     setAllMessages([]);
+    setSelectionMode(false);
+    setSelectedIds(new Set());
   }, [activeTab]);
 
   useEffect(() => {
@@ -324,10 +382,59 @@ export default function InboxScreen() {
   const hasMore = allMessages.length < total;
 
   const handlePressMessage = useCallback((msg: Message) => {
+    if (selectionMode) {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      setSelectedIds(prev => {
+        const next = new Set(prev);
+        if (next.has(msg.id)) next.delete(msg.id); else next.add(msg.id);
+        return next;
+      });
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setSelectedId(msg.id);
     if (!msg.isRead) updateMessage.mutate({ id: msg.id, data: { isRead: true } });
-  }, [updateMessage]);
+  }, [selectionMode, updateMessage]);
+
+  const handleLongPress = useCallback((msg: Message) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setSelectionMode(true);
+    setSelectedIds(new Set([msg.id]));
+  }, []);
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedIds(new Set());
+  };
+
+  const handleDeleteSelected = async () => {
+    if (selectedIds.size === 0) return;
+    const count = selectedIds.size;
+    Alert.alert(
+      "Delete Messages",
+      `Delete ${count} message${count > 1 ? "s" : ""}? This cannot be undone.`,
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            const ids = Array.from(selectedIds);
+            try {
+              await Promise.all(ids.map(id => deleteMessage(id)));
+              setAllMessages(prev => prev.filter(m => !ids.includes(m.id)));
+              exitSelectionMode();
+            } catch {
+              Alert.alert("Error", "Some messages could not be deleted.");
+            } finally {
+              setIsDeleting(false);
+            }
+          },
+        },
+      ]
+    );
+  };
 
   const handleRefresh = useCallback(async () => {
     setIsRefreshing(true);
@@ -363,63 +470,102 @@ export default function InboxScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.listHeader, { paddingTop: topPad + 12, backgroundColor: colors.background }]}>
-        <Text style={[styles.screenTitle, { color: colors.foreground }]}>Inbox</Text>
-        <Pressable onPress={() => openCompose()} style={[styles.composeBtn, { backgroundColor: colors.primary }]}>
-          <Feather name="edit-2" size={15} color="#fff" />
-          <Text style={styles.composeBtnText}>Compose</Text>
-        </Pressable>
+        {selectionMode ? (
+          <>
+            <Pressable onPress={exitSelectionMode} style={styles.cancelSelectionBtn}>
+              <Feather name="x" size={20} color={colors.foreground} />
+            </Pressable>
+            <Text style={[styles.selectionCount, { color: colors.foreground }]}>
+              {selectedIds.size} selected
+            </Text>
+            <Pressable
+              onPress={handleDeleteSelected}
+              disabled={selectedIds.size === 0 || isDeleting}
+              style={[styles.deleteBtn, { backgroundColor: isDeleting ? colors.muted : "#ef4444" }]}
+            >
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Feather name="trash-2" size={15} color="#fff" />
+                  <Text style={styles.deleteBtnText}>Delete</Text>
+                </>
+              )}
+            </Pressable>
+          </>
+        ) : (
+          <>
+            <Text style={[styles.screenTitle, { color: colors.foreground }]}>Inbox</Text>
+            <Pressable onPress={() => openCompose()} style={[styles.composeBtn, { backgroundColor: colors.primary }]}>
+              <Feather name="edit-2" size={15} color="#fff" />
+              <Text style={styles.composeBtnText}>Compose</Text>
+            </Pressable>
+          </>
+        )}
       </View>
 
       {/* Search */}
-      <View style={[styles.searchWrapper, { backgroundColor: colors.background }]}>
-        <View style={[styles.searchBar, { backgroundColor: colors.muted, borderColor: colors.border }]}>
-          <Feather name="search" size={15} color={colors.mutedForeground} />
-          <TextInput
-            style={[styles.searchInput, { color: colors.foreground }]}
-            placeholder="Search emails..."
-            placeholderTextColor={colors.mutedForeground}
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            returnKeyType="search"
-            clearButtonMode="while-editing"
-          />
+      {!selectionMode && (
+        <View style={[styles.searchWrapper, { backgroundColor: colors.background }]}>
+          <View style={[styles.searchBar, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+            <Feather name="search" size={15} color={colors.mutedForeground} />
+            <TextInput
+              style={[styles.searchInput, { color: colors.foreground }]}
+              placeholder="Search emails..."
+              placeholderTextColor={colors.mutedForeground}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              returnKeyType="search"
+              clearButtonMode="while-editing"
+            />
+          </View>
         </View>
-      </View>
+      )}
 
-      {/* Tabs — pill style */}
-      <View style={[styles.tabsWrapper, { backgroundColor: colors.background }]}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tabsContent}
-        >
-          {TABS.map((tab) => {
-            const isActive = activeTab === tab.key;
-            return (
-              <Pressable
-                key={tab.key}
-                onPress={() => { setActiveTab(tab.key); setSearchQuery(""); }}
-                style={[
-                  styles.tabPill,
-                  isActive
-                    ? { backgroundColor: colors.primary }
-                    : { backgroundColor: colors.muted },
-                ]}
-              >
-                <Text style={[
-                  styles.tabPillText,
-                  { color: isActive ? "#ffffff" : colors.mutedForeground },
-                  isActive && { fontFamily: "Inter_600SemiBold" },
-                ]}>
-                  {tab.label}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
+      {/* Tabs */}
+      {!selectionMode && (
+        <View style={[styles.tabsWrapper, { backgroundColor: colors.background }]}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tabsContent}
+          >
+            {TABS.map((tab) => {
+              const isActive = activeTab === tab.key;
+              return (
+                <Pressable
+                  key={tab.key}
+                  onPress={() => { setActiveTab(tab.key); setSearchQuery(""); }}
+                  style={[
+                    styles.tabPill,
+                    isActive
+                      ? { backgroundColor: colors.primary }
+                      : { backgroundColor: colors.muted },
+                  ]}
+                >
+                  <Text style={[
+                    styles.tabPillText,
+                    { color: isActive ? "#ffffff" : colors.mutedForeground },
+                    isActive && { fontFamily: "Inter_600SemiBold" },
+                  ]}>
+                    {tab.label}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </ScrollView>
+        </View>
+      )}
 
-      {/* Divider */}
+      {/* Hint when in selection mode */}
+      {selectionMode && (
+        <View style={[styles.selectionHint, { borderBottomColor: colors.border }]}>
+          <Text style={[styles.selectionHintText, { color: colors.mutedForeground }]}>
+            Tap messages to select · Long-press to start selecting
+          </Text>
+        </View>
+      )}
+
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
       {/* Message list */}
@@ -431,7 +577,7 @@ export default function InboxScreen() {
           {noAccountsConnected ? (
             <>
               <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No accounts connected</Text>
-              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail or Outlook in the Accounts tab to see your messages.</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>Connect Gmail or Outlook in the Accounts tab.</Text>
             </>
           ) : (
             <>
@@ -444,7 +590,15 @@ export default function InboxScreen() {
         <FlatList
           data={filteredMessages}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => <MessageRow message={item} onPress={() => handlePressMessage(item)} />}
+          renderItem={({ item }) => (
+            <MessageRow
+              message={item}
+              onPress={() => handlePressMessage(item)}
+              onLongPress={() => handleLongPress(item)}
+              isSelected={selectedIds.has(item.id)}
+              selectionMode={selectionMode}
+            />
+          )}
           refreshControl={<RefreshControl refreshing={isRefreshing} onRefresh={handleRefresh} tintColor={colors.primary} />}
           onEndReached={handleLoadMore}
           onEndReachedThreshold={0.3}
@@ -473,12 +627,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 12,
     flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-end",
+    alignItems: "center",
+    gap: 10,
   },
-  screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5 },
+  screenTitle: { fontSize: 28, fontFamily: "Inter_700Bold", letterSpacing: -0.5, flex: 1 },
   composeBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
   composeBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  cancelSelectionBtn: { padding: 4 },
+  selectionCount: { flex: 1, fontSize: 16, fontFamily: "Inter_600SemiBold" },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20 },
+  deleteBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
+  selectionHint: { paddingHorizontal: 20, paddingVertical: 8, borderBottomWidth: StyleSheet.hairlineWidth },
+  selectionHintText: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
   searchWrapper: { paddingHorizontal: 16, paddingBottom: 10 },
   searchBar: {
     flexDirection: "row",
@@ -492,13 +652,9 @@ const styles = StyleSheet.create({
   searchInput: { flex: 1, fontSize: 14, fontFamily: "Inter_400Regular", padding: 0 },
   tabsWrapper: { paddingBottom: 10 },
   tabsContent: { paddingHorizontal: 16, gap: 6, flexDirection: "row" },
-  tabPill: {
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: 20,
-  },
+  tabPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   tabPillText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  divider: { height: StyleSheet.hairlineWidth, marginBottom: 0 },
+  divider: { height: StyleSheet.hairlineWidth },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
   emptyTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold", marginTop: 8 },
@@ -514,8 +670,9 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
     alignItems: "flex-start",
   },
-  unreadDotCol: { width: 20, alignItems: "center", paddingTop: 5 },
+  unreadDotCol: { width: 24, alignItems: "center", paddingTop: 5 },
   unreadDot: { width: 7, height: 7, borderRadius: 4 },
+  checkbox: { width: 18, height: 18, borderRadius: 9, borderWidth: 2, alignItems: "center", justifyContent: "center" },
   messageContent: { flex: 1, gap: 3 },
   messageTopRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   senderRow: { flexDirection: "row", alignItems: "center", flex: 1, marginRight: 8 },
