@@ -172,7 +172,7 @@ function AuthedStack() {
 
   return (
     <ErrorBoundary label="TabsErrorBoundary">
-      <Stack screenOptions={{ headerShown: false }}>
+      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fff" } }}>
         <Stack.Screen name="(tabs)" />
       </Stack>
       <GmailConnectModal
@@ -189,8 +189,8 @@ function RootLayoutNav() {
 
   if (!isLoaded) {
     return (
-      <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <ActivityIndicator size="large" />
+      <View style={{ flex: 1, alignItems: "center", justifyContent: "center", backgroundColor: "#fff" }}>
+        <ActivityIndicator size="large" color="#3b82f6" />
       </View>
     );
   }
@@ -199,7 +199,7 @@ function RootLayoutNav() {
     const isAllowed = ALLOWED_UNAUTHED_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
     return (
       <>
-        <Stack screenOptions={{ headerShown: false }}>
+        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fff" } }}>
           <Stack.Screen name="login" />
           <Stack.Screen name="signup" />
         </Stack>
