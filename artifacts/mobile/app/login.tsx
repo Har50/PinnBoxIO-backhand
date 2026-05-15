@@ -1,9 +1,9 @@
-import { useSignIn, useOAuth, isClerkAPIResponseError } from "@clerk/expo";
+import { useSignIn, useSSO, isClerkAPIResponseError } from "@clerk/expo";
 import { APP_NAME, LOGIN_TAGLINE } from "@workspace/brand";
 import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import * as Linking from "expo-linking";
+import * as AuthSession from "expo-auth-session";
 import * as WebBrowser from "expo-web-browser";
 import {
   ActivityIndicator,
@@ -26,7 +26,7 @@ type Mode = "login" | "forgot-request" | "forgot-reset";
 
 export default function LoginScreen() {
   const { signIn, setActive, isLoaded } = useSignIn();
-  const { startOAuthFlow } = useOAuth({ strategy: "oauth_google" });
+  const { startSSOFlow } = useSSO();
   const insets = useSafeAreaInsets();
 
   const [mode, setMode] = useState<Mode>("login");
@@ -69,18 +69,20 @@ export default function LoginScreen() {
     setIsLoading(true);
     setError(null);
     try {
-      const { createdSessionId, setActive: oauthSetActive } = await startOAuthFlow({
-        redirectUrl: Linking.createURL("/", { scheme: "pinnboxio" }),
+      const { createdSessionId, setActive: ssoSetActive } = await startSSOFlow({
+        strategy: "oauth_google",
+        redirectUrl: AuthSession.makeRedirectUri(),
       });
-      if (createdSessionId && oauthSetActive) {
-        await oauthSetActive({ session: createdSessionId });
+      if (createdSessionId && ssoSetActive) {
+        await ssoSetActive({ session: createdSessionId });
       }
     } catch (err) {
+      console.error("[Google SSO]", JSON.stringify(err, null, 2));
       setError("Google sign-in failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
-  }, [startOAuthFlow]);
+  }, [startSSOFlow]);
 
   async function handleForgotRequest() {
     if (!signIn) return;
