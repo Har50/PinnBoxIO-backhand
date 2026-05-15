@@ -210,7 +210,7 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
     return (
       <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
         <View style={s.aiBubbleAvatar}>
-          <Feather name="zap" size={11} color={colors.primary} />
+          <Feather name="cpu" size={11} color={colors.primary} />
         </View>
         <View style={{ flex: 1, gap: 8 }}>
           {parsed.before ? (
@@ -232,7 +232,7 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
   return (
     <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
       <View style={s.aiBubbleAvatar}>
-        <Feather name="zap" size={11} color={colors.primary} />
+        <Feather name="cpu" size={11} color={colors.primary} />
       </View>
       <View style={[s.bubble, s.assistantBubble]}>
         <Text style={s.assistantText}>{msg.content}</Text>
@@ -543,7 +543,7 @@ export default function AiScreen() {
           <Feather name="list" size={20} color={colors.primary} />
         </Pressable>
         <View style={s.headerIcon}>
-          <Feather name="zap" size={18} color={colors.primary} />
+          <Feather name="cpu" size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>{conversation?.title ?? "AI Assistant"}</Text>
@@ -574,7 +574,7 @@ export default function AiScreen() {
           {messages.length === 0 ? (
             <View style={s.emptyState}>
               <View style={s.emptyIconWrap}>
-                <Feather name="zap" size={30} color={colors.primary} />
+                <Feather name="cpu" size={30} color={colors.primary} />
               </View>
               <Text style={s.emptyTitle}>Hello! I'm your AI assistant.</Text>
               <Text style={s.emptyText}>I can summarize emails, draft replies, find contacts, and help you manage all your communications smarter.</Text>
@@ -593,7 +593,7 @@ export default function AiScreen() {
           )}
           {streaming && messages[messages.length - 1]?.content === "" && (
             <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
-              <View style={s.aiBubbleAvatar}><Feather name="zap" size={11} color={colors.primary} /></View>
+              <View style={s.aiBubbleAvatar}><Feather name="cpu" size={11} color={colors.primary} /></View>
               <View style={[s.bubble, s.assistantBubble]}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>

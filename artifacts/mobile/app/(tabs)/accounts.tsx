@@ -441,6 +441,82 @@ function LegalSection() {
   );
 }
 
+function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
+  const { getToken } = useAuth();
+  const colors = useColors();
+  const [gmailLoading, setGmailLoading] = useState(false);
+  const [outlookLoading, setOutlookLoading] = useState(false);
+  const [imapVisible, setImapVisible] = useState(false);
+
+  const connectOAuth = async (provider: "gmail" | "outlook") => {
+    const token = await getToken();
+    if (!token) return;
+    if (provider === "gmail") setGmailLoading(true);
+    else setOutlookLoading(true);
+    try {
+      const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
+      const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
+      await WebBrowser.openAuthSessionAsync(url, completeUrl);
+      onRefetch();
+    } finally {
+      if (provider === "gmail") setGmailLoading(false);
+      else setOutlookLoading(false);
+    }
+  };
+
+  return (
+    <View style={[styles.connectSection]}>
+      <Text style={[styles.connectTitle, { color: colors.mutedForeground }]}>Connect Accounts</Text>
+      <View style={styles.connectButtons}>
+        <Pressable
+          onPress={() => connectOAuth("gmail")}
+          disabled={gmailLoading}
+          style={({ pressed }) => [
+            styles.connectBtn,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed || gmailLoading ? 0.6 : 1 },
+          ]}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#EA433520", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="mail" size={18} color="#EA4335" />
+          </View>
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect Gmail</Text>
+          {gmailLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+        </Pressable>
+
+        <Pressable
+          onPress={() => connectOAuth("outlook")}
+          disabled={outlookLoading}
+          style={({ pressed }) => [
+            styles.connectBtn,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed || outlookLoading ? 0.6 : 1 },
+          ]}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: "#0078D420", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="mail" size={18} color="#0078D4" />
+          </View>
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect Outlook</Text>
+          {outlookLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <Feather name="chevron-right" size={16} color={colors.mutedForeground} />}
+        </Pressable>
+
+        <Pressable
+          onPress={() => setImapVisible(true)}
+          style={({ pressed }) => [
+            styles.connectBtn,
+            { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.6 : 1 },
+          ]}
+        >
+          <View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: colors.primary + "20", alignItems: "center", justifyContent: "center" }}>
+            <Feather name="server" size={18} color={colors.primary} />
+          </View>
+          <Text style={[styles.connectBtnText, { color: colors.foreground }]}>Connect IMAP</Text>
+          <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+        </Pressable>
+      </View>
+      <ImapModal visible={imapVisible} onClose={() => setImapVisible(false)} onSuccess={onRefetch} colors={colors} />
+    </View>
+  );
+}
+
 export default function AccountsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();

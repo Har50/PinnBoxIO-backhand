@@ -32,8 +32,13 @@ import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
 
-if (process.env.EXPO_PUBLIC_DOMAIN) {
-  setBaseUrl(`https://${process.env.EXPO_PUBLIC_DOMAIN}`);
+const _apiBaseUrl = process.env.EXPO_PUBLIC_API_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
+  : process.env.EXPO_PUBLIC_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+    : null;
+if (_apiBaseUrl) {
+  setBaseUrl(_apiBaseUrl);
 }
 
 SplashScreen.preventAutoHideAsync().catch(() => {});

@@ -160,9 +160,8 @@ function EmailAccountsSection() {
     const token = await getToken();
     if (!token) return;
     const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-    await WebBrowser.openBrowserAsync(url, {
-      presentationStyle: WebBrowser.WebBrowserPresentationStyle.PAGE_SHEET,
-    });
+    const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
+    await WebBrowser.openAuthSessionAsync(url, completeUrl);
     setLoading(true);
     await fetchConnected();
   };

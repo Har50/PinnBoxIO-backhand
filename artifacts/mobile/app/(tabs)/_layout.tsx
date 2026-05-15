@@ -87,7 +87,7 @@ function ClassicTabLayout() {
         name="ai"
         options={{
           title: "AI",
-          tabBarIcon: ({ color }) => <TabIcon name="zap" color={color} />,
+          tabBarIcon: ({ color }) => <TabIcon name="cpu" color={color} />,
         }}
       />
       <Tabs.Screen name="contacts" options={{ href: null }} />
