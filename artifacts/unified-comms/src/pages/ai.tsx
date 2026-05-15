@@ -519,7 +519,7 @@ function AiChat() {
         </header>
 
         {/* Messages */}
-        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 pb-44 space-y-6" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}>
+        <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 sm:p-6 pb-6 space-y-6" style={{ scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.08) transparent" }}>
           {messages.length === 0 && (
             <div className="flex flex-col items-center text-center mt-8 mb-6">
               <div
@@ -655,9 +655,9 @@ function AiChat() {
           ))}
         </div>
 
-        {/* Input area — floating with gradient fade */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6 pt-12 pointer-events-none" style={{ background: "linear-gradient(to top, var(--background) 55%, transparent)", zIndex: 20 }}>
-          <div className="max-w-3xl mx-auto pointer-events-auto">
+        {/* Input area */}
+        <div className="shrink-0 border-t border-border bg-background px-4 sm:px-6 py-4">
+          <div className="max-w-3xl mx-auto">
             {/* Hidden file inputs */}
             <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => addAttachments(e.target.files)} />
             <input ref={photoInputRef} type="file" accept="image/*" multiple className="hidden" onChange={(e) => addAttachments(e.target.files)} />
