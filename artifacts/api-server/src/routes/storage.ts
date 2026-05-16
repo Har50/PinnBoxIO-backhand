@@ -59,12 +59,26 @@ async function signedUrl(storageKey: string, method: "GET" | "PUT" | "DELETE", t
   return signed_url;
 }
 
+const LEGACY_FREE_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // old incorrect 2 GB value
+
 async function getOrCreateQuota(userId: string) {
   const [existing] = await db
     .select()
     .from(storageQuotasTable)
     .where(eq(storageQuotasTable.userId, userId));
-  if (existing) return existing;
+
+  if (existing) {
+    // Auto-correct free users who were given the old 2 GB quota
+    if (existing.planName === "Free" && existing.totalBytes === LEGACY_FREE_QUOTA_BYTES) {
+      const [corrected] = await db
+        .update(storageQuotasTable)
+        .set({ totalBytes: FREE_QUOTA_BYTES })
+        .where(eq(storageQuotasTable.userId, userId))
+        .returning();
+      return corrected;
+    }
+    return existing;
+  }
 
   const [created] = await db
     .insert(storageQuotasTable)
