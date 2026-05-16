@@ -8,6 +8,8 @@ import { Alert, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { useState, useEffect, useCallback } from "react";
+import { useSubscription } from "@/lib/revenuecat";
+import { ProPaywallModal } from "@/components/ProPaywallModal";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
@@ -113,6 +115,86 @@ function NotificationToggle({
         />
       }
     />
+  );
+}
+
+function SubscriptionSection() {
+  const colors = useColors();
+  const { isSubscribed, isLoading, isAvailable, restore, isRestoring } = useSubscription();
+  const [paywallVisible, setPaywallVisible] = useState(false);
+
+  if (isLoading) {
+    return (
+      <View style={styles.section}>
+        <SectionHeader title="Subscription" />
+        <View style={[styles.card, { borderColor: colors.border, padding: 20, alignItems: "center" }]}>
+          <ActivityIndicator color={colors.mutedForeground} />
+        </View>
+      </View>
+    );
+  }
+
+  if (isSubscribed) {
+    return (
+      <View style={styles.section}>
+        <SectionHeader title="Subscription" />
+        <SettingsCard>
+          <View style={[styles.row, { backgroundColor: colors.card }]}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="star" size={16} color={colors.primary} />
+            </View>
+            <View style={styles.rowContent}>
+              <Text style={[styles.rowLabel, { color: colors.foreground }]}>PinnboxIO Pro</Text>
+              <Text style={[styles.rowDescription, { color: colors.mutedForeground }]}>
+                Active — unlimited AI, full storage access
+              </Text>
+            </View>
+            <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
+              <Text style={[styles.badgeText, { color: colors.primary }]}>Active</Text>
+            </View>
+          </View>
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <SettingsRow
+            icon="refresh-cw"
+            label="Restore purchases"
+            description="Already subscribed on another device?"
+            right={isRestoring ? <ActivityIndicator size="small" color={colors.mutedForeground} /> : undefined}
+            onPress={isAvailable ? () => restore().catch(() => {}) : undefined}
+          />
+        </SettingsCard>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.section}>
+      <SectionHeader title="Subscription" />
+      <Pressable
+        style={({ pressed }) => [
+          styles.upgradeBanner,
+          { backgroundColor: colors.primary, opacity: pressed ? 0.9 : 1 },
+        ]}
+        onPress={() => setPaywallVisible(true)}
+      >
+        <View style={styles.upgradeBannerLeft}>
+          <Feather name="star" size={20} color="#fff" />
+          <View>
+            <Text style={styles.upgradeBannerTitle}>Upgrade to Pro</Text>
+            <Text style={styles.upgradeBannerSub}>Unlimited AI · More storage · $7.99/mo</Text>
+          </View>
+        </View>
+        <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.8)" />
+      </Pressable>
+      {isAvailable && (
+        <Pressable style={styles.restoreLink} onPress={() => restore().catch(() => {})}>
+          {isRestoring
+            ? <ActivityIndicator size="small" color={colors.mutedForeground} />
+            : <Text style={[styles.restoreLinkText, { color: colors.mutedForeground }]}>Restore purchases</Text>
+          }
+        </Pressable>
+      )}
+      <ProPaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
+    </View>
   );
 }
 
@@ -313,6 +395,8 @@ export default function SettingsScreen() {
         </SettingsCard>
       </View>
 
+      <SubscriptionSection />
+
       <EmailAccountsSection />
 
       <View style={styles.section}>
@@ -445,4 +529,17 @@ const styles = StyleSheet.create({
     minWidth: 76,
   },
   actionBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  upgradeBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
+  },
+  upgradeBannerLeft: { flexDirection: "row", alignItems: "center", gap: 14 },
+  upgradeBannerTitle: { fontSize: 15, fontFamily: "Inter_600SemiBold", color: "#fff" },
+  upgradeBannerSub: { fontSize: 12, fontFamily: "Inter_400Regular", color: "rgba(255,255,255,0.8)", marginTop: 1 },
+  restoreLink: { alignItems: "center", paddingVertical: 6 },
+  restoreLinkText: { fontSize: 13, fontFamily: "Inter_400Regular" },
 });
