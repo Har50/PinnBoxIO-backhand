@@ -257,6 +257,7 @@ export default function AiScreen() {
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [showVoiceGate, setShowVoiceGate] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ name: string; mimeType: string; data: string }>>([]);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -395,14 +396,7 @@ export default function AiScreen() {
 
   async function startVoiceRecording() {
     if (status?.plan === "free") {
-      Alert.alert(
-        "Voice to Email — Pro Feature",
-        "Turn your voice into emails and messages instantly. Upgrade to Pro to unlock voice input.",
-        [
-          { text: "Maybe Later", style: "cancel" },
-          { text: "Upgrade to Pro", onPress: () => router.push("/paywall" as any) },
-        ]
-      );
+      setShowVoiceGate(true);
       return;
     }
     try {
@@ -644,16 +638,19 @@ export default function AiScreen() {
           </View>
         )}
         {limitReached && (
-          <View style={[s.limitBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
-            <Feather name="alert-circle" size={16} color="#f59e0b" />
-            <Text style={[s.limitBannerText, { color: colors.foreground }]}>
-              Daily limit reached — upgrade to Pro for unlimited AI
-            </Text>
+          <View style={[s.limitBanner, { backgroundColor: "#fef3c7", borderColor: "#f59e0b40" }]}>
+            <Feather name="alert-circle" size={16} color="#d97706" />
+            <View style={{ flex: 1 }}>
+              <Text style={[s.limitBannerText, { color: "#92400e" }]}>
+                You've used all 20 free AI queries today
+              </Text>
+              <Text style={[s.limitBannerSub, { color: "#b45309" }]}>Resets at midnight</Text>
+            </View>
             <Pressable
-              style={[s.limitUpgradeBtn, { backgroundColor: colors.primary }]}
+              style={[s.limitUpgradeBtn, { backgroundColor: "#d97706" }]}
               onPress={() => router.push("/paywall" as any)}
             >
-              <Text style={s.limitUpgradeBtnText}>Upgrade</Text>
+              <Text style={s.limitUpgradeBtnText}>Upgrade to Pro</Text>
             </Pressable>
           </View>
         )}
@@ -769,6 +766,36 @@ export default function AiScreen() {
       </Modal>
 
       <ComposeModal visible={composeVisible} onClose={() => setComposeVisible(false)} initialDraft={composeDraft} />
+
+      {/* Voice-to-email Pro gate bottom sheet */}
+      <Modal visible={showVoiceGate} transparent animationType="slide" onRequestClose={() => setShowVoiceGate(false)}>
+        <Pressable style={s.gateOverlay} onPress={() => setShowVoiceGate(false)}>
+          <Pressable style={[s.gateSheet, { backgroundColor: colors.card }]} onPress={() => {}}>
+            <View style={s.gateHandle} />
+            <View style={[s.gateIconWrap, { backgroundColor: colors.primary + "15" }]}>
+              <Text style={s.gateMicEmoji}>🎙</Text>
+            </View>
+            <Text style={[s.gateTitle, { color: colors.foreground }]}>Voice to Email is a Pro feature</Text>
+            <Text style={[s.gateDesc, { color: colors.mutedForeground }]}>
+              Dictate emails hands-free with AI transcription.
+            </Text>
+            <TouchableOpacity
+              style={[s.gateUpgradeBtn, { backgroundColor: colors.primary }]}
+              onPress={() => { setShowVoiceGate(false); router.push("/paywall" as any); }}
+              activeOpacity={0.85}
+            >
+              <Text style={s.gateUpgradeBtnText}>Upgrade to Pro</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.gateDismissBtn, { borderColor: colors.border }]}
+              onPress={() => setShowVoiceGate(false)}
+              activeOpacity={0.7}
+            >
+              <Text style={[s.gateDismissBtnText, { color: colors.mutedForeground }]}>Maybe later</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -806,9 +833,21 @@ function makeStyles(colors: any, bottomPad = 0) {
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     limitBanner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, flexWrap: "wrap" },
-    limitBannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+    limitBannerText: { fontSize: 13, fontFamily: "Inter_600SemiBold", lineHeight: 18 },
+    limitBannerSub: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 2 },
     limitUpgradeBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
     limitUpgradeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
+    gateOverlay: { flex: 1, backgroundColor: "#00000060", justifyContent: "flex-end" },
+    gateSheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 28, alignItems: "center", gap: 12 },
+    gateHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#d1d5db", marginBottom: 8 },
+    gateIconWrap: { width: 64, height: 64, borderRadius: 20, alignItems: "center", justifyContent: "center", marginBottom: 4 },
+    gateMicEmoji: { fontSize: 30 },
+    gateTitle: { fontSize: 18, fontFamily: "Inter_700Bold", textAlign: "center" },
+    gateDesc: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", lineHeight: 21, maxWidth: 280 },
+    gateUpgradeBtn: { width: "100%", borderRadius: 14, paddingVertical: 15, alignItems: "center", marginTop: 8 },
+    gateUpgradeBtnText: { fontSize: 16, fontFamily: "Inter_700Bold", color: "#fff" },
+    gateDismissBtn: { width: "100%", borderRadius: 14, borderWidth: StyleSheet.hairlineWidth, paddingVertical: 14, alignItems: "center" },
+    gateDismissBtnText: { fontSize: 15, fontFamily: "Inter_500Medium" },
     inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 + bottomPad, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },

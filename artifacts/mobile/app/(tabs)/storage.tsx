@@ -582,6 +582,22 @@ export default function StorageScreen() {
         <BreadcrumbBar path={currentFolder} onNavigate={navigateTo} />
       </View>
 
+      {/* Storage upgrade nudge — shown when >80% full on free plan */}
+      {quota && isWarning && quota.planName === "Free" && (
+        <Pressable
+          onPress={() => router.push("/paywall" as any)}
+          style={styles.upgradeNudgeBar}
+        >
+          <Feather name="alert-triangle" size={14} color="#92400e" />
+          <Text style={styles.upgradeNudgeText}>
+            You've used {Math.round((quota.usedBytes / quota.totalBytes) * 100)}% of your {formatBytes(quota.totalBytes)} storage
+          </Text>
+          <View style={styles.upgradeNudgeBtn}>
+            <Text style={styles.upgradeNudgeBtnText}>Upgrade for 25 GB →</Text>
+          </View>
+        </Pressable>
+      )}
+
       <ScrollView
         style={[styles.fill, { backgroundColor: colors.background }]}
         contentContainerStyle={{ paddingBottom: 100, paddingTop: 12 }}
@@ -833,6 +849,33 @@ const styles = StyleSheet.create({
   tabBtnText: {
     fontSize: 13,
     fontFamily: "Inter_500Medium",
+  },
+
+  upgradeNudgeBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    backgroundColor: "#fef3c7",
+    flexWrap: "wrap",
+  },
+  upgradeNudgeText: {
+    flex: 1,
+    fontSize: 13,
+    fontFamily: "Inter_500Medium",
+    color: "#92400e",
+  },
+  upgradeNudgeBtn: {
+    backgroundColor: "#fbbf24",
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 5,
+  },
+  upgradeNudgeBtnText: {
+    fontSize: 12,
+    fontFamily: "Inter_600SemiBold",
+    color: "#78350f",
   },
 
   breadcrumbWrap: {
