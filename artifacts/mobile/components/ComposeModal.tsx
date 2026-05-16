@@ -18,6 +18,8 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useGetAccounts, useCreateMessage } from "@workspace/api-client-react";
+import * as DocumentPicker from "expo-document-picker";
+import * as ImagePicker from "expo-image-picker";
 
 export interface ComposeDraft {
   to?: string;
@@ -115,20 +117,73 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
     setActivePanel((prev) => (prev === panel ? "none" : panel));
   };
 
-  const mockAttachFile = (type: "file" | "photo") => {
-    const name =
-      type === "photo"
-        ? `photo_${Date.now()}.jpg`
-        : `document_${Date.now()}.pdf`;
-    setAttachments((prev) => [
-      ...prev,
-      { name, size: "—", type },
-    ]);
-    Alert.alert(
-      type === "photo" ? "Photo attached" : "File attached",
-      `"${name}" has been added to your message.`
-    );
-  };
+  async function pickDocument() {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: "*/*",
+        copyToCacheDirectory: true,
+        multiple: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const sizeKb = asset.size ? `${Math.round(asset.size / 1024)} KB` : "—";
+      setAttachments((prev) => [
+        ...prev,
+        { name: asset.name, size: sizeKb, type: "file", uri: asset.uri },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not open file picker. Please try again.");
+    }
+  }
+
+  async function pickFromCameraRoll() {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Please allow photo library access in your device settings.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+        allowsMultipleSelection: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const name = asset.fileName ?? `photo_${Date.now()}.jpg`;
+      const sizeKb = asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : "—";
+      setAttachments((prev) => [
+        ...prev,
+        { name, size: sizeKb, type: "photo", uri: asset.uri },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not open photo library. Please try again.");
+    }
+  }
+
+  async function takePhoto() {
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Please allow camera access in your device settings.");
+        return;
+      }
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      const name = asset.fileName ?? `photo_${Date.now()}.jpg`;
+      const sizeKb = asset.fileSize ? `${Math.round(asset.fileSize / 1024)} KB` : "—";
+      setAttachments((prev) => [
+        ...prev,
+        { name, size: sizeKb, type: "photo", uri: asset.uri },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not open camera. Please try again.");
+    }
+  }
 
   async function handleSend() {
     if (!to.trim()) {
@@ -475,12 +530,7 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           {/* Attach file */}
           <TouchableOpacity
             style={s.toolbarBtn}
-            onPress={() =>
-              Alert.alert("Attach File", "Choose a source", [
-                { text: "Files / Drive", onPress: () => mockAttachFile("file") },
-                { text: "Cancel", style: "cancel" },
-              ])
-            }
+            onPress={pickDocument}
           >
             <Feather name="paperclip" size={22} color={colors.foreground} />
           </TouchableOpacity>
@@ -490,8 +540,8 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             style={s.toolbarBtn}
             onPress={() =>
               Alert.alert("Add Photo", "Choose a source", [
-                { text: "Camera Roll", onPress: () => mockAttachFile("photo") },
-                { text: "Take Photo", onPress: () => mockAttachFile("photo") },
+                { text: "Camera Roll", onPress: pickFromCameraRoll },
+                { text: "Take Photo", onPress: takePhoto },
                 { text: "Cancel", style: "cancel" },
               ])
             }
@@ -512,9 +562,8 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             style={s.toolbarBtn}
             onPress={() =>
               Alert.alert("Drive / Storage", "Choose a source", [
-                { text: "Google Drive", onPress: () => mockAttachFile("file") },
-                { text: "iCloud Drive", onPress: () => mockAttachFile("file") },
-                { text: "OneDrive", onPress: () => mockAttachFile("file") },
+                { text: "PinnboxIO Storage", onPress: pickDocument },
+                { text: "Files on Device", onPress: pickDocument },
                 { text: "Cancel", style: "cancel" },
               ])
             }

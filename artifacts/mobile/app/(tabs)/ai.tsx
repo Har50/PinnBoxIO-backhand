@@ -42,11 +42,6 @@ async function getAuthToken(): Promise<string | null> {
 }
 
 type Provider = "openai" | "claude" | "gemini";
-const PROVIDERS: { id: Provider; label: string }[] = [
-  { id: "openai", label: "AI" },
-  { id: "claude", label: "Claude" },
-  { id: "gemini", label: "Gemini" },
-];
 
 const SUGGESTIONS = [
   "Summarize my unread emails",
@@ -251,7 +246,7 @@ export default function AiScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const [provider, setProvider] = useState<Provider>("openai");
+  const provider: Provider = "openai";
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
@@ -444,7 +439,27 @@ export default function AiScreen() {
 
   const sendMessage = async (text?: string) => {
     const userMsg = (text ?? input).trim();
-    if (!userMsg || !conversation || streaming) return;
+    if (!userMsg || streaming) return;
+
+    // Auto-create a conversation if none exists
+    let activeConversation = conversation;
+    if (!activeConversation) {
+      try {
+        const headers = await fetchHeaders();
+        const res = await fetch(`${apiUrl}/ai/conversations`, {
+          method: "POST",
+          headers,
+          credentials: "include",
+          body: JSON.stringify({ title: "New chat" }),
+        });
+        if (res.ok) {
+          activeConversation = await res.json();
+          setConversation(activeConversation);
+          loadConversations();
+        }
+      } catch {}
+    }
+    if (!activeConversation) return;
 
     const attachmentsToSend = [...pendingAttachments];
     setInput("");
@@ -457,7 +472,7 @@ export default function AiScreen() {
 
     try {
       const headers = await fetchHeaders();
-      const res = await fetch(`${apiUrl}/ai/conversations/${conversation.id}/messages`, {
+      const res = await fetch(`${apiUrl}/ai/conversations/${activeConversation.id}/messages`, {
         method: "POST",
         headers,
         credentials: "include",
@@ -554,14 +569,6 @@ export default function AiScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Provider pills */}
-      <View style={s.providerBar}>
-        {PROVIDERS.map((p) => (
-          <TouchableOpacity key={p.id} onPress={() => setProvider(p.id)} style={[s.providerPill, provider === p.id && s.providerPillActive]} activeOpacity={0.75}>
-            <Text style={[s.providerPillText, provider === p.id && s.providerPillTextActive]}>{p.label}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
@@ -621,6 +628,19 @@ export default function AiScreen() {
             activeOpacity={0.7}
           >
             <Feather name="plus" size={18} color={colors.mutedForeground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={s.micBtn}
+            onPress={() => {
+              setInput((prev) =>
+                prev
+                  ? `Translate the following text and detect the language automatically, then provide the translation in English:\n\n${prev}`
+                  : "Translate this text for me — paste it below and tell me the target language:"
+              );
+            }}
+            activeOpacity={0.7}
+          >
+            <Feather name="globe" size={18} color={colors.mutedForeground} />
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.micBtn, isRecording && { backgroundColor: "#ef444420" }]}

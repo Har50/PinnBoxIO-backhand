@@ -11,12 +11,12 @@ import {
   Modal,
   TextInput,
   Alert,
-  Platform,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
 import { format, isToday, isTomorrow, parseISO, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth } from "date-fns";
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@clerk/expo";
 
 type Attendee = { email: string; name: string; status: string };
 type CalendarEvent = {
@@ -58,22 +58,11 @@ function dayLabel(dateStr: string): string {
   return format(d, "EEEE, MMMM d");
 }
 
-async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return typeof localStorage !== "undefined"
-      ? localStorage.getItem("commshub_session_token")
-      : null;
-  }
-  const SecureStore = await import("expo-secure-store");
-  return SecureStore.getItemAsync("commshub_session_token");
-}
+const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
+const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
 
-async function apiFetch(path: string, options?: RequestInit) {
-  const baseUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "";
-  const token = await getAuthToken();
-  const res = await fetch(`${baseUrl}${path}`, {
+async function apiFetch(path: string, token: string | null, options?: RequestInit) {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...options,
     credentials: "include",
     headers: {
@@ -91,6 +80,7 @@ type ViewMode = "month" | "agenda";
 export default function CalendarScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { getToken } = useAuth();
   const [viewMode, setViewMode] = useState<ViewMode>("agenda");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
@@ -108,9 +98,10 @@ export default function CalendarScreen() {
   const fetchEvents = useCallback(async (quiet = false) => {
     if (!quiet) setLoading(true);
     try {
+      const token = await getToken();
       const start = format(startOfMonth(addMonths(currentMonth, -1)), "yyyy-MM-dd");
       const end = format(endOfMonth(addMonths(currentMonth, 2)), "yyyy-MM-dd");
-      const data = await apiFetch(`/api/calendar/events?start=${start}&end=${end}`);
+      const data = await apiFetch(`/api/calendar/events?start=${start}&end=${end}`, token);
       setEvents(data);
     } catch {
       Alert.alert("Error", "Failed to load calendar events.");
@@ -118,7 +109,7 @@ export default function CalendarScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentMonth]);
+  }, [currentMonth, getToken]);
 
   useEffect(() => {
     fetchEvents();
@@ -127,7 +118,8 @@ export default function CalendarScreen() {
   async function handleSync() {
     setSyncing(true);
     try {
-      const result = await apiFetch("/api/calendar/sync", { method: "POST" });
+      const token = await getToken();
+      const result = await apiFetch("/api/calendar/sync", token, { method: "POST" });
       Alert.alert(
         "Synced",
         `Gmail: ${result.gmailSynced} events\nOutlook: ${result.outlookSynced} events`
@@ -147,7 +139,8 @@ export default function CalendarScreen() {
     }
     setSaving(true);
     try {
-      await apiFetch("/api/calendar/events", {
+      const token = await getToken();
+      await apiFetch("/api/calendar/events", token, {
         method: "POST",
         body: JSON.stringify({
           title: createTitle.trim(),
@@ -175,7 +168,8 @@ export default function CalendarScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            await apiFetch(`/api/calendar/events/${eventId}`, { method: "DELETE" });
+            const token = await getToken();
+            await apiFetch(`/api/calendar/events/${eventId}`, token, { method: "DELETE" });
             setSelectedEvent(null);
             await fetchEvents(true);
           } catch {
