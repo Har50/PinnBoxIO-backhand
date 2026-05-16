@@ -29,7 +29,7 @@ async function categorizeFile(name: string, mimeType: string): Promise<string | 
 
 const router: IRouter = Router();
 
-const FREE_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
+const FREE_QUOTA_BYTES = 1 * 1024 * 1024 * 1024; // 1 GB
 
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
