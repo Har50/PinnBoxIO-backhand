@@ -124,7 +124,7 @@ async function handleWebhookEvent(event: string, body: any): Promise<void> {
       .where(eq(subscriptionsTable.id, sub.id));
     logger.info({ userId }, "Subscription cancelled → cancelAtPeriodEnd=true");
 
-  } else if (event === "subscription.completed" || event === "subscription.expired") {
+  } else if (event === "subscription.completed" || event === "subscription.expired" || event === "subscription.halted") {
     await db.update(usersTable).set({ isPro: false }).where(eq(usersTable.id, userId));
     await db
       .update(subscriptionsTable)
