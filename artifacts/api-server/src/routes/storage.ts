@@ -31,12 +31,6 @@ const router: IRouter = Router();
 
 const FREE_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB
 
-const STORAGE_PLANS = [
-  { gb: 10, label: "10 GB", priceUsd: 299, priceInr: 29900 },
-  { gb: 50, label: "50 GB", priceUsd: 699, priceInr: 69900 },
-  { gb: 100, label: "100 GB", priceUsd: 999, priceInr: 99900 },
-];
-
 const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
 
 async function signedUrl(storageKey: string, method: "GET" | "PUT" | "DELETE", ttlSec: number): Promise<string> {
@@ -423,41 +417,6 @@ router.delete("/storage/folders", async (req: any, res) => {
   }
 });
 
-router.get("/storage/plans", async (_req, res) => {
-  try {
-    res.json({ plans: STORAGE_PLANS.map((p) => ({ ...p, priceId: null, currency: "inr", unitAmount: p.priceInr })) });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post("/storage/revenuecat/activate", async (req: any, res) => {
-  try {
-    const { gb } = req.body;
-    const plan = STORAGE_PLANS.find((p) => p.gb === gb);
-    if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
-
-    const totalBytes = plan.gb * 1024 * 1024 * 1024;
-    const existing = await getOrCreateQuota(req.userId);
-
-    const [quota] = await db
-      .update(storageQuotasTable)
-      .set({
-        totalBytes: Math.max(existing.totalBytes, totalBytes),
-        planName: plan.label,
-      })
-      .where(eq(storageQuotasTable.userId, req.userId))
-      .returning();
-
-    res.json({ quota });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-router.post("/storage/checkout", async (req: any, res) => {
-  res.status(410).json({ error: "Web storage checkout is unavailable. Storage upgrades are managed through the mobile app." });
-});
 
 /** Enable public sharing for a file — generates a stable share token. */
 router.post("/storage/files/:id/share", async (req: any, res) => {

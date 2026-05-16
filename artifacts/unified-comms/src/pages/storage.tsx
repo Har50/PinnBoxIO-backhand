@@ -3,7 +3,7 @@ import {
   HardDrive, Upload, File, FileText, FileImage, FileVideo, FileAudio,
   Download, Trash2, Loader2, AlertTriangle, Package,
   X, Folder, FolderPlus, ChevronRight, MoveRight, Search,
-  Plus, ScanLine, Check, ChevronDown, Sparkles, Send,
+  Plus, ScanLine, Check, Sparkles, Send,
   SquareCheck, Square, Share2, Copy, Link as LinkIcon, Eye,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,8 +29,6 @@ async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
 interface Quota { id: number; userId: string; totalBytes: number; usedBytes: number; planName: string; }
 interface StorageFile { id: number; name: string; mimeType: string; sizeBytes: number; storageKey: string; folder: string; downloadCount: number; createdAt: string; isPublic?: boolean; shareToken?: string | null; category?: string | null; }
 interface StorageFolder { path: string; name: string; }
-interface Plan { gb: number; label: string; priceId: string | null; unitAmount: number; priceInr?: number; currency: string; name?: string; }
-
 type FileFilter = "all" | "photos" | "videos" | "audio" | "docs";
 
 function normPath(raw: string) {
@@ -361,17 +359,14 @@ export default function StoragePage() {
   const [quota, setQuota] = useState<Quota | null>(null);
   const [files, setFiles] = useState<StorageFile[]>([]);
   const [folders, setFolders] = useState<StorageFolder[]>([]);
-  const [plans, setPlans] = useState<Plan[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<string | null>(null);
-  const [upgradeLoading, setUpgradeLoading] = useState<number | null>(null);
   const [toast, setToast] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [showNewFolder, setShowNewFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [showActionSheet, setShowActionSheet] = useState(false);
-  const [showUpgradePlans, setShowUpgradePlans] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [hoveredFile, setHoveredFile] = useState<number | null>(null);
   const [shareModal, setShareModal] = useState<{ file: StorageFile; link: string } | null>(null);
@@ -402,16 +397,14 @@ export default function StoragePage() {
   const loadData = useCallback(async (folder = currentFolder) => {
     setLoadError(null);
     try {
-      const [quotaRes, filesRes, foldersRes, plansRes] = await Promise.all([
+      const [quotaRes, filesRes, foldersRes] = await Promise.all([
         apiFetch<{ quota: Quota }>("/storage/quota"),
         apiFetch<{ files: StorageFile[] }>(`/storage/files?folder=${encodeURIComponent(folder)}`),
         apiFetch<{ folders: StorageFolder[] }>(`/storage/folders?folder=${encodeURIComponent(folder)}`),
-        apiFetch<{ plans: Plan[] }>("/storage/plans"),
       ]);
       setQuota(quotaRes.quota);
       setFiles(filesRes.files);
       setFolders(foldersRes.folders);
-      setPlans(plansRes.plans);
     } catch (err: any) {
       setLoadError(err.message ?? "Failed to load files");
     } finally {
@@ -572,63 +565,6 @@ export default function StoragePage() {
       showToast("success", `Moved "${file.name}" to My Drive`);
       await loadData(currentFolder);
     } catch (err: any) { showToast("error", err.message); }
-  }, [loadData, currentFolder]);
-
-  const handleUpgrade = useCallback(async (plan: Plan) => {
-    setUpgradeLoading(plan.gb);
-    try {
-      const { orderId, amount, currency, keyId } = await apiFetch<{
-        orderId: string; amount: number; currency: string; keyId: string;
-      }>("/payments/razorpay/storage/order", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ gb: plan.gb }),
-      });
-
-      const RzpCheckout = (window as any).Razorpay;
-      if (!RzpCheckout) {
-        showToast("error", "Payment system not loaded. Please refresh and try again.");
-        setUpgradeLoading(null);
-        return;
-      }
-
-      const rzp = new RzpCheckout({
-        key: keyId,
-        amount,
-        currency,
-        name: "PinnboxIO",
-        description: `${plan.label} Storage – Monthly`,
-        order_id: orderId,
-        handler: async (response: any) => {
-          try {
-            await apiFetch("/payments/razorpay/storage/verify", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                razorpay_order_id: response.razorpay_order_id,
-                razorpay_payment_id: response.razorpay_payment_id,
-                razorpay_signature: response.razorpay_signature,
-                gb: plan.gb,
-              }),
-            });
-            showToast("success", `Storage upgraded to ${plan.label}!`);
-            setShowUpgradePlans(false);
-            await loadData(currentFolder);
-          } catch (err: any) {
-            showToast("error", err.message ?? "Payment verification failed");
-          } finally {
-            setUpgradeLoading(null);
-          }
-        },
-        modal: { ondismiss: () => setUpgradeLoading(null) },
-        theme: { color: "#6366f1" },
-      });
-
-      rzp.open();
-    } catch (err: any) {
-      showToast("error", err.message ?? "Could not start payment");
-      setUpgradeLoading(null);
-    }
   }, [loadData, currentFolder]);
 
   const openFilePicker = () => fileInputRef.current?.click();
@@ -959,14 +895,6 @@ export default function StoragePage() {
                 </div>
                 {isDanger && <p className="text-xs text-red-400 mt-1.5 flex items-center gap-1"><AlertTriangle className="w-3 h-3" /> Storage almost full</p>}
               </div>
-              {currentFolder === "/" && plans.length > 0 && (
-                <button
-                  onClick={() => setShowUpgradePlans((v) => !v)}
-                  className="text-xs text-blue-400 hover:text-blue-300 font-semibold flex items-center gap-1 flex-shrink-0 transition"
-                >
-                  Upgrade <ChevronDown className={cn("w-3 h-3 transition-transform", showUpgradePlans && "rotate-180")} />
-                </button>
-              )}
             </div>
           )}
 
@@ -977,33 +905,6 @@ export default function StoragePage() {
               <p className="text-xs text-emerald-400/80">
                 Your files are securely stored and tied to your account — they won't be lost if you sign out or refresh.
               </p>
-            </div>
-          )}
-
-          {/* Upgrade plans */}
-          {showUpgradePlans && currentFolder === "/" && plans.length > 0 && (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              {plans.map((plan) => (
-                <div key={plan.gb} className="bg-white/[0.04] border border-white/[0.08] rounded-xl p-4 flex flex-col gap-3 hover:border-blue-500/30 transition">
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-9 h-9 rounded-xl bg-blue-500/15 flex items-center justify-center">
-                      <HardDrive className="w-4 h-4 text-blue-400" />
-                    </div>
-                    <div>
-                      <p className="font-semibold text-white text-sm">{plan.gb} GB</p>
-                      <p className="text-xs text-gray-500">{plan.unitAmount ? `₹${(plan.unitAmount / 100).toFixed(0)}/mo` : "Free"}</p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleUpgrade(plan)}
-                    disabled={upgradeLoading === plan.gb}
-                    className="flex items-center justify-center gap-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white px-3 py-2 text-sm font-semibold transition disabled:opacity-50 shadow-lg shadow-blue-900/30"
-                  >
-                    {upgradeLoading === plan.gb ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                    Upgrade
-                  </button>
-                </div>
-              ))}
             </div>
           )}
 

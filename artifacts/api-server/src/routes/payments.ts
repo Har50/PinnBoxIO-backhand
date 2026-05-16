@@ -9,12 +9,6 @@ const FREE_QUOTA_BYTES = 1 * 1024 * 1024 * 1024;
 const PRO_QUOTA_BYTES = 25 * 1024 * 1024 * 1024;
 const FREE_AI_REQUESTS_PER_DAY = 20;
 
-const STORAGE_PLANS = [
-  { gb: 10, label: "10 GB", priceInr: 29900 },
-  { gb: 50, label: "50 GB", priceInr: 69900 },
-  { gb: 100, label: "100 GB", priceInr: 99900 },
-];
-
 const PRO_PLANS = {
   monthly: { usd: 799, inr: 49900, label: "Pro Monthly" },
   annual: { usd: 5999, inr: 399900, label: "Pro Annual" },
@@ -537,33 +531,7 @@ router.post("/subscription/cancel", async (req: any, res) => {
   }
 });
 
-// POST /api/payments/razorpay/storage/order
-router.post("/payments/razorpay/storage/order", async (req: any, res) => {
-  try {
-    const { gb } = req.body;
-    const plan = STORAGE_PLANS.find((p) => p.gb === gb);
-    if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
-
-    const rzp = getRazorpay();
-    const order = await rzp.orders.create({
-      amount: plan.priceInr,
-      currency: "INR",
-      receipt: `stor_${gb}gb_${Date.now().toString().slice(-10)}`,
-    });
-
-    res.json({
-      orderId: order.id,
-      amount: order.amount,
-      currency: order.currency,
-      keyId: process.env.RAZORPAY_KEY_ID,
-    });
-  } catch (err: any) {
-    logger.error({ err }, "Razorpay storage order creation failed");
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /api/payments/razorpay/storage/verify
+// POST /api/payments/razorpay/storage/verify (kept for legacy webhooks in flight)
 router.post("/payments/razorpay/storage/verify", async (req: any, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, gb } = req.body;
@@ -572,7 +540,12 @@ router.post("/payments/razorpay/storage/verify", async (req: any, res) => {
       return res.status(400).json({ error: "Payment verification failed" });
     }
 
-    const plan = STORAGE_PLANS.find((p) => p.gb === gb);
+    const LEGACY_STORAGE_PLANS = [
+      { gb: 10, label: "10 GB" },
+      { gb: 50, label: "50 GB" },
+      { gb: 100, label: "100 GB" },
+    ];
+    const plan = LEGACY_STORAGE_PLANS.find((p) => p.gb === gb);
     if (!plan) return res.status(400).json({ error: "Invalid storage plan" });
 
     const totalBytes = plan.gb * 1024 * 1024 * 1024;

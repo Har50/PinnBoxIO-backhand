@@ -7,7 +7,7 @@ pnpm workspace monorepo using TypeScript. Each package manages its own dependenc
 ## Features
 
 - **Unified inbox** — Email across multiple accounts (Gmail + Outlook)
-- **Cloud Storage** — 2 GB free, upload/download/delete/share files, purchase 10/50/100 GB plans via RevenueCat on mobile
+- **Cloud Storage** — 1 GB free (25 GB on Pro), upload/download/delete/share files
   - **AI Auto-categorization** — Files automatically tagged on upload (invoice, contract, receipt, report, etc.) using GPT-4o-mini
   - **AI Natural Language Search** — Search files by description ("find my invoices from last month") via `POST /api/storage/search`
   - **Analyze with AI** — Per-file AI analysis button opens the AI assistant with the file pre-loaded and auto-sends a summary prompt
@@ -96,7 +96,7 @@ Expo React Native app. Tabs: Home, Inbox, AI, Contacts, Accounts.
 - AI tab: paywall (RevenueCat) for non-Pro, AI chat for Pro users
 - RevenueCat initialized in `_layout.tsx`, paywall in `app/(tabs)/ai.tsx`
 - Lib: `lib/revenuecat.tsx` — `SubscriptionProvider`, `useSubscription`
-- Storage tab uses RevenueCat packages for 10/50/100 GB mobile upgrades and activates the selected quota through the API after purchase.
+- Storage tab shows a Pro upgrade nudge when quota is over 80% full.
 - Mobile uses a saved day/dark theme setting through `ThemeProvider`, with a global toggle overlay and app-wide color tokens.
 
 ### `lib/db` (`@workspace/db`)

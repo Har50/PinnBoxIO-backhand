@@ -50,7 +50,7 @@ export default function RefundsAndCancellations() {
                 <li>Email <a href="mailto:billing@pinnboxio.net" className="text-primary hover:underline">billing@pinnboxio.net</a> with your account email and request cancellation.</li>
               </ul>
               <p className="text-muted-foreground leading-relaxed mt-3">
-                Once cancelled, your subscription will remain active until the end of your current billing period. You will not be charged again after that date. Your files and data will remain accessible until the end of the period, after which storage quota will revert to the free tier (2 GB).
+                Once cancelled, your subscription will remain active until the end of your current billing period. You will not be charged again after that date. Your files and data will remain accessible until the end of the period, after which storage quota will revert to the free tier (1 GB).
               </p>
             </section>
 
