@@ -1,0 +1,121 @@
+I need you to build the subscription/monetisation layer for Pinnboxio. 
+Here is everything you need to know:
+
+## App Context
+- Pinnboxio is an AI productivity app with unified inbox (Gmail/Outlook), 
+  multi-model AI (GPT-4, Claude, Gemini), voice-to-email, cloud storage, 
+  calendar, and web search
+- Stack: Replit backend (Node.js/Express), Expo React Native frontend, 
+  Clerk auth, Razorpay payments
+- Markets: USA, India, Canada
+- Currency: Show USD ($7.99/mo, $59.99/yr) for US/Canada users, 
+  INR (₹499/mo, ₹3,999/yr) for India users
+- Detect country from Clerk user profile or IP
+
+## Plans to implement
+
+FREE:
+- 1 email account
+- 20 AI queries per day
+- 1 GB storage
+- GPT-4o model only
+- No voice-to-email
+- No web search in AI
+
+PRO MONTHLY: $7.99/mo USD | ₹499/mo INR
+PRO ANNUAL: $59.99/yr USD | ₹3,999/yr INR (show as "Best Value")
+- Unlimited email accounts
+- Unlimited AI queries
+- 25 GB storage
+- All AI models (GPT-4o, Claude, Gemini)
+- Voice-to-email
+- Web search in AI
+
+## What to build
+
+### 1. Backend — Plan enforcement
+- Add a `subscription` table: userId, plan (free|pro), 
+  status, expiresAt, razorpaySubscriptionId
+- Add middleware `requirePro` that checks plan before 
+  serving protected endpoints
+- Gate these endpoints behind `requirePro`:
+  - POST /api/ai/conversations/:id/messages 
+    (allow 20/day free, unlimited pro)
+  - POST /api/storage/upload-url 
+    (enforce 1GB free, 25GB pro quota)
+  - Voice-to-email endpoint
+- Add GET /api/subscription/status endpoint that returns:
+  { plan, queriesUsedToday, queriesLimit, storageUsed, storageLimit }
+
+### 2. Backend — Razorpay integration
+- Create Razorpay subscription plans for all 4 variants 
+  (monthly USD, annual USD, monthly INR, annual INR)
+- POST /api/subscription/create-order — creates Razorpay order
+- POST /api/subscription/verify — verifies payment signature, 
+  upgrades user to Pro in DB
+- POST /api/subscription/webhook — handles Razorpay webhooks 
+  for renewals and cancellations
+- POST /api/subscription/cancel — cancels subscription
+
+### 3. Mobile — Paywall screen
+Create file: artifacts/mobile/app/paywall.tsx
+- Full screen showing Free vs Pro comparison
+- Annual plan shown first, marked "Best Value" with a badge
+- Monthly plan below it
+- Feature list showing what's included in Pro with checkmarks
+- Large CTA button "Start Pro" 
+- Opens Razorpay checkout via WebBrowser.openBrowserAsync
+- "Restore purchase" link at bottom
+- Dark theme matching existing app style using useColors()
+
+### 4. Mobile — Feature gates (3 locked entry points)
+
+a) In artifacts/mobile/app/(tabs)/ai.tsx:
+- Track daily query count from /api/subscription/status
+- When free user hits 20 queries, show a banner:
+  "Daily limit reached — upgrade to Pro for unlimited AI"
+  with a button that navigates to /paywall
+
+b) In artifacts/mobile/app/(tabs)/storage.tsx:
+- Quota bar already exists — when usedBytes > 80% of totalBytes:
+  Change bar colour to amber and add text below quota card:
+  "Running low on storage — upgrade for 25 GB"
+  with an "Upgrade" button linking to /paywall
+- When upload fails due to quota, show alert with upgrade option
+
+c) In artifacts/mobile/app/(tabs)/ai.tsx (voice-to-email button):
+- If user is free plan, tapping the microphone shows a bottom sheet:
+  "Voice to Email is a Pro feature"
+  Brief description + "Upgrade to Pro" button → /paywall
+
+### 5. Mobile — Settings screen upgrade
+In artifacts/mobile/app/(tabs)/settings.tsx add a new section 
+above "Account" called "Subscription":
+
+If FREE user:
+- Row showing "Free Plan" with an "Upgrade to Pro →" button 
+  that goes to /paywall
+
+If PRO user:
+- Row showing "Pro Plan — Active" with green badge
+- Row showing renewal date
+- "Manage Subscription" row that opens Razorpay customer portal or 
+  a cancellation confirmation
+
+### 6. Onboarding
+After signup, if user has not seen paywall before:
+- Show the paywall screen with a "Maybe later" skip option
+- Store hasSeen flag in SecureStore / localStorage
+
+## Design rules
+- Use existing useColors() hook for all colours
+- Use Inter font family (Inter_400Regular, Inter_500Medium, 
+  Inter_600SemiBold, Inter_700Bold)
+- Match dark/light theme of existing screens
+- Border radius 14-16 for cards, 20 for pills
+- Primary colour for CTAs, destructive red for cancel actions
+
+## Do not change
+- Auth flow (Clerk handles this)
+- Existing inbox, calendar, accounts screens
+- The autonomous marketing agent (separate service)
