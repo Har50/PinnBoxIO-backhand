@@ -1,4 +1,4 @@
-import { integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, timestamp, varchar } from "drizzle-orm/pg-core";
 import { usersTable } from "./auth";
 
 export const subscriptionsTable = pgTable("subscriptions", {
@@ -10,7 +10,9 @@ export const subscriptionsTable = pgTable("subscriptions", {
   status: varchar("status", { length: 16 }).notNull().default("active"),
   razorpayOrderId: varchar("razorpay_order_id"),
   razorpayPaymentId: varchar("razorpay_payment_id"),
+  razorpaySubscriptionId: varchar("razorpay_subscription_id"),
   expiresAt: timestamp("expires_at", { withTimezone: true }),
+  cancelAtPeriodEnd: boolean("cancel_at_period_end").notNull().default(false),
   cancelledAt: timestamp("cancelled_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

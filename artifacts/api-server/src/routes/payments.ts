@@ -39,6 +39,13 @@ function verifySignature(orderId: string, paymentId: string, signature: string):
   return expected === signature;
 }
 
+function verifyWebhookSignature(rawBody: string, signature: string): boolean {
+  const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
+  if (!secret) return true;
+  const expected = createHmac("sha256", secret).update(rawBody).digest("hex");
+  return expected === signature;
+}
+
 async function getOrCreateQuota(userId: string) {
   const [existing] = await db
     .select()
@@ -51,6 +58,87 @@ async function getOrCreateQuota(userId: string) {
     .returning();
   return created;
 }
+
+async function getLatestSubscription(userId: string) {
+  const [sub] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.userId, userId))
+    .orderBy(desc(subscriptionsTable.createdAt))
+    .limit(1);
+  return sub ?? null;
+}
+
+async function handleWebhookEvent(event: string, body: any): Promise<void> {
+  const subscriptionEntity = body?.payload?.subscription?.entity;
+  const paymentEntity = body?.payload?.payment?.entity;
+  const rzpSubscriptionId: string | undefined =
+    subscriptionEntity?.id ?? paymentEntity?.subscription_id;
+
+  if (!rzpSubscriptionId) {
+    logger.warn({ event }, "Webhook missing subscription ID, skipping");
+    return;
+  }
+
+  const [sub] = await db
+    .select()
+    .from(subscriptionsTable)
+    .where(eq(subscriptionsTable.razorpaySubscriptionId, rzpSubscriptionId))
+    .limit(1);
+
+  if (!sub) {
+    logger.warn({ event, rzpSubscriptionId }, "Webhook: no matching subscription found");
+    return;
+  }
+
+  const userId = sub.userId;
+
+  if (event === "subscription.activated") {
+    const currentEnd: number | undefined = subscriptionEntity?.current_end;
+    const renewsAt = currentEnd ? new Date(currentEnd * 1000) : null;
+    await db.update(usersTable).set({ isPro: true }).where(eq(usersTable.id, userId));
+    await db
+      .update(subscriptionsTable)
+      .set({ plan: "pro", status: "active", expiresAt: renewsAt, cancelAtPeriodEnd: false })
+      .where(eq(subscriptionsTable.id, sub.id));
+    await db
+      .update(storageQuotasTable)
+      .set({ totalBytes: PRO_QUOTA_BYTES, planName: "Pro" })
+      .where(eq(storageQuotasTable.userId, userId));
+    logger.info({ userId, rzpSubscriptionId }, "Subscription activated → pro");
+
+  } else if (event === "subscription.charged") {
+    const currentEnd: number | undefined = subscriptionEntity?.current_end ?? paymentEntity?.subscription_id ? undefined : undefined;
+    const chargedEnd: number | undefined = subscriptionEntity?.current_end;
+    const renewsAt = chargedEnd ? new Date(chargedEnd * 1000) : null;
+    await db
+      .update(subscriptionsTable)
+      .set({ expiresAt: renewsAt, status: "active", cancelAtPeriodEnd: false })
+      .where(eq(subscriptionsTable.id, sub.id));
+    logger.info({ userId, renewsAt }, "Subscription charged → renewsAt updated");
+
+  } else if (event === "subscription.cancelled") {
+    await db
+      .update(subscriptionsTable)
+      .set({ cancelAtPeriodEnd: true })
+      .where(eq(subscriptionsTable.id, sub.id));
+    logger.info({ userId }, "Subscription cancelled → cancelAtPeriodEnd=true");
+
+  } else if (event === "subscription.completed" || event === "subscription.expired") {
+    await db.update(usersTable).set({ isPro: false }).where(eq(usersTable.id, userId));
+    await db
+      .update(subscriptionsTable)
+      .set({ plan: "free", status: "cancelled", cancelledAt: new Date(), cancelAtPeriodEnd: false, expiresAt: null, razorpaySubscriptionId: null })
+      .where(eq(subscriptionsTable.id, sub.id));
+    await db
+      .update(storageQuotasTable)
+      .set({ totalBytes: FREE_QUOTA_BYTES, planName: "Free" })
+      .where(eq(storageQuotasTable.userId, userId));
+    logger.info({ userId, event }, "Subscription ended → downgraded to free");
+  }
+}
+
+// ─── Public routes (no auth) ─────────────────────────────────────────────────
 
 export const paymentsPublicRouter: IRouter = Router();
 
@@ -208,12 +296,37 @@ paymentsPublicRouter.post("/payments/razorpay/pro/verify-anon", async (req, res)
   }
 });
 
+// Webhook — public, no auth, signature verified internally
+paymentsPublicRouter.post("/subscription/webhook", async (req, res) => {
+  try {
+    const signature = req.headers["x-razorpay-signature"] as string;
+    const rawBody = JSON.stringify(req.body);
+
+    if (!verifyWebhookSignature(rawBody, signature)) {
+      return res.status(400).json({ error: "Invalid webhook signature" });
+    }
+
+    const event = req.body?.event as string;
+    logger.info({ event }, "Razorpay subscription webhook received");
+
+    await handleWebhookEvent(event, req.body);
+
+    res.json({ acknowledged: true });
+  } catch (err: any) {
+    logger.error({ err }, "Razorpay subscription webhook failed");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Authenticated routes ─────────────────────────────────────────────────────
+
 const router: IRouter = Router();
 
 router.get("/payments/razorpay/config", (_req, res) => {
   res.json({ keyId: process.env.RAZORPAY_KEY_ID });
 });
 
+// GET /api/subscription/status
 router.get("/subscription/status", async (req: any, res) => {
   try {
     const [user] = await db
@@ -222,21 +335,16 @@ router.get("/subscription/status", async (req: any, res) => {
       .where(eq(usersTable.id, req.userId));
 
     const quota = await getOrCreateQuota(req.userId);
-
-    const [latestSub] = await db
-      .select()
-      .from(subscriptionsTable)
-      .where(eq(subscriptionsTable.userId, req.userId))
-      .orderBy(desc(subscriptionsTable.createdAt))
-      .limit(1);
+    const latestSub = await getLatestSubscription(req.userId);
 
     const isPro = user?.isPro ?? false;
 
     res.json({
       plan: isPro ? "pro" : "free",
+      renewsAt: latestSub?.expiresAt ?? null,
+      cancelAtPeriodEnd: latestSub?.cancelAtPeriodEnd ?? false,
       billingCycle: latestSub?.billingCycle ?? null,
       currency: latestSub?.currency ?? null,
-      expiresAt: latestSub?.expiresAt ?? null,
       queriesLimit: isPro ? null : FREE_AI_REQUESTS_PER_DAY,
       storageUsedBytes: quota.usedBytes,
       storageTotalBytes: quota.totalBytes,
@@ -247,13 +355,177 @@ router.get("/subscription/status", async (req: any, res) => {
   }
 });
 
+// POST /api/subscription/create-order  — creates a Razorpay Subscription (hosted checkout)
+router.post("/subscription/create-order", async (req: any, res) => {
+  try {
+    const { planKey, currency: reqCurrency } = req.body as { planKey?: string; currency?: string };
+
+    const isAnnual = planKey === "pro_annual";
+    const billingCycle = isAnnual ? "annual" : "monthly";
+    const currency = reqCurrency === "usd" ? "usd" : "inr";
+
+    let planId: string | undefined;
+    if (currency === "inr") {
+      planId = isAnnual
+        ? process.env.RAZORPAY_PLAN_ID_ANNUAL_INR
+        : process.env.RAZORPAY_PLAN_ID_MONTHLY_INR;
+    } else {
+      planId = isAnnual
+        ? process.env.RAZORPAY_PLAN_ID_ANNUAL_USD
+        : process.env.RAZORPAY_PLAN_ID_MONTHLY_USD;
+    }
+
+    if (!planId) {
+      return res.status(500).json({
+        error: "Subscription plan not configured. Please contact support.",
+      });
+    }
+
+    const rzp = getRazorpay();
+
+    const subscription = await rzp.subscriptions.create({
+      plan_id: planId,
+      total_count: isAnnual ? 12 : 120,
+      quantity: 1,
+      notes: {
+        userId: req.userId,
+        billingCycle,
+        currency,
+      },
+    });
+
+    // Store a pending subscription record so the webhook can match it
+    await db.insert(subscriptionsTable).values({
+      userId: req.userId,
+      plan: "free",
+      billingCycle,
+      currency,
+      status: "created",
+      razorpaySubscriptionId: subscription.id,
+    } as any);
+
+    const checkoutUrl: string = subscription.short_url;
+
+    res.json({ checkoutUrl, subscriptionId: subscription.id });
+  } catch (err: any) {
+    logger.error({ err }, "subscription create-order failed");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/subscription/restore  — check Razorpay for active subscriptions by user email
+router.post("/subscription/restore", async (req: any, res) => {
+  try {
+    const [user] = await db
+      .select({ email: usersTable.email, isPro: usersTable.isPro })
+      .from(usersTable)
+      .where(eq(usersTable.id, req.userId));
+
+    if (!user?.email) {
+      return res.json({ plan: "free" });
+    }
+
+    const rzp = getRazorpay();
+
+    const response = await rzp.subscriptions.all({ count: 20 });
+    const subscriptions: any[] = response?.items ?? [];
+
+    const active = subscriptions.find(
+      (s: any) =>
+        (s.status === "active" || s.status === "authenticated") &&
+        (s.notes?.userId === req.userId || s.customer_id != null)
+    );
+
+    if (!active) {
+      return res.json({ plan: user.isPro ? "pro" : "free" });
+    }
+
+    const existingSub = await getLatestSubscription(req.userId);
+    const renewsAt = active.current_end ? new Date(active.current_end * 1000) : null;
+
+    await db.update(usersTable).set({ isPro: true }).where(eq(usersTable.id, req.userId));
+
+    if (existingSub) {
+      await db
+        .update(subscriptionsTable)
+        .set({
+          plan: "pro",
+          status: "active",
+          razorpaySubscriptionId: active.id,
+          expiresAt: renewsAt,
+          cancelAtPeriodEnd: false,
+        })
+        .where(eq(subscriptionsTable.id, existingSub.id));
+    } else {
+      const cycle = active.plan_id?.includes("annual") ? "annual" : "monthly";
+      await db.insert(subscriptionsTable).values({
+        userId: req.userId,
+        plan: "pro",
+        billingCycle: cycle,
+        currency: "inr",
+        status: "active",
+        razorpaySubscriptionId: active.id,
+        expiresAt: renewsAt,
+      } as any);
+    }
+
+    await db
+      .update(storageQuotasTable)
+      .set({ totalBytes: PRO_QUOTA_BYTES, planName: "Pro" })
+      .where(eq(storageQuotasTable.userId, req.userId));
+
+    res.json({ plan: "pro", renewsAt });
+  } catch (err: any) {
+    logger.error({ err }, "subscription restore failed");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/subscription/portal  — redirect to subscription management
+router.get("/subscription/portal", async (req: any, res) => {
+  try {
+    const sub = await getLatestSubscription(req.userId);
+
+    if (sub?.razorpaySubscriptionId) {
+      return res.redirect(
+        `https://dashboard.razorpay.com/app/subscriptions/${sub.razorpaySubscriptionId}`
+      );
+    }
+
+    res.redirect("https://dashboard.razorpay.com");
+  } catch (err: any) {
+    logger.error({ err }, "subscription portal failed");
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/subscription/cancel
 router.post("/subscription/cancel", async (req: any, res) => {
   try {
+    const sub = await getLatestSubscription(req.userId);
+
+    if (sub?.razorpaySubscriptionId) {
+      try {
+        const rzp = getRazorpay();
+        await rzp.subscriptions.cancel(sub.razorpaySubscriptionId, { cancel_at_cycle_end: 1 });
+      } catch (rzpErr: any) {
+        logger.warn({ rzpErr }, "Razorpay subscription cancel API call failed — updating DB anyway");
+      }
+      await db
+        .update(subscriptionsTable)
+        .set({ cancelAtPeriodEnd: true })
+        .where(eq(subscriptionsTable.id, sub.id));
+      return res.json({ success: true, cancelAtPeriodEnd: true });
+    }
+
+    // Legacy: no subscription ID, cancel immediately
     await db.update(usersTable).set({ isPro: false }).where(eq(usersTable.id, req.userId));
-    await db
-      .update(subscriptionsTable)
-      .set({ status: "cancelled", cancelledAt: new Date() })
-      .where(eq(subscriptionsTable.userId, req.userId));
+    if (sub) {
+      await db
+        .update(subscriptionsTable)
+        .set({ status: "cancelled", plan: "free", cancelledAt: new Date() })
+        .where(eq(subscriptionsTable.id, sub.id));
+    }
     await db
       .update(storageQuotasTable)
       .set({ totalBytes: FREE_QUOTA_BYTES, planName: "Free" })
@@ -265,6 +537,7 @@ router.post("/subscription/cancel", async (req: any, res) => {
   }
 });
 
+// POST /api/payments/razorpay/storage/order
 router.post("/payments/razorpay/storage/order", async (req: any, res) => {
   try {
     const { gb } = req.body;
@@ -290,6 +563,7 @@ router.post("/payments/razorpay/storage/order", async (req: any, res) => {
   }
 });
 
+// POST /api/payments/razorpay/storage/verify
 router.post("/payments/razorpay/storage/verify", async (req: any, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, gb } = req.body;
@@ -320,6 +594,7 @@ router.post("/payments/razorpay/storage/verify", async (req: any, res) => {
   }
 });
 
+// POST /api/payments/razorpay/pro/order  (legacy — one-time order flow)
 router.post("/payments/razorpay/pro/order", async (req: any, res) => {
   try {
     const billingCycle: string = req.body.billingCycle === "annual" ? "annual" : "monthly";
@@ -367,6 +642,7 @@ router.post("/payments/razorpay/pro/order", async (req: any, res) => {
   }
 });
 
+// POST /api/payments/razorpay/pro/verify  (legacy — one-time order flow)
 router.post("/payments/razorpay/pro/verify", async (req: any, res) => {
   try {
     const { razorpay_order_id, razorpay_payment_id, razorpay_signature, billingCycle, currency } = req.body;
@@ -411,38 +687,20 @@ router.post("/payments/razorpay/pro/verify", async (req: any, res) => {
   }
 });
 
+// POST /api/payments/razorpay/webhook  (legacy alias — also verified)
 router.post("/payments/razorpay/webhook", async (req, res) => {
   try {
-    const secret = process.env.RAZORPAY_WEBHOOK_SECRET;
-    if (secret) {
-      const signature = req.headers["x-razorpay-signature"] as string;
-      const body = JSON.stringify(req.body);
-      const expected = createHmac("sha256", secret).update(body).digest("hex");
-      if (signature !== expected) {
-        return res.status(400).json({ error: "Invalid webhook signature" });
-      }
+    const signature = req.headers["x-razorpay-signature"] as string;
+    const rawBody = JSON.stringify(req.body);
+
+    if (!verifyWebhookSignature(rawBody, signature)) {
+      return res.status(400).json({ error: "Invalid webhook signature" });
     }
 
     const event = req.body?.event as string;
-    logger.info({ event }, "Razorpay webhook received");
+    logger.info({ event }, "Razorpay webhook received (legacy path)");
 
-    if (event === "subscription.cancelled" || event === "subscription.expired") {
-      const subscriptionId = req.body?.payload?.subscription?.entity?.id as string;
-      if (subscriptionId) {
-        const [sub] = await db
-          .select({ userId: subscriptionsTable.userId })
-          .from(subscriptionsTable)
-          .where(eq(subscriptionsTable.razorpayOrderId, subscriptionId))
-          .limit(1);
-        if (sub) {
-          await db.update(usersTable).set({ isPro: false }).where(eq(usersTable.id, sub.userId));
-          await db
-            .update(subscriptionsTable)
-            .set({ status: "cancelled", cancelledAt: new Date() })
-            .where(eq(subscriptionsTable.userId, sub.userId));
-        }
-      }
-    }
+    await handleWebhookEvent(event, req.body);
 
     res.json({ acknowledged: true });
   } catch (err: any) {
