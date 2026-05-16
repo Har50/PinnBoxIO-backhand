@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -14,7 +14,11 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
-import { format, isToday, isTomorrow, parseISO, addMonths, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth } from "date-fns";
+import {
+  format, isToday, isTomorrow, parseISO,
+  addMonths, startOfMonth, endOfMonth,
+  startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth,
+} from "date-fns";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@clerk/expo";
 
@@ -77,16 +81,217 @@ async function apiFetch(path: string, token: string | null, options?: RequestIni
 
 type ViewMode = "month" | "agenda";
 
+type AgendaRow =
+  | { type: "header"; label: string }
+  | { type: "event"; event: CalendarEvent };
+
+interface AgendaViewProps {
+  events: CalendarEvent[];
+  refreshing: boolean;
+  onRefresh: () => void;
+  onSelect: (ev: CalendarEvent) => void;
+  colors: ReturnType<typeof useColors>;
+  bottomInset: number;
+}
+
+function AgendaView({ events, refreshing, onRefresh, onSelect, colors, bottomInset }: AgendaViewProps) {
+  const sorted = [...events].sort(
+    (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
+  );
+
+  if (sorted.length === 0) {
+    return (
+      <View style={[styles.emptyState, { backgroundColor: colors.background }]}>
+        <Feather name="calendar" size={48} color={colors.mutedForeground} />
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          No events found.{"\n"}Tap Sync to import from your email accounts.
+        </Text>
+      </View>
+    );
+  }
+
+  let lastDayLabel = "";
+  const rows: AgendaRow[] = [];
+  for (const ev of sorted) {
+    const label = dayLabel(ev.startAt);
+    if (label !== lastDayLabel) {
+      rows.push({ type: "header", label });
+      lastDayLabel = label;
+    }
+    rows.push({ type: "event", event: ev });
+  }
+
+  return (
+    <FlatList
+      data={rows}
+      keyExtractor={(item, i) =>
+        item.type === "header" ? `hdr-${item.label}` : `ev-${item.event.id}-${i}`
+      }
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.primary}
+        />
+      }
+      contentContainerStyle={{ paddingBottom: bottomInset + 80 }}
+      renderItem={({ item }) => {
+        if (item.type === "header") {
+          return (
+            <Text
+              style={[
+                styles.dayHeader,
+                { color: item.label === "Today" ? colors.primary : colors.mutedForeground },
+              ]}
+            >
+              {item.label}
+            </Text>
+          );
+        }
+        const ev = item.event;
+        const color = eventColor(ev);
+        return (
+          <Pressable
+            onPress={() => onSelect(ev)}
+            style={({ pressed }) => [
+              styles.eventRow,
+              {
+                backgroundColor: pressed ? colors.muted : colors.card,
+                borderColor: colors.border,
+              },
+            ]}
+          >
+            <View style={[styles.eventBar, { backgroundColor: color }]} />
+            <View style={styles.eventContent}>
+              <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1}>
+                {ev.title}
+              </Text>
+              <View style={styles.eventMeta}>
+                {ev.allDay ? (
+                  <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]}>All day</Text>
+                ) : (
+                  <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]}>
+                    {format(parseISO(ev.startAt), "h:mm a")} – {format(parseISO(ev.endAt), "h:mm a")}
+                  </Text>
+                )}
+                {ev.location ? (
+                  <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]} numberOfLines={1}>
+                    {"  ·  "}{ev.location}
+                  </Text>
+                ) : null}
+              </View>
+            </View>
+            <View style={[styles.providerBadge, { borderColor: color }]}>
+              <Text style={[styles.providerBadgeText, { color }]}>
+                {ev.provider === "gmail" ? "G" : ev.provider === "outlook" ? "OL" : "•"}
+              </Text>
+            </View>
+          </Pressable>
+        );
+      }}
+    />
+  );
+}
+
+interface MonthViewProps {
+  events: CalendarEvent[];
+  currentMonth: Date;
+  refreshing: boolean;
+  onRefresh: () => void;
+  onSelect: (ev: CalendarEvent) => void;
+  colors: ReturnType<typeof useColors>;
+  bottomInset: number;
+}
+
+function MonthView({ events, currentMonth, refreshing, onRefresh, onSelect, colors, bottomInset }: MonthViewProps) {
+  const monthStart = startOfMonth(currentMonth);
+  const monthEnd = endOfMonth(currentMonth);
+  const calStart = startOfWeek(monthStart);
+  const calEnd = endOfWeek(monthEnd);
+  const days: Date[] = [];
+  let d = calStart;
+  while (d <= calEnd) {
+    days.push(d);
+    d = addDays(d, 1);
+  }
+  const weeks: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
+
+  return (
+    <ScrollView
+      style={{ flex: 1 }}
+      contentContainerStyle={{ paddingBottom: bottomInset + 80 }}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          tintColor={colors.primary}
+        />
+      }
+    >
+      <View style={[styles.monthGrid, { borderColor: colors.border }]}>
+        <View style={styles.weekDayRow}>
+          {["S", "M", "T", "W", "T", "F", "S"].map((label, i) => (
+            <Text key={i} style={[styles.weekDayLabel, { color: colors.mutedForeground }]}>{label}</Text>
+          ))}
+        </View>
+        {weeks.map((week, wi) => (
+          <View key={wi} style={[styles.weekRow, { borderTopColor: colors.border }]}>
+            {week.map((day) => {
+              const dayEvts = events.filter((e) => isSameDay(parseISO(e.startAt), day));
+              const inMonth = isSameMonth(day, currentMonth);
+              const today = isToday(day);
+              return (
+                <View key={day.toISOString()} style={styles.dayCell}>
+                  <View style={[styles.dayNumber, today && { backgroundColor: colors.primary }]}>
+                    <Text
+                      style={[
+                        styles.dayNumberText,
+                        { color: today ? "#fff" : inMonth ? colors.foreground : colors.mutedForeground },
+                      ]}
+                    >
+                      {format(day, "d")}
+                    </Text>
+                  </View>
+                  {dayEvts.slice(0, 2).map((ev) => (
+                    <Pressable
+                      key={ev.id}
+                      onPress={() => onSelect(ev)}
+                      style={[styles.miniEvent, { backgroundColor: eventColor(ev) }]}
+                    >
+                      <Text style={styles.miniEventText} numberOfLines={1}>{ev.title}</Text>
+                    </Pressable>
+                  ))}
+                  {dayEvts.length > 2 && (
+                    <Text style={[styles.moreText, { color: colors.mutedForeground }]}>
+                      +{dayEvts.length - 2}
+                    </Text>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        ))}
+      </View>
+    </ScrollView>
+  );
+}
+
 export default function CalendarScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { getToken } = useAuth();
+
+  const getTokenRef = useRef(getToken);
+  useEffect(() => { getTokenRef.current = getToken; }, [getToken]);
+
   const [viewMode, setViewMode] = useState<ViewMode>("agenda");
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [createTitle, setCreateTitle] = useState("");
@@ -95,30 +300,41 @@ export default function CalendarScreen() {
   const [createLocation, setCreateLocation] = useState("");
   const [saving, setSaving] = useState(false);
 
+  const isFetchingRef = useRef(false);
+
   const fetchEvents = useCallback(async (quiet = false) => {
+    if (isFetchingRef.current) return;
+    isFetchingRef.current = true;
     if (!quiet) setLoading(true);
+    setFetchError(null);
     try {
-      const token = await getToken();
+      const token = await getTokenRef.current();
       const start = format(startOfMonth(addMonths(currentMonth, -1)), "yyyy-MM-dd");
       const end = format(endOfMonth(addMonths(currentMonth, 2)), "yyyy-MM-dd");
       const data = await apiFetch(`/api/calendar/events?start=${start}&end=${end}`, token);
       setEvents(data);
     } catch {
-      Alert.alert("Error", "Failed to load calendar events.");
+      setFetchError("Failed to load calendar events. Pull down to retry.");
     } finally {
       setLoading(false);
       setRefreshing(false);
+      isFetchingRef.current = false;
     }
-  }, [currentMonth, getToken]);
+  }, [currentMonth]);
 
   useEffect(() => {
     fetchEvents();
   }, [fetchEvents]);
 
+  const handleRefresh = useCallback(() => {
+    setRefreshing(true);
+    fetchEvents(true);
+  }, [fetchEvents]);
+
   async function handleSync() {
     setSyncing(true);
     try {
-      const token = await getToken();
+      const token = await getTokenRef.current();
       const result = await apiFetch("/api/calendar/sync", token, { method: "POST" });
       Alert.alert(
         "Synced",
@@ -139,7 +355,7 @@ export default function CalendarScreen() {
     }
     setSaving(true);
     try {
-      const token = await getToken();
+      const token = await getTokenRef.current();
       await apiFetch("/api/calendar/events", token, {
         method: "POST",
         body: JSON.stringify({
@@ -168,7 +384,7 @@ export default function CalendarScreen() {
         style: "destructive",
         onPress: async () => {
           try {
-            const token = await getToken();
+            const token = await getTokenRef.current();
             await apiFetch(`/api/calendar/events/${eventId}`, token, { method: "DELETE" });
             setSelectedEvent(null);
             await fetchEvents(true);
@@ -180,187 +396,8 @@ export default function CalendarScreen() {
     ]);
   }
 
-  function AgendaView() {
-    const sorted = [...events].sort(
-      (a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime()
-    );
-
-    if (sorted.length === 0) {
-      return (
-        <View style={[styles.emptyState, { backgroundColor: colors.background }]}>
-          <Feather name="calendar" size={48} color={colors.mutedForeground} />
-          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
-            No events found.{"\n"}Tap Sync to import from your email accounts.
-          </Text>
-        </View>
-      );
-    }
-
-    let lastDayLabel = "";
-    const rows: Array<{ type: "header"; label: string } | { type: "event"; event: CalendarEvent }> = [];
-    for (const ev of sorted) {
-      const label = dayLabel(ev.startAt);
-      if (label !== lastDayLabel) {
-        rows.push({ type: "header", label });
-        lastDayLabel = label;
-      }
-      rows.push({ type: "event", event: ev });
-    }
-
-    return (
-      <FlatList
-        data={rows}
-        keyExtractor={(item, i) =>
-          item.type === "header" ? `hdr-${item.label}` : `ev-${item.event.id}-${i}`
-        }
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchEvents(true); }}
-            tintColor={colors.primary}
-          />
-        }
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-        renderItem={({ item }) => {
-          if (item.type === "header") {
-            return (
-              <Text
-                style={[
-                  styles.dayHeader,
-                  { color: item.label === "Today" ? colors.primary : colors.mutedForeground },
-                ]}
-              >
-                {item.label}
-              </Text>
-            );
-          }
-          const ev = item.event;
-          const color = eventColor(ev);
-          return (
-            <Pressable
-              onPress={() => setSelectedEvent(ev)}
-              style={({ pressed }) => [
-                styles.eventRow,
-                {
-                  backgroundColor: pressed ? colors.muted : colors.card,
-                  borderColor: colors.border,
-                },
-              ]}
-            >
-              <View style={[styles.eventBar, { backgroundColor: color }]} />
-              <View style={styles.eventContent}>
-                <Text style={[styles.eventTitle, { color: colors.foreground }]} numberOfLines={1}>
-                  {ev.title}
-                </Text>
-                <View style={styles.eventMeta}>
-                  {ev.allDay ? (
-                    <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]}>All day</Text>
-                  ) : (
-                    <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]}>
-                      {format(parseISO(ev.startAt), "h:mm a")} – {format(parseISO(ev.endAt), "h:mm a")}
-                    </Text>
-                  )}
-                  {ev.location ? (
-                    <Text style={[styles.eventMetaText, { color: colors.mutedForeground }]} numberOfLines={1}>
-                      {"  ·  "}{ev.location}
-                    </Text>
-                  ) : null}
-                </View>
-              </View>
-              <View style={[styles.providerBadge, { borderColor: color }]}>
-                <Text style={[styles.providerBadgeText, { color }]}>
-                  {ev.provider === "gmail" ? "G" : ev.provider === "outlook" ? "OL" : "•"}
-                </Text>
-              </View>
-            </Pressable>
-          );
-        }}
-      />
-    );
-  }
-
-  function MonthView() {
-    const monthStart = startOfMonth(currentMonth);
-    const monthEnd = endOfMonth(currentMonth);
-    const calStart = startOfWeek(monthStart);
-    const calEnd = endOfWeek(monthEnd);
-    const days: Date[] = [];
-    let d = calStart;
-    while (d <= calEnd) {
-      days.push(d);
-      d = addDays(d, 1);
-    }
-    const weeks: Date[][] = [];
-    for (let i = 0; i < days.length; i += 7) weeks.push(days.slice(i, i + 7));
-
-    return (
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => { setRefreshing(true); fetchEvents(true); }}
-            tintColor={colors.primary}
-          />
-        }
-      >
-        <View style={[styles.monthGrid, { borderColor: colors.border }]}>
-          <View style={styles.weekDayRow}>
-            {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => (
-              <Text key={i} style={[styles.weekDayLabel, { color: colors.mutedForeground }]}>{d}</Text>
-            ))}
-          </View>
-          {weeks.map((week, wi) => (
-            <View key={wi} style={[styles.weekRow, { borderTopColor: colors.border }]}>
-              {week.map((day) => {
-                const dayEvts = events.filter((e) => isSameDay(parseISO(e.startAt), day));
-                const inMonth = isSameMonth(day, currentMonth);
-                const today = isToday(day);
-                return (
-                  <View key={day.toISOString()} style={styles.dayCell}>
-                    <View
-                      style={[
-                        styles.dayNumber,
-                        today && { backgroundColor: colors.primary },
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.dayNumberText,
-                          { color: today ? "#fff" : inMonth ? colors.foreground : colors.mutedForeground },
-                        ]}
-                      >
-                        {format(day, "d")}
-                      </Text>
-                    </View>
-                    {dayEvts.slice(0, 2).map((ev) => (
-                      <Pressable
-                        key={ev.id}
-                        onPress={() => setSelectedEvent(ev)}
-                        style={[styles.miniEvent, { backgroundColor: eventColor(ev) }]}
-                      >
-                        <Text style={styles.miniEventText} numberOfLines={1}>{ev.title}</Text>
-                      </Pressable>
-                    ))}
-                    {dayEvts.length > 2 && (
-                      <Text style={[styles.moreText, { color: colors.mutedForeground }]}>
-                        +{dayEvts.length - 2}
-                      </Text>
-                    )}
-                  </View>
-                );
-              })}
-            </View>
-          ))}
-        </View>
-      </ScrollView>
-    );
-  }
-
   return (
     <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-      {/* Header */}
       <View style={[styles.header, { borderBottomColor: colors.border }]}>
         <View style={styles.headerLeft}>
           <Pressable onPress={() => setCurrentMonth((m) => addMonths(m, -1))} style={styles.navBtn}>
@@ -378,11 +415,7 @@ export default function CalendarScreen() {
             onPress={() => setViewMode((v) => (v === "month" ? "agenda" : "month"))}
             style={[styles.viewToggle, { borderColor: colors.border, backgroundColor: colors.card }]}
           >
-            <Feather
-              name={viewMode === "month" ? "list" : "grid"}
-              size={16}
-              color={colors.foreground}
-            />
+            <Feather name={viewMode === "month" ? "list" : "grid"} size={16} color={colors.foreground} />
           </Pressable>
           <Pressable
             onPress={handleSync}
@@ -404,15 +437,40 @@ export default function CalendarScreen() {
         </View>
       </View>
 
-      {/* Content */}
       {loading ? (
         <View style={styles.loadingState}>
           <ActivityIndicator size="large" color={colors.primary} />
         </View>
+      ) : fetchError ? (
+        <View style={styles.emptyState}>
+          <Feather name="alert-circle" size={32} color={colors.mutedForeground} />
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>{fetchError}</Text>
+          <Pressable
+            onPress={handleRefresh}
+            style={[styles.retryBtn, { backgroundColor: colors.primary }]}
+          >
+            <Text style={styles.retryBtnText}>Retry</Text>
+          </Pressable>
+        </View>
       ) : viewMode === "month" ? (
-        <MonthView />
+        <MonthView
+          events={events}
+          currentMonth={currentMonth}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          onSelect={setSelectedEvent}
+          colors={colors}
+          bottomInset={insets.bottom}
+        />
       ) : (
-        <AgendaView />
+        <AgendaView
+          events={events}
+          refreshing={refreshing}
+          onRefresh={handleRefresh}
+          onSelect={setSelectedEvent}
+          colors={colors}
+          bottomInset={insets.bottom}
+        />
       )}
 
       {/* Event Detail Modal */}
@@ -591,56 +649,44 @@ const styles = StyleSheet.create({
   iconBtn: { width: 36, height: 36, borderRadius: 8, alignItems: "center", justifyContent: "center" },
   addBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center" },
   loadingState: { flex: 1, alignItems: "center", justifyContent: "center" },
-  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32 },
-  emptyText: { fontSize: 14, textAlign: "center", marginTop: 16, lineHeight: 22 },
-  dayHeader: { fontSize: 13, fontWeight: "600", paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 },
-  eventRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 12,
-    marginBottom: 6,
-    borderRadius: 10,
-    borderWidth: StyleSheet.hairlineWidth,
-    overflow: "hidden",
-  },
+  emptyState: { flex: 1, alignItems: "center", justifyContent: "center", paddingHorizontal: 32, gap: 16 },
+  emptyText: { fontSize: 14, textAlign: "center", marginTop: 8, lineHeight: 22 },
+  retryBtn: { paddingHorizontal: 24, paddingVertical: 10, borderRadius: 20, marginTop: 4 },
+  retryBtnText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  dayHeader: { fontSize: 13, fontWeight: "600", paddingHorizontal: 16, paddingTop: 20, paddingBottom: 6, textTransform: "uppercase", letterSpacing: 0.5 },
+  eventRow: { flexDirection: "row", alignItems: "center", marginHorizontal: 16, marginBottom: 8, borderRadius: 12, borderWidth: StyleSheet.hairlineWidth, overflow: "hidden" },
   eventBar: { width: 4, alignSelf: "stretch" },
-  eventContent: { flex: 1, paddingHorizontal: 12, paddingVertical: 10 },
-  eventTitle: { fontSize: 14, fontWeight: "600" },
-  eventMeta: { flexDirection: "row", flexWrap: "wrap", marginTop: 2 },
+  eventContent: { flex: 1, paddingVertical: 12, paddingHorizontal: 12 },
+  eventTitle: { fontSize: 14, fontWeight: "600", marginBottom: 3 },
+  eventMeta: { flexDirection: "row", flexWrap: "wrap" },
   eventMetaText: { fontSize: 12 },
-  providerBadge: { borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2, marginRight: 10 },
+  providerBadge: { paddingHorizontal: 10, marginRight: 12, borderRadius: 6, borderWidth: 1, paddingVertical: 3 },
   providerBadgeText: { fontSize: 11, fontWeight: "700" },
-  monthGrid: { paddingHorizontal: 4 },
+  monthGrid: { borderBottomWidth: StyleSheet.hairlineWidth },
   weekDayRow: { flexDirection: "row", paddingVertical: 8 },
-  weekDayLabel: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "500" },
+  weekDayLabel: { flex: 1, textAlign: "center", fontSize: 12, fontWeight: "600" },
   weekRow: { flexDirection: "row", borderTopWidth: StyleSheet.hairlineWidth },
-  dayCell: { flex: 1, minHeight: 80, padding: 2 },
+  dayCell: { flex: 1, minHeight: 72, padding: 4, alignItems: "center" },
   dayNumber: { width: 26, height: 26, borderRadius: 13, alignItems: "center", justifyContent: "center", marginBottom: 2 },
-  dayNumberText: { fontSize: 13 },
-  miniEvent: { borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1, marginBottom: 1 },
-  miniEventText: { fontSize: 9, color: "#fff", fontWeight: "600" },
-  moreText: { fontSize: 9, paddingLeft: 2 },
+  dayNumberText: { fontSize: 13, fontWeight: "500" },
+  miniEvent: { width: "100%", borderRadius: 3, paddingHorizontal: 3, paddingVertical: 1, marginBottom: 1 },
+  miniEventText: { fontSize: 9, color: "#fff", fontWeight: "500" },
+  moreText: { fontSize: 9 },
   modal: { flex: 1 },
-  modalHeader: {
-    flexDirection: "row",
-    alignItems: "flex-start",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-  },
-  modalTitle: { fontSize: 20, fontWeight: "700", flex: 1, marginRight: 12 },
-  closeBtn: { padding: 4 },
+  modalHeader: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", paddingHorizontal: 20, paddingBottom: 16, gap: 12 },
+  modalTitle: { flex: 1, fontSize: 20, fontWeight: "700" },
+  closeBtn: { padding: 4, marginTop: 2 },
   modalBody: { flex: 1, paddingHorizontal: 20 },
-  providerTag: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, alignSelf: "flex-start", marginBottom: 16 },
+  providerTag: { flexDirection: "row", alignItems: "center", gap: 8, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1, alignSelf: "flex-start", marginBottom: 20 },
   providerDot: { width: 8, height: 8, borderRadius: 4 },
   providerTagText: { fontSize: 13, fontWeight: "600" },
-  detailRow: { flexDirection: "row", gap: 12, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "flex-start" },
-  detailText: { fontSize: 15 },
+  detailRow: { flexDirection: "row", gap: 14, paddingVertical: 14, borderBottomWidth: StyleSheet.hairlineWidth, alignItems: "flex-start" },
+  detailText: { fontSize: 15, fontWeight: "500" },
   detailSubText: { fontSize: 13, marginTop: 2 },
-  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 8, borderWidth: 1, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 12, marginTop: 24 },
+  deleteBtn: { flexDirection: "row", alignItems: "center", gap: 10, marginTop: 24, padding: 16, borderRadius: 12, borderWidth: 1, justifyContent: "center" },
   deleteBtnText: { fontSize: 15, fontWeight: "600" },
   fieldLabel: { fontSize: 13, fontWeight: "500", marginBottom: 6, marginTop: 16 },
-  textInput: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 12, fontSize: 15 },
-  createBtn: { borderRadius: 12, paddingVertical: 14, alignItems: "center", marginTop: 24 },
+  textInput: { borderWidth: 1, borderRadius: 10, padding: 12, fontSize: 15 },
+  createBtn: { marginTop: 24, padding: 16, borderRadius: 12, alignItems: "center" },
   createBtnText: { color: "#fff", fontSize: 16, fontWeight: "600" },
 });
