@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -14,13 +14,8 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { useSubscription } from "@/lib/subscription";
-
-const FREE_FEATURES = [
-  "1 email account",
-  "20 AI queries per day",
-  "1 GB storage",
-  "GPT-4o model",
-];
+import { getOfferings } from "@/lib/revenuecat";
+import type { RCOffering } from "@/lib/revenuecat";
 
 const PRO_FEATURES = [
   { icon: "mail" as const, text: "Unlimited email accounts" },
@@ -33,24 +28,49 @@ const PRO_FEATURES = [
 
 type BillingCycle = "annual" | "monthly";
 
+const USD_PRICES = {
+  monthly: "$7.99/mo",
+  annual: "$59.99/yr",
+  annualMonthly: "$5.00/mo",
+};
+const INR_PRICES = {
+  monthly: "₹499/mo",
+  annual: "₹3,999/yr",
+  annualMonthly: "₹333/mo",
+};
+
 export default function PaywallScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { purchase, isPurchasing, currency, isSubscribed } = useSubscription();
+  const { purchase, isPurchasing, currency, isSubscribed, restore } = useSubscription();
   const [selectedCycle, setSelectedCycle] = useState<BillingCycle>("annual");
   const [error, setError] = useState<string | null>(null);
+  const [offering, setOffering] = useState<RCOffering | null>(null);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  useEffect(() => {
+    if (Platform.OS !== "web") {
+      getOfferings()
+        .then((o) => setOffering(o))
+        .catch(() => {});
+    }
+  }, []);
 
   const isUsd = currency === "usd";
+  const fallback = isUsd ? USD_PRICES : INR_PRICES;
 
-  const PRICES = {
-    monthly: { usd: "$7.99/mo", inr: "₹499/mo" },
-    annual: { usd: "$59.99/yr", inr: "₹3,999/yr", usdMonthly: "$5.00/mo", inrMonthly: "₹333/mo" },
-  };
+  const monthlyLabel =
+    offering?.monthlyPriceString
+      ? `${offering.monthlyPriceString}/mo`
+      : fallback.monthly;
 
-  const monthlyLabel = isUsd ? PRICES.monthly.usd : PRICES.monthly.inr;
-  const annualLabel = isUsd ? PRICES.annual.usd : PRICES.annual.inr;
-  const annualMonthlyLabel = isUsd ? PRICES.annual.usdMonthly : PRICES.annual.inrMonthly;
+  const annualLabel =
+    offering?.annualPriceString
+      ? `${offering.annualPriceString}/yr`
+      : fallback.annual;
+
+  const annualMonthlyLabel = fallback.annualMonthly;
 
   async function handlePurchase() {
     setError(null);
@@ -60,8 +80,33 @@ export default function PaywallScreen() {
         router.back();
       }
     } catch (err: any) {
-      if (err?.message?.includes("cancel") || err?.message?.includes("dismiss")) return;
+      if (
+        err?.message?.includes("cancel") ||
+        err?.message?.includes("dismiss") ||
+        err?.userCancelled === true ||
+        err?.code === "1"
+      ) {
+        return;
+      }
       setError(err?.message ?? "Purchase failed. Please try again.");
+    }
+  }
+
+  async function handleRestore() {
+    setIsRestoring(true);
+    setError(null);
+    try {
+      await restore();
+      if (isSubscribed) {
+        Alert.alert("Restored", "Your Pro subscription has been restored.");
+        router.back();
+      } else {
+        Alert.alert("No subscription found", "No active Pro subscription was found for this Apple ID.");
+      }
+    } catch (err: any) {
+      setError(err?.message ?? "Restore failed. Please try again.");
+    } finally {
+      setIsRestoring(false);
     }
   }
 
@@ -211,8 +256,26 @@ export default function PaywallScreen() {
           )}
         </Pressable>
 
+        {Platform.OS !== "web" && (
+          <Pressable
+            style={styles.restoreBtn}
+            onPress={handleRestore}
+            disabled={isRestoring}
+          >
+            {isRestoring ? (
+              <ActivityIndicator size="small" color={colors.mutedForeground} />
+            ) : (
+              <Text style={[styles.restoreText, { color: colors.mutedForeground }]}>
+                Restore Purchases
+              </Text>
+            )}
+          </Pressable>
+        )}
+
         <Text style={[styles.legalNote, { color: colors.mutedForeground }]}>
-          Cancel anytime. No hidden fees.
+          {Platform.OS !== "web"
+            ? "Subscription auto-renews. Cancel anytime in Settings > Apple ID."
+            : "Cancel anytime. No hidden fees."}
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -327,5 +390,10 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   ctaBtnText: { fontSize: 17, fontFamily: "Inter_700Bold", color: "#fff" },
+  restoreBtn: {
+    alignItems: "center",
+    paddingVertical: 12,
+  },
+  restoreText: { fontSize: 13, fontFamily: "Inter_400Regular" },
   legalNote: { fontSize: 12, fontFamily: "Inter_400Regular", textAlign: "center" },
 });
