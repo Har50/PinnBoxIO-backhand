@@ -1,5 +1,6 @@
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 import { useState, useCallback, useEffect } from "react";
@@ -176,6 +177,7 @@ function BreadcrumbBar({ path, onNavigate }: { path: string; onNavigate: (p: str
 export default function StorageScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const [currentFolder, setCurrentFolder] = useState("/");
@@ -587,10 +589,10 @@ export default function StorageScreen() {
       >
         {/* Quota bar */}
         {quota && (
-          <View style={[styles.quotaCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={[styles.quotaCard, { backgroundColor: colors.card, borderColor: isWarning ? "#f59e0b40" : colors.border }]}>
             <View style={styles.quotaHeader}>
               <View style={styles.quotaLeft}>
-                <Feather name="hard-drive" size={14} color={colors.mutedForeground} />
+                <Feather name="hard-drive" size={14} color={isWarning ? "#f59e0b" : colors.mutedForeground} />
                 <Text style={[styles.quotaTitle, { color: colors.foreground }]}>{quota.planName} plan</Text>
               </View>
               <Text style={[styles.quotaNumbers, { color: colors.mutedForeground }]}>
@@ -600,6 +602,19 @@ export default function StorageScreen() {
             <View style={[styles.progressBg, { backgroundColor: colors.muted }]}>
               <View style={[styles.progressFill, { width: `${quotaPct}%` as any, backgroundColor: isDanger ? "#ef4444" : isWarning ? "#f59e0b" : colors.primary }]} />
             </View>
+            {isWarning && quota.planName === "Free" && (
+              <View style={styles.quotaUpgradeRow}>
+                <Text style={[styles.quotaUpgradeText, { color: "#f59e0b" }]}>
+                  Running low — upgrade for 25 GB
+                </Text>
+                <Pressable
+                  style={[styles.quotaUpgradeBtn, { backgroundColor: "#f59e0b" }]}
+                  onPress={() => router.push("/paywall" as any)}
+                >
+                  <Text style={styles.quotaUpgradeBtnText}>Upgrade</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
@@ -843,6 +858,10 @@ const styles = StyleSheet.create({
   quotaNumbers: { fontSize: 12, fontFamily: "Inter_400Regular" },
   progressBg: { height: 4, borderRadius: 4, overflow: "hidden" },
   progressFill: { height: "100%", borderRadius: 4 },
+  quotaUpgradeRow: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 10, gap: 10 },
+  quotaUpgradeText: { flex: 1, fontSize: 12, fontFamily: "Inter_500Medium" },
+  quotaUpgradeBtn: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 20 },
+  quotaUpgradeBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold", color: "#fff" },
 
   sectionLabel: {
     fontSize: 11,

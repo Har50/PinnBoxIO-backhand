@@ -16,11 +16,13 @@ import {
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
+import { useSubscription } from "@/lib/subscription";
 
 interface Message {
   role: "user" | "assistant";
@@ -241,6 +243,9 @@ const TAB_BAR_HEIGHT = 49;
 export default function AiScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
+  const { status } = useSubscription();
+  const [limitReached, setLimitReached] = useState(false);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [conversation, setConversation] = useState<Conversation | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -389,6 +394,17 @@ export default function AiScreen() {
   }
 
   async function startVoiceRecording() {
+    if (status?.plan === "free") {
+      Alert.alert(
+        "Voice to Email — Pro Feature",
+        "Turn your voice into emails and messages instantly. Upgrade to Pro to unlock voice input.",
+        [
+          { text: "Maybe Later", style: "cancel" },
+          { text: "Upgrade to Pro", onPress: () => router.push("/paywall" as any) },
+        ]
+      );
+      return;
+    }
     try {
       const { granted } = await requestRecordingPermissionsAsync();
       if (!granted) {
@@ -481,7 +497,13 @@ export default function AiScreen() {
 
       if (!res.ok) {
         const error = await res.json().catch(() => null);
-        throw new Error(error?.error || "Sorry, something went wrong. Please try again.");
+        if (res.status === 402 || (error as any)?.error === "AI_DAILY_LIMIT_REACHED") {
+          setLimitReached(true);
+          setMessages((prev) => prev.slice(0, -1));
+          setStreaming(false);
+          return;
+        }
+        throw new Error((error as any)?.error || "Sorry, something went wrong. Please try again.");
       }
 
       function parseSseChunk(chunk: string) {
@@ -621,6 +643,21 @@ export default function AiScreen() {
             ))}
           </View>
         )}
+        {limitReached && (
+          <View style={[s.limitBanner, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="alert-circle" size={16} color="#f59e0b" />
+            <Text style={[s.limitBannerText, { color: colors.foreground }]}>
+              Daily limit reached — upgrade to Pro for unlimited AI
+            </Text>
+            <Pressable
+              style={[s.limitUpgradeBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push("/paywall" as any)}
+            >
+              <Text style={s.limitUpgradeBtnText}>Upgrade</Text>
+            </Pressable>
+          </View>
+        )}
+
         <View style={s.inputBar}>
           <TouchableOpacity
             style={s.attachBtn}
@@ -768,6 +805,10 @@ function makeStyles(colors: any, bottomPad = 0) {
     assistantBubble: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderBottomLeftRadius: 5 },
     userText: { color: "#fff", fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
     assistantText: { color: colors.foreground, fontSize: 15, fontFamily: "Inter_400Regular", lineHeight: 22 },
+    limitBanner: { flexDirection: "row", alignItems: "center", gap: 10, paddingHorizontal: 14, paddingVertical: 12, borderTopWidth: StyleSheet.hairlineWidth, flexWrap: "wrap" },
+    limitBannerText: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 18 },
+    limitUpgradeBtn: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
+    limitUpgradeBtnText: { fontSize: 13, fontFamily: "Inter_600SemiBold", color: "#fff" },
     inputBar: { flexDirection: "row", alignItems: "flex-end", gap: 8, paddingHorizontal: 12, paddingTop: 10, paddingBottom: 10 + bottomPad, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
     attachBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },
     micBtn: { width: 36, height: 36, borderRadius: 18, alignItems: "center", justifyContent: "center", flexShrink: 0 },

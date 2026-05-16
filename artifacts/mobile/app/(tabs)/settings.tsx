@@ -8,7 +8,7 @@ import { Alert, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, 
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
 import { useState, useEffect, useCallback } from "react";
-import { useSubscription } from "@/lib/revenuecat";
+import { useSubscription } from "@/lib/subscription";
 import { ProPaywallModal } from "@/components/ProPaywallModal";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
@@ -120,8 +120,35 @@ function NotificationToggle({
 
 function SubscriptionSection() {
   const colors = useColors();
-  const { isSubscribed, isLoading, isAvailable, restore, isRestoring } = useSubscription();
+  const { isSubscribed, isLoading, status, cancel, isCancelling, refetch } = useSubscription();
   const [paywallVisible, setPaywallVisible] = useState(false);
+
+  const renewalLabel = status?.expiresAt
+    ? new Date(status.expiresAt).toLocaleDateString([], { year: "numeric", month: "long", day: "numeric" })
+    : null;
+
+  const cycleLabel = status?.billingCycle === "annual" ? "Annual plan" : status?.billingCycle === "monthly" ? "Monthly plan" : null;
+
+  function handleCancel() {
+    Alert.alert(
+      "Cancel Subscription",
+      "Your Pro access will end immediately and your storage will return to 1 GB. This cannot be undone.",
+      [
+        { text: "Keep Pro", style: "cancel" },
+        {
+          text: "Cancel Subscription",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await cancel();
+            } catch {
+              Alert.alert("Error", "Could not cancel subscription. Please try again.");
+            }
+          },
+        },
+      ]
+    );
+  }
 
   if (isLoading) {
     return (
@@ -146,20 +173,35 @@ function SubscriptionSection() {
             <View style={styles.rowContent}>
               <Text style={[styles.rowLabel, { color: colors.foreground }]}>PinnboxIO Pro</Text>
               <Text style={[styles.rowDescription, { color: colors.mutedForeground }]}>
-                Active — unlimited AI, full storage access
+                {cycleLabel ?? "Active"} — unlimited AI, 25 GB storage
               </Text>
             </View>
-            <View style={[styles.badge, { backgroundColor: colors.primary + "20" }]}>
-              <Text style={[styles.badgeText, { color: colors.primary }]}>Active</Text>
+            <View style={[styles.badge, { backgroundColor: "#22c55e20" }]}>
+              <Text style={[styles.badgeText, { color: "#22c55e" }]}>Active</Text>
             </View>
           </View>
+          {renewalLabel && (
+            <>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.row, { backgroundColor: colors.card }]}>
+                <View style={[styles.rowIcon, { backgroundColor: colors.muted }]}>
+                  <Feather name="calendar" size={16} color={colors.mutedForeground} />
+                </View>
+                <View style={styles.rowContent}>
+                  <Text style={[styles.rowLabel, { color: colors.foreground }]}>Renews</Text>
+                  <Text style={[styles.rowDescription, { color: colors.mutedForeground }]}>{renewalLabel}</Text>
+                </View>
+              </View>
+            </>
+          )}
           <View style={[styles.divider, { backgroundColor: colors.border }]} />
           <SettingsRow
-            icon="refresh-cw"
-            label="Restore purchases"
-            description="Already subscribed on another device?"
-            right={isRestoring ? <ActivityIndicator size="small" color={colors.mutedForeground} /> : undefined}
-            onPress={isAvailable ? () => restore().catch(() => {}) : undefined}
+            icon="x-circle"
+            label="Cancel Subscription"
+            description="Ends Pro access immediately"
+            onPress={handleCancel}
+            destructive
+            right={isCancelling ? <ActivityIndicator size="small" color={colors.destructive} /> : undefined}
           />
         </SettingsCard>
       </View>
@@ -180,20 +222,12 @@ function SubscriptionSection() {
           <Feather name="star" size={20} color="#fff" />
           <View>
             <Text style={styles.upgradeBannerTitle}>Upgrade to Pro</Text>
-            <Text style={styles.upgradeBannerSub}>Unlimited AI · More storage · $7.99/mo</Text>
+            <Text style={styles.upgradeBannerSub}>Unlimited AI · 25 GB storage · $7.99/mo</Text>
           </View>
         </View>
         <Feather name="chevron-right" size={18} color="rgba(255,255,255,0.8)" />
       </Pressable>
-      {isAvailable && (
-        <Pressable style={styles.restoreLink} onPress={() => restore().catch(() => {})}>
-          {isRestoring
-            ? <ActivityIndicator size="small" color={colors.mutedForeground} />
-            : <Text style={[styles.restoreLinkText, { color: colors.mutedForeground }]}>Restore purchases</Text>
-          }
-        </Pressable>
-      )}
-      <ProPaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
+      <ProPaywallModal visible={paywallVisible} onClose={() => { setPaywallVisible(false); refetch(); }} />
     </View>
   );
 }

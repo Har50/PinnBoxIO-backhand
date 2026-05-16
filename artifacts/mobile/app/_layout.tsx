@@ -27,6 +27,7 @@ import { Feather } from "@expo/vector-icons";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider, useThemeMode } from "@/contexts/ThemeContext";
+import { SubscriptionProvider } from "@/lib/subscription";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
@@ -267,9 +268,11 @@ export default function RootLayout() {
           <ErrorBoundary label="RootErrorBoundary">
             <QueryClientProvider client={queryClient}>
               <ThemeProvider>
-                <GestureHandlerRootView style={{ flex: 1 }}>
-                  <RootLayoutNav />
-                </GestureHandlerRootView>
+                <SubscriptionProvider>
+                  <GestureHandlerRootView style={{ flex: 1 }}>
+                    <RootLayoutNav />
+                  </GestureHandlerRootView>
+                </SubscriptionProvider>
               </ThemeProvider>
             </QueryClientProvider>
           </ErrorBoundary>

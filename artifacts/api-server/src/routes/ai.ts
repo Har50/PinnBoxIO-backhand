@@ -23,7 +23,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 25 
 
 type Provider = "openai" | "claude" | "gemini";
 
-const FREE_AI_REQUESTS_PER_DAY = 200;
+const FREE_AI_REQUESTS_PER_DAY = 20;
 
 function isTextLikeFile(name: string, mimeType: string) {
   const lowerName = name.toLowerCase();
