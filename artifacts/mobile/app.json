@@ -69,7 +69,12 @@
     "marketingUrl": "https://pinnboxio.net",
     "privacyPolicyUrl": "https://pinnboxio.net/privacy",
     "extra": {
-      "eas": {}
+      "eas": {
+        "projectId": "c34b27ee-d647-4e3c-b089-6088b3549bc1"
+      },
+      "router": {
+        "origin": "https://replit.com/"
+      }
     }
   }
 }
