@@ -1,0 +1,53 @@
+Fix RevenueCat integration for iOS App Store (Apple IAP)
+
+The RevenueCat SDK is already installed and wired up in lib/revenuecat.tsx with a pro entitlement. It was previously abandoned due to loading issues. Fix it properly.
+
+The likely cause of the loading issue:
+RevenueCat was probably being configured before the app was fully mounted, or the API key was missing/wrong. Fix by ensuring Purchases.configure() is called only once, after the app is ready, with the correct iOS API key.
+
+What to fix in lib/revenuecat.tsx:
+
+Wrap Purchases.configure() in a platform check — only configure on iOS/Android, never on web:
+if (Platform.OS !== "web") {
+  Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_API_KEY! });
+}
+Add a guard so configure is never called twice
+All RevenueCat calls (getOfferings, purchasePackage, restorePurchases, getCustomerInfo) must also be wrapped in Platform.OS !== "web" guards — on web, return a fallback immediately
+The entitlement identifier must be exactly "pro" — confirm this matches what's set in the RevenueCat dashboard
+New env var needed:
+
+EXPO_PUBLIC_REVENUECAT_API_KEY=your_ios_revenuecat_api_key
+Get this from: https://app.revenuecat.com → your project → API Keys → Public app-specific keys → iOS
+
+In the paywall screen (app/paywall.tsx), add iOS-specific purchase flow:
+
+Currently the paywall calls Razorpay for all platforms. Change it to:
+
+On iOS: use RevenueCat (purchasePackage) instead of Razorpay
+On Android: use RevenueCat (for future Play Store)
+On web: use Razorpay (keep existing flow)
+if (Platform.OS === "web") {
+  // existing Razorpay flow
+} else {
+  // RevenueCat purchase flow
+  const offerings = await getOfferings();
+  const package = planKey === "pro_annual" 
+    ? offerings.current?.annual 
+    : offerings.current?.monthly;
+  await purchasePackage(package);
+}
+RevenueCat dashboard setup (you need to do this manually):
+
+Go to https://app.revenuecat.com → your project
+Products → Add 2 products matching your App Store Connect IAP product IDs:
+pinnboxio_pro_monthly
+pinnboxio_pro_annual
+Entitlements → confirm pro entitlement exists and both products are attached to it
+Offerings → confirm default offering has a monthly and annual package
+Also in App Store Connect (https://appstoreconnect.apple.com) → your app → Monetization → In-App Purchases → +:
+
+Create Auto-Renewable Subscription group called "Pro"
+Add pinnboxio_pro_monthly → $7.99/month
+Add pinnboxio_pro_annual → $59.99/year
+Submit both for review (Apple reviews IAPs separately)
+Do not remove the Razorpay backend — it stays for web. Only the mobile purchase flow changes to RevenueCat/Apple IAP.
