@@ -1,0 +1,101 @@
+Here's exactly what to paste into Replit Agent:
+
+---
+
+**Add subscription backend for Pinnboxio (Razorpay)**
+
+I've already built the frontend paywall screen and settings subscription section. I need the backend endpoints to support them. The app uses **Razorpay** for payments (already integrated for other payments — use the same `RAZORPAY_KEY_ID` and `RAZORPAY_KEY_SECRET` env vars).
+
+---
+
+**New database columns needed on the `users` table (or equivalent user record):**
+
+```
+plan: "free" | "pro"  (default "free")
+razorpay_subscription_id: string | null
+plan_renews_at: datetime | null
+cancel_at_period_end: boolean (default false)
+```
+
+---
+
+**New API endpoints to build:**
+
+**1. `GET /api/subscription/status`** *(authenticated)*
+Returns the current user's plan:
+```json
+{ "plan": "free", "renewsAt": null, "cancelAtPeriodEnd": false }
+// or
+{ "plan": "pro", "renewsAt": "2026-06-16T00:00:00Z", "cancelAtPeriodEnd": false }
+```
+
+---
+
+**2. `POST /api/subscription/create-order`** *(authenticated)*
+Body: `{ "planKey": "pro_monthly" | "pro_annual" }`
+
+Create a Razorpay Subscription (not a one-time order) using the Razorpay Subscriptions API:
+- `pro_monthly` → plan priced at ₹499/month or $7.99/month (detect by user locale or accept currency in body)
+- `pro_annual` → ₹3,999/year or $59.99/year
+
+Return the Razorpay hosted checkout URL:
+```json
+{ "checkoutUrl": "https://rzp.io/l/xxxxxxxx" }
+```
+
+You'll need to create Razorpay Plans in the dashboard first and store their plan IDs as env vars:
+```
+RAZORPAY_PLAN_ID_MONTHLY_INR
+RAZORPAY_PLAN_ID_ANNUAL_INR
+RAZORPAY_PLAN_ID_MONTHLY_USD
+RAZORPAY_PLAN_ID_ANNUAL_USD
+```
+
+---
+
+**3. `POST /api/subscription/restore`** *(authenticated)*
+Check Razorpay for any active subscription linked to this user's email. If found, update their plan to `pro` in the database. Return:
+```json
+{ "plan": "pro" }
+// or
+{ "plan": "free" }
+```
+
+---
+
+**4. `POST /api/subscription/webhook`** *(public, no auth — verify Razorpay signature)*
+Handle these Razorpay webhook events:
+- `subscription.activated` → set user `plan = "pro"`, store `razorpay_subscription_id`, set `plan_renews_at`
+- `subscription.charged` → update `plan_renews_at` to next billing date
+- `subscription.cancelled` → set `cancel_at_period_end = true`
+- `subscription.completed` / `subscription.expired` → set `plan = "free"`, clear subscription fields
+
+Verify the webhook signature using `RAZORPAY_WEBHOOK_SECRET` env var.
+
+---
+
+**5. `GET /api/subscription/portal`** *(authenticated)*
+Redirect the user to their Razorpay subscription management page. If they have a `razorpay_subscription_id`, redirect to:
+`https://api.razorpay.com/v1/subscriptions/{id}` management URL, or just redirect to `https://dashboard.razorpay.com` with a note. *(Razorpay doesn't have a self-serve portal like Stripe — for now, redirect to a support/manage page or the Razorpay payment page for the subscription.)*
+
+---
+
+**Feature gating to add:**
+- AI query endpoint: check `user.plan`. If `free` and `daily_ai_query_count >= 20`, return `403 { "error": "query_limit_reached", "limit": 20 }`
+- Storage upload endpoint: check `user.plan`. If `free` and `used_bytes >= 1_073_741_824` (1 GB), return `403 { "error": "storage_limit_reached" }`
+- Pro plan storage limit: 25 GB
+
+---
+
+**Env vars to add:**
+```
+RAZORPAY_WEBHOOK_SECRET=
+RAZORPAY_PLAN_ID_MONTHLY_INR=
+RAZORPAY_PLAN_ID_ANNUAL_INR=
+RAZORPAY_PLAN_ID_MONTHLY_USD=
+RAZORPAY_PLAN_ID_ANNUAL_USD=
+```
+
+---
+
+That covers everything the mobile app's paywall and settings screens are already calling. Give Replit this whole block — it has enough detail to implement without back-and-forth.
