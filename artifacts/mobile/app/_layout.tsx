@@ -5,6 +5,7 @@ import {
   Inter_700Bold,
   useFonts,
 } from "@expo-google-fonts/inter";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { ClerkProvider, ClerkLoaded, ClerkLoading, useAuth } from "@clerk/expo";
 import { tokenCache } from "@clerk/expo/token-cache";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -147,6 +148,9 @@ function GmailConnectModal({
   );
 }
 
+const GMAIL_PROMPT_KEY = "gmail_prompt_dismissed_at";
+const GMAIL_PROMPT_COOLDOWN_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+
 function AuthedStack() {
   const { getToken } = useAuth();
   const [showGmailPrompt, setShowGmailPrompt] = useState(false);
@@ -163,6 +167,13 @@ function AuthedStack() {
 
     (async () => {
       try {
+        // Check if user dismissed the prompt recently
+        const dismissedAt = await AsyncStorage.getItem(GMAIL_PROMPT_KEY);
+        if (dismissedAt) {
+          const elapsed = Date.now() - parseInt(dismissedAt, 10);
+          if (elapsed < GMAIL_PROMPT_COOLDOWN_MS) return;
+        }
+
         const token = await getToken();
         if (!token) return;
         const res = await fetch(`${API_BASE}/api/accounts/connected`, {
@@ -178,6 +189,11 @@ function AuthedStack() {
     })();
   }, [getToken]);
 
+  const handleDismissGmailPrompt = useCallback(async () => {
+    await AsyncStorage.setItem(GMAIL_PROMPT_KEY, String(Date.now()));
+    setShowGmailPrompt(false);
+  }, []);
+
   return (
     <ErrorBoundary label="TabsErrorBoundary">
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: "#fff" } }}>
@@ -185,7 +201,7 @@ function AuthedStack() {
       </Stack>
       <GmailConnectModal
         visible={showGmailPrompt}
-        onDismiss={() => setShowGmailPrompt(false)}
+        onDismiss={handleDismissGmailPrompt}
       />
     </ErrorBoundary>
   );
