@@ -61,6 +61,43 @@ async function getTextFileSnippet(storageKey: string, maxChars = 1500) {
   }
 }
 
+async function webSearch(query: string): Promise<string | null> {
+  try {
+    const url = `https://api.duckduckgo.com/?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1&skip_disambig=1&t=pinnboxio`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const data = await res.json() as Record<string, unknown>;
+
+    const parts: string[] = [];
+
+    if (typeof data.AbstractText === "string" && data.AbstractText) {
+      parts.push(`Answer: ${data.AbstractText}`);
+      if (typeof data.AbstractURL === "string" && data.AbstractURL) {
+        parts.push(`Source: ${data.AbstractURL}`);
+      }
+    }
+
+    const topics = (Array.isArray(data.RelatedTopics) ? data.RelatedTopics : [])
+      .filter((t: unknown): t is { Text: string; FirstURL: string } =>
+        typeof t === "object" && t !== null && "Text" in t && "FirstURL" in t &&
+        typeof (t as Record<string, unknown>).Text === "string" &&
+        typeof (t as Record<string, unknown>).FirstURL === "string",
+      )
+      .slice(0, 5);
+
+    if (topics.length > 0) {
+      parts.push("Related results:");
+      for (const t of topics) {
+        parts.push(`- ${t.Text} (${t.FirstURL})`);
+      }
+    }
+
+    return parts.length > 0 ? parts.join("\n") : null;
+  } catch {
+    return null;
+  }
+}
+
 async function getPdfTextSnippet(storageKey: string, maxChars = 2500) {
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) return null;
@@ -174,7 +211,8 @@ async function getUserContext(userId: string): Promise<string> {
   context += "- READ PDFS & FILES: you have access to text extracted from the user's stored PDFs, documents, spreadsheets, and text files. Summarize, answer questions about them, or extract key info.\n";
   context += "- CONTACTS: look up contacts by name, email, or company. Suggest contacts when drafting emails.\n";
   context += "- DRAFTING ASSISTANCE: help draft any business document — proposals, follow-ups, introductions, complaints, thank-yous.\n";
-  context += "- RESOURCES & LINKS: when helpful, suggest relevant resources, best practices, or useful external links.\n\n";
+  context += "- RESOURCES & LINKS: when helpful, suggest relevant resources, best practices, or useful external links.\n";
+  context += "- WEB SEARCH (Pro): real-time web search results are injected automatically for Pro users. If you see '=== Real-Time Web Search Results ===' in the context, cite those results and their sources.\n\n";
   context += "LANGUAGE RULE (highest priority):\n";
   context += "- Detect the language the user is writing in and ALWAYS reply in that same language.\n";
   context += "- If the user writes in Chinese, reply in Chinese. If Spanish, reply in Spanish. If Arabic, reply in Arabic. Etc.\n";
@@ -352,13 +390,15 @@ router.post("/ai/conversations/:id/messages", async (req: any, res) => {
 
     await db.insert(aiMessagesTable).values({ conversationId: id, role: "user", content });
 
-    const history = await db
-      .select()
-      .from(aiMessagesTable)
-      .where(eq(aiMessagesTable.conversationId, id))
-      .orderBy(aiMessagesTable.createdAt);
+    const [history, systemContextBase, webResults] = await Promise.all([
+      db.select().from(aiMessagesTable).where(eq(aiMessagesTable.conversationId, id)).orderBy(aiMessagesTable.createdAt),
+      getUserContext(req.userId),
+      access.isPro ? webSearch(content) : Promise.resolve(null),
+    ]);
 
-    const systemContext = await getUserContext(req.userId);
+    const systemContext = webResults
+      ? `${systemContextBase}\n\n=== Real-Time Web Search Results (for: "${content.slice(0, 120)}") ===\n${webResults}\n`
+      : systemContextBase;
 
     // Build the latest user message content with any attachments
     const imageAttachments = attachments.filter((a) => a.mimeType.startsWith("image/"));
