@@ -15,7 +15,8 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
+import { BrainIcon } from "@/components/BrainIcon";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
@@ -39,13 +40,13 @@ interface Conversation {
 
 type Provider = "openai" | "claude" | "gemini";
 
-const SUGGESTIONS = [
-  "Summarize my unread emails",
-  "Draft a reply to my latest email",
-  "Translate this to English",
-  "What emails did I get today?",
-  "Read my latest PDF from storage",
-  "Write a professional email for me",
+const SUGGESTIONS: Array<{ icon: React.ComponentProps<typeof Feather>["name"]; text: string }> = [
+  { icon: "mail",           text: "Summarize my unread emails" },
+  { icon: "corner-up-left", text: "Draft a reply to my latest email" },
+  { icon: "globe",          text: "Translate this to English" },
+  { icon: "calendar",       text: "What emails did I get today?" },
+  { icon: "file-text",      text: "Read my latest PDF from storage" },
+  { icon: "edit-2",         text: "Write a professional email for me" },
 ];
 
 function parseEmailDraft(content: string): { before: string; draft: Record<string, string>; after: string } | null {
@@ -229,7 +230,7 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
   return (
     <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
       <View style={s.aiBubbleAvatar}>
-        <MaterialCommunityIcons name="brain" size={11} color={colors.primary} />
+        <BrainIcon size={11} color={colors.primary} strokeWidth={2.5} />
       </View>
       <View style={[s.bubble, s.assistantBubble]}>
         <Text style={s.assistantText}>{msg.content}</Text>
@@ -651,7 +652,7 @@ export default function AiScreen() {
           <Feather name="list" size={20} color={colors.primary} />
         </Pressable>
         <View style={s.headerIcon}>
-          <MaterialCommunityIcons name="brain" size={18} color={colors.primary} />
+          <BrainIcon size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>{conversation?.title ?? "AI Assistant"}</Text>
@@ -674,14 +675,17 @@ export default function AiScreen() {
           {messages.length === 0 ? (
             <View style={s.emptyState}>
               <View style={s.emptyIconWrap}>
-                <MaterialCommunityIcons name="brain" size={30} color={colors.primary} />
+                <BrainIcon size={30} color={colors.primary} strokeWidth={1.5} />
               </View>
               <Text style={s.emptyTitle}>Hello! I'm your AI assistant.</Text>
               <Text style={s.emptyText}>I can summarize emails, draft replies, find contacts, and help you manage all your communications smarter.</Text>
               <View style={s.suggestionsGrid}>
-                {SUGGESTIONS.map((suggestion) => (
-                  <TouchableOpacity key={suggestion} style={s.suggestion} onPress={() => sendMessage(suggestion)} activeOpacity={0.75}>
-                    <Text style={s.suggestionText}>{suggestion}</Text>
+                {SUGGESTIONS.map(({ icon, text }) => (
+                  <TouchableOpacity key={text} style={s.suggestion} onPress={() => sendMessage(text)} activeOpacity={0.75}>
+                    <View style={[s.suggestionIconWrap, { backgroundColor: colors.primary + "20" }]}>
+                      <Feather name={icon} size={14} color={colors.primary} />
+                    </View>
+                    <Text style={s.suggestionText}>{text}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -693,7 +697,7 @@ export default function AiScreen() {
           )}
           {streaming && messages[messages.length - 1]?.content === "" && (
             <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
-              <View style={s.aiBubbleAvatar}><MaterialCommunityIcons name="brain" size={11} color={colors.primary} /></View>
+              <View style={s.aiBubbleAvatar}><BrainIcon size={11} color={colors.primary} strokeWidth={2.5} /></View>
               <View style={[s.bubble, s.assistantBubble]}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>
@@ -943,8 +947,9 @@ function makeStyles(colors: any, bottomPad = 0) {
     emptyTitle: { fontSize: 18, fontFamily: "Inter_700Bold", color: colors.foreground, textAlign: "center", marginBottom: 8 },
     emptyText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.mutedForeground, textAlign: "center", lineHeight: 21, marginBottom: 24 },
     suggestionsGrid: { width: "100%", gap: 10 },
-    suggestion: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 16, paddingVertical: 13 },
-    suggestionText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground },
+    suggestion: { backgroundColor: colors.card, borderWidth: StyleSheet.hairlineWidth, borderColor: colors.border, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 13, flexDirection: "row", alignItems: "center", gap: 12 },
+    suggestionIconWrap: { width: 30, height: 30, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+    suggestionText: { fontSize: 14, fontFamily: "Inter_400Regular", color: colors.foreground, flex: 1 },
     bubbleWrap: { flexDirection: "row", marginBottom: 14, gap: 8 },
     bubbleWrapUser: { justifyContent: "flex-end" },
     bubbleWrapAssistant: { justifyContent: "flex-start", alignItems: "flex-start" },
