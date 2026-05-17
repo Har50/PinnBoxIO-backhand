@@ -8,6 +8,9 @@ import { ActivityIndicator, Platform, Pressable, RefreshControl, ScrollView, Sty
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { formatDistanceToNow } from "date-fns";
 import { router } from "expo-router";
+import { useState } from "react";
+import { WelcomeModal } from "@/components/WelcomeModal";
+import { ProPaywallModal } from "@/components/ProPaywallModal";
 
 type FeatherName = ComponentProps<typeof Feather>["name"];
 
@@ -75,6 +78,7 @@ export default function DashboardScreen() {
   const { mode, toggleMode } = useThemeMode();
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+  const [paywallVisible, setPaywallVisible] = useState(false);
 
   const { data: stats, isLoading: statsLoading, isFetching: statsFetching, refetch: refetchStats } = useGetOverviewStats();
   const { data: recentData, isLoading: recentLoading, refetch: refetchRecent } = useGetRecentMessages({ limit: 5 });
@@ -100,6 +104,7 @@ export default function DashboardScreen() {
   const avatarInitials = ((user?.firstName?.[0] ?? "") + (user?.lastName?.[0] ?? "")).toUpperCase() || displayName[0]?.toUpperCase() || "?";
 
   return (
+    <>
     <ScrollView
       style={[s.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{ paddingTop: topPad + 12, paddingBottom: 110 }}
@@ -165,6 +170,10 @@ export default function DashboardScreen() {
       )}
 
     </ScrollView>
+
+    <WelcomeModal onUpgrade={() => setPaywallVisible(true)} />
+    <ProPaywallModal visible={paywallVisible} onClose={() => setPaywallVisible(false)} />
+    </>
   );
 }
 
