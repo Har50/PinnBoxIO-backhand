@@ -86,21 +86,50 @@ function parseEmailDraft(content: string): { before: string; draft: Record<strin
 function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSend: (d: ComposeDraft) => void }) {
   const colors = useColors();
   const s = makeStyles(colors);
-  const [provider, setProvider] = useState<"gmail" | "outlook">("gmail");
+  const [provider, setProvider] = useState<"gmail" | "outlook">("outlook");
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [outlookConnected, setOutlookConnected] = useState(false);
+
+  const apiUrl = process.env.EXPO_PUBLIC_API_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
+
+  useEffect(() => {
+    async function checkConnected() {
+      try {
+        const token = await getAuthToken();
+        const res = await fetch(`${apiUrl}/accounts/connected`, {
+          headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const hasGmail = !!data.gmail;
+          const hasOutlook = !!data.outlook;
+          setGmailConnected(hasGmail);
+          setOutlookConnected(hasOutlook);
+          if (hasOutlook && !hasGmail) setProvider("outlook");
+          else if (hasGmail) setProvider("gmail");
+        }
+      } catch {}
+    }
+    checkConnected();
+  }, [apiUrl]);
+
+  const availableProviders = (["gmail", "outlook"] as const).filter(
+    (p) => (p === "gmail" ? gmailConnected : outlookConnected)
+  );
+  const canSend = availableProviders.length > 0;
 
   async function handleSendNow() {
     setSending(true);
     setSendError(null);
     try {
       const token = await getAuthToken();
-      const apiUrl = process.env.EXPO_PUBLIC_API_DOMAIN
-        ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
-        : process.env.EXPO_PUBLIC_DOMAIN
-          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-          : "/api";
       const res = await fetch(`${apiUrl}/messages/send`, {
         method: "POST",
         headers: {
@@ -150,31 +179,53 @@ function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSe
         </View>
       ) : (
         <View style={s.draftFooter}>
-          <View style={[s.draftProviderRow, { borderColor: colors.border }]}>
-            {(["gmail", "outlook"] as const).map((p) => (
+          {canSend ? (
+            <>
+              {availableProviders.length > 1 && (
+                <View style={[s.draftProviderRow, { borderColor: colors.border }]}>
+                  {availableProviders.map((p) => (
+                    <TouchableOpacity
+                      key={p}
+                      onPress={() => setProvider(p)}
+                      style={[s.draftProviderBtn, provider === p && { backgroundColor: colors.primary }]}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[s.draftProviderText, { color: provider === p ? "#fff" : colors.mutedForeground }]}>
+                        {p === "gmail" ? "Gmail" : "Outlook"}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+              {availableProviders.length === 1 && (
+                <View style={[s.draftProviderRow, { borderColor: colors.border }]}>
+                  <View style={[s.draftProviderBtn, { backgroundColor: colors.primary }]}>
+                    <Text style={[s.draftProviderText, { color: "#fff" }]}>
+                      {provider === "gmail" ? "Gmail" : "Outlook"}
+                    </Text>
+                  </View>
+                </View>
+              )}
               <TouchableOpacity
-                key={p}
-                onPress={() => setProvider(p)}
-                style={[s.draftProviderBtn, provider === p && { backgroundColor: colors.primary }]}
-                activeOpacity={0.7}
+                style={[s.draftSendBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
+                onPress={handleSendNow}
+                disabled={sending}
+                activeOpacity={0.8}
               >
-                <Text style={[s.draftProviderText, { color: provider === p ? "#fff" : colors.mutedForeground }]}>
-                  {p === "gmail" ? "Gmail" : "Outlook"}
-                </Text>
+                {sending
+                  ? <ActivityIndicator size="small" color="#fff" />
+                  : <Feather name="send" size={13} color="#fff" />}
+                <Text style={s.draftSendText}>{sending ? "Sending…" : "Send Now"}</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity
-            style={[s.draftSendBtn, { backgroundColor: colors.primary, opacity: sending ? 0.7 : 1 }]}
-            onPress={handleSendNow}
-            disabled={sending}
-            activeOpacity={0.8}
-          >
-            {sending
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Feather name="send" size={13} color="#fff" />}
-            <Text style={s.draftSendText}>{sending ? "Sending…" : "Send Now"}</Text>
-          </TouchableOpacity>
+            </>
+          ) : (
+            <View style={[s.draftNoAccountRow, { borderColor: colors.border }]}>
+              <Feather name="alert-circle" size={13} color={colors.mutedForeground} />
+              <Text style={[s.draftProviderText, { color: colors.mutedForeground, flex: 1 }]}>
+                Connect Gmail or Outlook in Accounts to send
+              </Text>
+            </View>
+          )}
           <TouchableOpacity
             style={[s.draftEditBtn, { borderColor: colors.border }]}
             onPress={() => onSend({ to: draft.to, subject: draft.subject, body: draft.body })}
@@ -1002,6 +1053,7 @@ function makeStyles(colors: any, bottomPad = 0) {
     draftProviderRow: { flexDirection: "row", borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, overflow: "hidden" },
     draftProviderBtn: { paddingHorizontal: 10, paddingVertical: 5 },
     draftProviderText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+    draftNoAccountRow: { flexDirection: "row", alignItems: "center", gap: 6, borderWidth: StyleSheet.hairlineWidth, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7 },
     draftSendBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 7 },
     draftSendText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
     draftEditBtn: { width: 30, height: 30, borderRadius: 8, borderWidth: StyleSheet.hairlineWidth, alignItems: "center", justifyContent: "center" },

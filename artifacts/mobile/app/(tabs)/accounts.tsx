@@ -55,7 +55,9 @@ function providerIcon(provider: string): FeatherName {
   }
 }
 
-const API_BASE = process.env.EXPO_PUBLIC_DOMAIN
+const API_BASE = process.env.EXPO_PUBLIC_API_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
+  : process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : "https://pinn-box-io.replit.app";
 
