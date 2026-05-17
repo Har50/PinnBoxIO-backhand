@@ -260,9 +260,7 @@ function Router() {
           <LandingPage />
         </Show>
         <Show when="signed-in">
-          <Layout>
-            <Dashboard />
-          </Layout>
+          <Redirect to={`${basePath}/dashboard`} />
         </Show>
       </Route>
       <Route>
@@ -274,7 +272,7 @@ function Router() {
         <Show when="signed-in">
           <Layout>
             <Switch>
-              <Route path="/" component={Dashboard} />
+              <Route path="/dashboard" component={Dashboard} />
               <Route path="/inbox" component={Inbox} />
               <Route path="/contacts" component={Contacts} />
               <Route path="/search" component={SearchPage} />
