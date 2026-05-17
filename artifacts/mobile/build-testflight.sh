@@ -14,4 +14,4 @@ export EXPO_ASC_API_KEY_PATH=/tmp/AuthKey.p8
 export EXPO_ASC_KEY_ID=XT5F8TSLWA
 export EXPO_ASC_ISSUER_ID=29ecf491-9bfc-4605-8fb9-24c5b58604e3
 
-npx eas-cli build --platform ios --profile production --non-interactive --auto-submit
+npx eas-cli build --platform ios --profile production --non-interactive --auto-submit --apple-team-type INDIVIDUAL
