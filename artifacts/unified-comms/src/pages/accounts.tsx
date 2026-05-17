@@ -310,12 +310,6 @@ export default function Accounts() {
                       Connected on {format(new Date(acc.createdAt), "MMM d, yyyy")}
                     </div>
                   </div>
-                  {!isPhone && (
-                    <div className="bg-muted/40 rounded-md p-3 flex items-center justify-between">
-                      <div className="text-xs font-medium text-muted-foreground">Unread Messages</div>
-                      <div className="font-semibold">{acc.unreadCount}</div>
-                    </div>
-                  )}
                 </CardContent>
                 <CardFooter className="pt-0 flex justify-between border-t p-4 bg-muted/10">
                   <Button variant="ghost" size="sm" className="text-xs h-8 text-muted-foreground hover:text-foreground">
