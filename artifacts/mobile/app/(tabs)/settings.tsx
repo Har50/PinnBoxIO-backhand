@@ -7,7 +7,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Alert, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import * as WebBrowser from "expo-web-browser";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSubscription } from "@/lib/subscription";
 import { ProPaywallModal } from "@/components/ProPaywallModal";
 
@@ -252,10 +252,15 @@ function EmailAccountsSection() {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<"gmail" | "outlook" | null>(null);
 
+  // Keep getToken in a ref so fetchConnected never changes identity,
+  // preventing the useEffect from re-firing after every state update.
+  const getTokenRef = useRef(getToken);
+  getTokenRef.current = getToken;
+
   const fetchConnected = useCallback(async () => {
-    const token = await getToken();
-    if (!token) return;
     try {
+      const token = await getTokenRef.current();
+      if (!token) { setLoading(false); return; }
       const res = await fetch(`${API_BASE}/api/accounts/connected`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -266,7 +271,8 @@ function EmailAccountsSection() {
       }
     } catch {}
     setLoading(false);
-  }, [getToken]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     fetchConnected();
@@ -274,12 +280,20 @@ function EmailAccountsSection() {
 
   const connectAccount = async (provider: "gmail" | "outlook") => {
     const token = await getToken();
-    if (!token) return;
-    const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-    const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
-    await WebBrowser.openAuthSessionAsync(url, completeUrl);
-    setLoading(true);
-    await fetchConnected();
+    if (!token) {
+      Alert.alert("Session error", "Please restart the app and try again.");
+      return;
+    }
+    setActionLoading(provider);
+    try {
+      const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
+      const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
+      await WebBrowser.openAuthSessionAsync(url, completeUrl);
+      setLoading(true);
+      await fetchConnected();
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const disconnectAccount = (provider: "gmail" | "outlook") => {
@@ -297,16 +311,21 @@ function EmailAccountsSection() {
             if (!token) return;
             setActionLoading(provider);
             try {
-              await fetch(`${API_BASE}/api/auth/${provider}/disconnect`, {
+              const res = await fetch(`${API_BASE}/api/auth/${provider}/disconnect`, {
                 method: "DELETE",
                 headers: { Authorization: `Bearer ${token}` },
               });
-              if (provider === "gmail") setGmailConnected(false);
-              else setOutlookConnected(false);
+              if (res.ok) {
+                if (provider === "gmail") setGmailConnected(false);
+                else setOutlookConnected(false);
+              } else {
+                Alert.alert("Error", `Could not disconnect ${name}. Please try again.`);
+              }
             } catch {
               Alert.alert("Error", `Could not disconnect ${name}. Please try again.`);
+            } finally {
+              setActionLoading(null);
             }
-            setActionLoading(null);
           },
         },
       ]
@@ -333,7 +352,7 @@ function EmailAccountsSection() {
             <Pressable
               onPress={() => disconnectAccount("gmail")}
               disabled={actionLoading === "gmail"}
-              style={[styles.actionBtn, { borderColor: colors.destructive + "60" }]}
+              style={[styles.actionBtn, { borderColor: colors.destructive + "60", opacity: actionLoading === "gmail" ? 0.5 : 1 }]}
             >
               {actionLoading === "gmail"
                 ? <ActivityIndicator size="small" color={colors.destructive} />
@@ -343,9 +362,13 @@ function EmailAccountsSection() {
           ) : (
             <Pressable
               onPress={() => connectAccount("gmail")}
-              style={[styles.actionBtn, { borderColor: colors.primary + "60", backgroundColor: colors.primary + "10" }]}
+              disabled={actionLoading === "gmail"}
+              style={[styles.actionBtn, { borderColor: colors.primary + "60", backgroundColor: colors.primary + "10", opacity: actionLoading === "gmail" ? 0.5 : 1 }]}
             >
-              <Text style={[styles.actionBtnText, { color: colors.primary }]}>Connect</Text>
+              {actionLoading === "gmail"
+                ? <ActivityIndicator size="small" color={colors.primary} />
+                : <Text style={[styles.actionBtnText, { color: colors.primary }]}>Connect</Text>
+              }
             </Pressable>
           )}
         </View>
@@ -368,7 +391,7 @@ function EmailAccountsSection() {
             <Pressable
               onPress={() => disconnectAccount("outlook")}
               disabled={actionLoading === "outlook"}
-              style={[styles.actionBtn, { borderColor: colors.destructive + "60" }]}
+              style={[styles.actionBtn, { borderColor: colors.destructive + "60", opacity: actionLoading === "outlook" ? 0.5 : 1 }]}
             >
               {actionLoading === "outlook"
                 ? <ActivityIndicator size="small" color={colors.destructive} />
@@ -378,9 +401,13 @@ function EmailAccountsSection() {
           ) : (
             <Pressable
               onPress={() => connectAccount("outlook")}
-              style={[styles.actionBtn, { borderColor: "#0078D460", backgroundColor: "#0078D410" }]}
+              disabled={actionLoading === "outlook"}
+              style={[styles.actionBtn, { borderColor: "#0078D460", backgroundColor: "#0078D410", opacity: actionLoading === "outlook" ? 0.5 : 1 }]}
             >
-              <Text style={[styles.actionBtnText, { color: "#0078D4" }]}>Connect</Text>
+              {actionLoading === "outlook"
+                ? <ActivityIndicator size="small" color="#0078D4" />
+                : <Text style={[styles.actionBtnText, { color: "#0078D4" }]}>Connect</Text>
+              }
             </Pressable>
           )}
         </View>
