@@ -19,6 +19,7 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { format, isToday, isThisWeek, isThisYear } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
+import { getAuthToken } from "@/lib/authToken";
 
 function formatEmailDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -68,14 +69,6 @@ type Message = {
   receivedAt: string;
   createdAt: string;
 };
-
-async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-  }
-  const SecureStore = await import("expo-secure-store");
-  return SecureStore.getItemAsync("commshub_session_token");
-}
 
 async function deleteMessage(id: number): Promise<void> {
   const token = await getAuthToken();

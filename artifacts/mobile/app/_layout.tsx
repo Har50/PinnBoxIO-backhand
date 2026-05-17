@@ -29,6 +29,7 @@ import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeProvider, useThemeMode } from "@/contexts/ThemeContext";
 import { SubscriptionProvider } from "@/lib/subscription";
 import { setBaseUrl, setAuthTokenGetter } from "@workspace/api-client-react";
+import { setTokenGetter } from "@/lib/authToken";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
@@ -153,6 +154,7 @@ function AuthedStack() {
 
   useEffect(() => {
     setAuthTokenGetter(() => getToken());
+    setTokenGetter(() => getToken());
   }, [getToken]);
 
   useEffect(() => {

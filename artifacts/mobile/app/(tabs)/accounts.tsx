@@ -3,6 +3,7 @@ import { useGetAccounts } from "@workspace/api-client-react";
 import { useAuth, useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { Feather } from "@expo/vector-icons";
+import { getAuthToken } from "@/lib/authToken";
 import type { ComponentProps } from "react";
 import {
   ActivityIndicator,
@@ -64,14 +65,6 @@ function isImapVirtualId(id: number) {
 
 function credentialIdFromVirtualId(id: number): number {
   return -id - 2;
-}
-
-async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-  }
-  const SecureStore = await import("expo-secure-store");
-  return SecureStore.getItemAsync("commshub_session_token");
 }
 
 const PRESET_HOSTS: Record<string, { host: string; port: string; secure: boolean }> = {

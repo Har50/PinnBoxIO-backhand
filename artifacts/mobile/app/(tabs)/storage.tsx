@@ -19,19 +19,12 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { getAuthToken } from "@/lib/authToken";
 
 const API_BASE = `https://${process.env.EXPO_PUBLIC_DOMAIN}`;
 
 async function getToken(): Promise<string | null> {
-  try {
-    if (Platform.OS === "web") {
-      return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-    }
-    const SecureStore = await import("expo-secure-store");
-    return await SecureStore.getItemAsync("commshub_session_token");
-  } catch {
-    return null;
-  }
+  return getAuthToken();
 }
 
 async function apiGet<T>(path: string): Promise<T> {

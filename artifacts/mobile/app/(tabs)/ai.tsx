@@ -24,6 +24,7 @@ import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } 
 import * as DocumentPicker from "expo-document-picker";
 import * as FileSystem from "expo-file-system";
 import { useSubscription } from "@/lib/subscription";
+import { getAuthToken } from "@/lib/authToken";
 
 interface Message {
   role: "user" | "assistant";
@@ -34,14 +35,6 @@ interface Conversation {
   id: number;
   title: string;
   createdAt: string;
-}
-
-async function getAuthToken(): Promise<string | null> {
-  if (Platform.OS === "web") {
-    return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-  }
-  const SecureStore = await import("expo-secure-store");
-  return SecureStore.getItemAsync("commshub_session_token");
 }
 
 type Provider = "openai" | "claude" | "gemini";

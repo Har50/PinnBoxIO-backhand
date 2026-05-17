@@ -3,6 +3,7 @@ import { Platform } from "react-native";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@clerk/expo";
 import * as WebBrowser from "expo-web-browser";
+import { getAuthToken } from "@/lib/authToken";
 
 export const REVENUECAT_ENTITLEMENT_IDENTIFIER = "pro";
 
@@ -70,11 +71,7 @@ const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
 
 async function getSecureToken(): Promise<string | null> {
   try {
-    if (Platform.OS === "web") {
-      return typeof localStorage !== "undefined" ? localStorage.getItem("commshub_session_token") : null;
-    }
-    const SecureStore = await import("expo-secure-store");
-    return SecureStore.getItemAsync("commshub_session_token");
+    return await getAuthToken();
   } catch {
     return null;
   }
