@@ -3,6 +3,7 @@ import { Feather } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import * as FileSystem from "expo-file-system/legacy";
 import { useState, useCallback, useEffect } from "react";
 import {
   ActivityIndicator,
@@ -269,9 +270,11 @@ export default function StorageScreen() {
         folder: currentFolder,
       });
 
-      const fileRes = await fetch(asset.uri);
-      const blob = await fileRes.blob();
-      await fetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": mimeType } });
+      await FileSystem.uploadAsync(uploadUrl, asset.uri, {
+        httpMethod: "PUT",
+        headers: { "Content-Type": mimeType },
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      });
 
       await apiPost("/storage/files", {
         name: fileName,
@@ -304,9 +307,11 @@ export default function StorageScreen() {
         folder: currentFolder,
       });
 
-      const fileRes = await fetch(asset.uri);
-      const blob = await fileRes.blob();
-      await fetch(uploadUrl, { method: "PUT", body: blob, headers: { "Content-Type": asset.mimeType || "application/octet-stream" } });
+      await FileSystem.uploadAsync(uploadUrl, asset.uri, {
+        httpMethod: "PUT",
+        headers: { "Content-Type": asset.mimeType || "application/octet-stream" },
+        uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
+      });
 
       await apiPost("/storage/files", {
         name: asset.name,

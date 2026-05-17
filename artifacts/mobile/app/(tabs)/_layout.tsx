@@ -1,6 +1,6 @@
 import { BlurView } from "expo-blur";
 import { Tabs } from "expo-router";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import React from "react";
 import { Platform, StyleSheet, View } from "react-native";
 
@@ -87,7 +87,7 @@ function ClassicTabLayout() {
         name="ai"
         options={{
           title: "AI",
-          tabBarIcon: ({ color }) => <TabIcon name="cpu" color={color} />,
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="brain" size={22} color={color} />,
         }}
       />
       <Tabs.Screen name="contacts" options={{ href: null }} />

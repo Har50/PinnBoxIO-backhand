@@ -15,7 +15,8 @@ import {
   Animated,
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
 import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
@@ -229,7 +230,7 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
   return (
     <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
       <View style={s.aiBubbleAvatar}>
-        <Feather name="cpu" size={11} color={colors.primary} />
+        <MaterialCommunityIcons name="brain" size={11} color={colors.primary} />
       </View>
       <View style={[s.bubble, s.assistantBubble]}>
         <Text style={s.assistantText}>{msg.content}</Text>
@@ -357,7 +358,7 @@ export default function AiScreen() {
     }
   }, [isRecording]);
 
-  async function pickAttachment() {
+  async function pickAttachmentFile() {
     try {
       const result = await DocumentPicker.getDocumentAsync({
         type: "*/*",
@@ -367,7 +368,7 @@ export default function AiScreen() {
       if (result.canceled || !result.assets?.length) return;
       const asset = result.assets[0];
 
-      const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+      const MAX_BYTES = 8 * 1024 * 1024;
       if (asset.size && asset.size > MAX_BYTES) {
         Alert.alert("File too large", "Please attach a file smaller than 8 MB.");
         return;
@@ -376,9 +377,9 @@ export default function AiScreen() {
       let base64 = "";
       try {
         base64 = await FileSystem.readAsStringAsync(asset.uri, {
-          encoding: 'base64' as const,
+          encoding: "base64" as const,
         });
-      } catch (readErr) {
+      } catch {
         Alert.alert("Could not read file", "The file could not be read. Try a different file.");
         return;
       }
@@ -392,6 +393,44 @@ export default function AiScreen() {
         Alert.alert("Error", "Could not open file picker. Please try again.");
       }
     }
+  }
+
+  async function pickAttachmentPhoto() {
+    try {
+      const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert("Permission required", "Please allow photo library access in Settings to attach images.");
+        return;
+      }
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        quality: 0.85,
+        base64: true,
+        allowsEditing: false,
+      });
+      if (result.canceled || !result.assets?.length) return;
+      const asset = result.assets[0];
+      if (!asset.base64) {
+        Alert.alert("Could not read photo", "Unable to read the selected photo. Try a different one.");
+        return;
+      }
+      const mimeType = asset.mimeType ?? "image/jpeg";
+      const fileName = asset.fileName ?? `photo_${Date.now()}.jpg`;
+      setPendingAttachments((prev) => [
+        ...prev,
+        { name: fileName, mimeType, data: asset.base64! },
+      ]);
+    } catch {
+      Alert.alert("Error", "Could not open photo picker. Please try again.");
+    }
+  }
+
+  function pickAttachment() {
+    Alert.alert("Attach", "What would you like to attach?", [
+      { text: "File / PDF", onPress: pickAttachmentFile },
+      { text: "Photo from Library", onPress: pickAttachmentPhoto },
+      { text: "Cancel", style: "cancel" },
+    ]);
   }
 
   async function startVoiceRecording() {
@@ -597,7 +636,7 @@ export default function AiScreen() {
           {messages.length === 0 ? (
             <View style={s.emptyState}>
               <View style={s.emptyIconWrap}>
-                <Feather name="cpu" size={30} color={colors.primary} />
+                <MaterialCommunityIcons name="brain" size={30} color={colors.primary} />
               </View>
               <Text style={s.emptyTitle}>Hello! I'm your AI assistant.</Text>
               <Text style={s.emptyText}>I can summarize emails, draft replies, find contacts, and help you manage all your communications smarter.</Text>
@@ -616,7 +655,7 @@ export default function AiScreen() {
           )}
           {streaming && messages[messages.length - 1]?.content === "" && (
             <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
-              <View style={s.aiBubbleAvatar}><Feather name="cpu" size={11} color={colors.primary} /></View>
+              <View style={s.aiBubbleAvatar}><MaterialCommunityIcons name="brain" size={11} color={colors.primary} /></View>
               <View style={[s.bubble, s.assistantBubble]}>
                 <ActivityIndicator size="small" color={colors.primary} />
               </View>
