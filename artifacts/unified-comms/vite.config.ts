@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
+import fs from "fs";
 import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 
 const rawPort = process.env.PORT;
@@ -9,9 +10,28 @@ const port = rawPort ? Number(rawPort) : 3000;
 
 const basePath = process.env.BASE_PATH ?? "/";
 
+const landingPagePlugin = {
+  name: "landing-page-root",
+  configureServer(server: import("vite").ViteDevServer) {
+    server.middlewares.use((req, res, next) => {
+      const url = req.url ?? "/";
+      const pathname = url.split("?")[0];
+      if (req.method === "GET" && (pathname === "/" || pathname === basePath || pathname === basePath + "/")) {
+        const landingPath = path.resolve(import.meta.dirname, "public", "landing.html");
+        const html = fs.readFileSync(landingPath, "utf-8");
+        res.setHeader("Content-Type", "text/html; charset=utf-8");
+        res.end(html);
+        return;
+      }
+      next();
+    });
+  },
+};
+
 export default defineConfig({
   base: basePath,
   plugins: [
+    landingPagePlugin,
     react(),
     tailwindcss({ optimize: false }),
     runtimeErrorOverlay(),

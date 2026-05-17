@@ -23,6 +23,10 @@ publicDir = "artifacts/unified-comms/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
+from = "/"
+to = "/landing.html"
+
+[[services.production.rewrites]]
 from = "/*"
 to = "/index.html"
 
