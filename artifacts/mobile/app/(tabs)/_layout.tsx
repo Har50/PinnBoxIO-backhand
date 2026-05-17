@@ -87,17 +87,10 @@ function ClassicTabLayout() {
         name="ai"
         options={{
           title: "AI",
-          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="brain" size={22} color={color} />,
+          tabBarIcon: ({ color }) => <MaterialCommunityIcons name="robot" size={22} color={color} />,
         }}
       />
       <Tabs.Screen name="contacts" options={{ href: null }} />
-      <Tabs.Screen
-        name="search"
-        options={{
-          title: "Search",
-          tabBarIcon: ({ color }) => <TabIcon name="search" color={color} />,
-        }}
-      />
       <Tabs.Screen
         name="accounts"
         options={{

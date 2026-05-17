@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Search, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays } from "lucide-react";
+import { Mail, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
@@ -37,7 +37,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
   ];
 
   const bottomNavItems = [
-    { href: "/search", label: "Search", icon: Search },
     { href: "/accounts", label: "Accounts", icon: Settings },
     { href: "/settings", label: "Settings", icon: SlidersHorizontal },
   ];

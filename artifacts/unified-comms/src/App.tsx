@@ -27,7 +27,6 @@ import LandingPage from "./pages/landing";
 import Dashboard from "./pages/dashboard";
 import Inbox from "./pages/inbox";
 import Contacts from "./pages/contacts";
-import SearchPage from "./pages/search";
 import Accounts from "./pages/accounts";
 import AiPage from "./pages/ai";
 import StoragePage from "./pages/storage";
@@ -275,7 +274,6 @@ function Router() {
               <Route path="/dashboard" component={Dashboard} />
               <Route path="/inbox" component={Inbox} />
               <Route path="/contacts" component={Contacts} />
-              <Route path="/search" component={SearchPage} />
               <Route path="/accounts" component={Accounts} />
               <Route path="/ai" component={AiPage} />
               <Route path="/storage" component={StoragePage} />

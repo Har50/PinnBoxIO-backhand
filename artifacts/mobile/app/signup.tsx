@@ -4,7 +4,6 @@ import colors from "@/constants/colors";
 import { Feather } from "@expo/vector-icons";
 import {
   InboxIllustration,
-  SearchIllustration,
   AIIllustration,
   FreeIllustration,
 } from "@/components/OnboardingIllustrations";
@@ -33,12 +32,6 @@ const SLIDE_DATA = [
     title: "All your inboxes, one place",
     description:
       "Connect Gmail, Outlook and more — read and reply from a single unified feed.",
-  },
-  {
-    key: "search",
-    title: "Unified search",
-    description:
-      "Find any message across every connected channel in seconds, no matter where it was sent.",
   },
   {
     key: "ai",
@@ -148,7 +141,6 @@ export default function SignUpScreen() {
   function renderIllustration(key: string) {
     switch (key) {
       case "inbox": return <InboxIllustration primary={c.primary} dark={isDark} />;
-      case "search": return <SearchIllustration emerald={c.emerald} dark={isDark} />;
       case "ai": return <AIIllustration amber={c.amber} dark={isDark} />;
       case "free": return <FreeIllustration primary={c.primary} dark={isDark} />;
       default: return null;

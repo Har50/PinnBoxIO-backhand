@@ -18,6 +18,7 @@ import {
 import { Feather } from "@expo/vector-icons";
 import { useColors } from "@/hooks/useColors";
 import { useGetAccounts, useCreateMessage } from "@workspace/api-client-react";
+import { getAuthToken } from "@/lib/authToken";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
 
@@ -201,19 +202,47 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
 
     setSending(true);
     try {
-      await createMessage.mutateAsync({
-        data: {
-          accountId,
-          folder: "Sent",
-          subject: subject.trim(),
-          fromName: selectedAccount.name,
-          fromEmail: selectedAccount.email ?? "",
-          toList: to.trim(),
-          ccList: cc.trim() || null,
-          bodyText: body.trim() || null,
-          receivedAt: new Date().toISOString(),
-        },
-      });
+      if (accountId < 0) {
+        // Virtual connected account (Gmail id=-1, Outlook id=-2) — send via provider
+        const provider: "gmail" | "outlook" = accountId === -2 ? "outlook" : "gmail";
+        const token = await getAuthToken();
+        const apiBase = process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+          : process.env.EXPO_PUBLIC_API_DOMAIN
+            ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
+            : "/api";
+        const res = await fetch(`${apiBase}/messages/send`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+          body: JSON.stringify({
+            to: to.trim(),
+            subject: subject.trim(),
+            body: body.trim() || " ",
+            provider,
+          }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error((data as any).error ?? "Failed to send");
+        }
+      } else {
+        await createMessage.mutateAsync({
+          data: {
+            accountId,
+            folder: "Sent",
+            subject: subject.trim(),
+            fromName: selectedAccount.name,
+            fromEmail: selectedAccount.email ?? "",
+            toList: to.trim(),
+            ccList: cc.trim() || null,
+            bodyText: body.trim() || null,
+            receivedAt: new Date().toISOString(),
+          },
+        });
+      }
       onClose();
     } catch {
       Alert.alert("Send failed", "Could not send the message. Please try again.");

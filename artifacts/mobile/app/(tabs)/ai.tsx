@@ -253,13 +253,18 @@ export default function AiScreen() {
   const [transcribing, setTranscribing] = useState(false);
   const [showVoiceGate, setShowVoiceGate] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ name: string; mimeType: string; data: string }>>([]);
+  const [showStoragePicker, setShowStoragePicker] = useState(false);
+  const [storageFiles, setStorageFiles] = useState<Array<{ id: number; name: string; mimeType: string; sizeBytes: number }>>([]);
+  const [storageFilesLoading, setStorageFilesLoading] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
   const scrollRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
-  const apiUrl = process.env.EXPO_PUBLIC_DOMAIN
-    ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-    : "/api";
+  const apiUrl = process.env.EXPO_PUBLIC_API_DOMAIN
+    ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
+    : process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : "/api";
 
   async function fetchHeaders() {
     const token = await getAuthToken();
@@ -422,8 +427,42 @@ export default function AiScreen() {
     Alert.alert("Attach", "What would you like to attach?", [
       { text: "File / PDF", onPress: pickAttachmentFile },
       { text: "Photo from Library", onPress: pickAttachmentPhoto },
+      { text: "PinnboxIO Storage", onPress: () => { loadStorageFiles(); setShowStoragePicker(true); } },
       { text: "Cancel", style: "cancel" },
     ]);
+  }
+
+  async function loadStorageFiles() {
+    setStorageFilesLoading(true);
+    try {
+      const headers = await fetchHeaders();
+      const res = await fetch(`${apiUrl}/storage/files`, { headers, credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setStorageFiles(data.files ?? []);
+      }
+    } catch {}
+    setStorageFilesLoading(false);
+  }
+
+  async function pickStorageFile(file: { id: number; name: string; mimeType: string }) {
+    setShowStoragePicker(false);
+    try {
+      const headers = await fetchHeaders();
+      const urlRes = await fetch(`${apiUrl}/storage/files/${file.id}/download-url`, { headers, credentials: "include" });
+      if (!urlRes.ok) {
+        Alert.alert("Error", "Could not access this file. Please try again.");
+        return;
+      }
+      const { downloadUrl } = await urlRes.json();
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const dest = (FileSystem.cacheDirectory ?? "") + safeName;
+      const downloaded = await FileSystem.downloadAsync(downloadUrl, dest);
+      const base64 = await FileSystem.readAsStringAsync(downloaded.uri, { encoding: "base64" as const });
+      setPendingAttachments((prev) => [...prev, { name: file.name, mimeType: file.mimeType, data: base64 }]);
+    } catch {
+      Alert.alert("Error", "Could not attach this file. Please try again.");
+    }
   }
 
   async function startVoiceRecording() {
@@ -606,7 +645,7 @@ export default function AiScreen() {
           <Feather name="list" size={20} color={colors.primary} />
         </Pressable>
         <View style={s.headerIcon}>
-          <Feather name="cpu" size={18} color={colors.primary} />
+          <MaterialCommunityIcons name="brain" size={18} color={colors.primary} />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={s.headerTitle}>{conversation?.title ?? "AI Assistant"}</Text>
@@ -749,6 +788,51 @@ export default function AiScreen() {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Storage file picker */}
+      <Modal visible={showStoragePicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowStoragePicker(false)}>
+        <SafeAreaView style={[s.sidebarModal, { backgroundColor: colors.background }]} edges={["top"]}>
+          <View style={[s.sidebarHeader, { borderBottomColor: colors.border }]}>
+            <Text style={[s.sidebarTitle, { color: colors.foreground }]}>My Drive</Text>
+            <Pressable onPress={() => setShowStoragePicker(false)} style={s.sidebarClose}>
+              <Feather name="x" size={22} color={colors.foreground} />
+            </Pressable>
+          </View>
+          {storageFilesLoading ? (
+            <View style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : storageFiles.length === 0 ? (
+            <View style={s.sidebarEmpty}>
+              <Feather name="hard-drive" size={36} color={colors.mutedForeground} />
+              <Text style={[s.sidebarEmptyText, { color: colors.mutedForeground }]}>No files in storage</Text>
+            </View>
+          ) : (
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {storageFiles.map((file) => (
+                <Pressable
+                  key={file.id}
+                  style={[s.convRow, { borderBottomColor: colors.border }]}
+                  onPress={() => pickStorageFile(file)}
+                >
+                  <Feather
+                    name={file.mimeType.startsWith("image/") ? "image" : file.mimeType.includes("pdf") ? "file-text" : "file"}
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.convTitle, { color: colors.foreground }]} numberOfLines={1}>{file.name}</Text>
+                    <Text style={{ fontSize: 11, color: colors.mutedForeground, fontFamily: "Inter_400Regular" }}>
+                      {(file.sizeBytes / 1024).toFixed(0)} KB
+                    </Text>
+                  </View>
+                  <Feather name="paperclip" size={14} color={colors.mutedForeground} />
+                </Pressable>
+              ))}
+            </ScrollView>
+          )}
+        </SafeAreaView>
+      </Modal>
 
       {/* Conversation sidebar */}
       <Modal visible={sidebarVisible} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setSidebarVisible(false)}>
