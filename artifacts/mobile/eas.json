@@ -17,7 +17,6 @@
       }
     },
     "production": {
-      "autoIncrement": true,
       "channel": "production",
       "env": {
         "EXPO_PUBLIC_DOMAIN": "pinnboxio.net",
