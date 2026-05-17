@@ -59,7 +59,7 @@ const features = [
 
 const freeFeatures = [
   "Gmail + Outlook inbox",
-  "200 AI requests / day",
+  "20 AI requests / day",
   "1 GB cloud storage",
   "Calendar sync",
   "Smart search",
@@ -396,7 +396,7 @@ export default function LandingPage() {
               onMouseEnter={e => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
               onMouseLeave={e => (e.currentTarget.style.backgroundColor = PRIMARY)}
             >
-              Start Pro free trial
+              Get started
             </button>
             <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
               {proFeatures.map(f => (
