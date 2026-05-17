@@ -30,12 +30,12 @@ args = "Mobile Production Build"
 name = "Mobile Production Build"
 author = "agent"
 
-[[workflows.workflow.tasks]]
-task = "shell.exec"
-args = "cd /home/runner/workspace/artifacts/mobile && EXPO_PUBLIC_DOMAIN=pinn-box-io.replit.app EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN=pinn-box-io.replit.app EXPO_PUBLIC_REPL_ID=$REPL_ID BASE_PATH=/mobile node scripts/build.js"
-
 [workflows.workflow.metadata]
 outputType = "console"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/artifacts/mobile && pnpm dlx eas-cli@latest update --branch production --message 'Production update' --non-interactive"
 
 [agent]
 stack = "PNPM_WORKSPACE"
