@@ -23,12 +23,8 @@ publicDir = "artifacts/unified-comms/dist/public"
 serve = "static"
 
 [[services.production.rewrites]]
-from = "/"
-to = "/landing.html"
-
-[[services.production.rewrites]]
 from = "/*"
-to = "/index.html"
+to = "/app.html"
 
 [services.env]
 PORT = "18783"

@@ -26,6 +26,16 @@ const landingPagePlugin = {
       next();
     });
   },
+  closeBundle() {
+    const distDir = path.resolve(import.meta.dirname, "dist/public");
+    const spaIndex = path.join(distDir, "index.html");
+    const appHtml = path.join(distDir, "app.html");
+    const landingSrc = path.resolve(import.meta.dirname, "public", "landing.html");
+    if (fs.existsSync(spaIndex)) {
+      fs.renameSync(spaIndex, appHtml);
+    }
+    fs.copyFileSync(landingSrc, spaIndex);
+  },
 };
 
 export default defineConfig({
