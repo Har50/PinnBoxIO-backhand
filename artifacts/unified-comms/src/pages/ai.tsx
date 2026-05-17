@@ -386,9 +386,13 @@ function AiChat() {
 
   const suggestedPrompts = [
     "Summarize my unread emails",
-    "Who messaged me recently?",
     "Draft a reply to my latest email",
-    "Translate this text for me — paste it below and tell me the target language",
+    "What important emails did I receive this week?",
+    "Help me write a professional email to a client",
+    "Translate an email — paste it and tell me the target language",
+    "Read and summarize a PDF from my storage",
+    "Find emails from a specific contact",
+    "Translate this voice note — type what was said and the target language",
   ];
 
   return (

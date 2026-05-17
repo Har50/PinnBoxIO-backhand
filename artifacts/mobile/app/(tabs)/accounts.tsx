@@ -145,15 +145,6 @@ function AccountCard({ account, onDisconnect }: { account: Account; onDisconnect
           </Text>
         </View>
 
-        {!isPhone && (
-          <View style={[styles.unreadRow, { backgroundColor: colors.muted }]}>
-            <Text style={[styles.unreadLabel, { color: colors.mutedForeground }]}>Unread</Text>
-            <Text style={[styles.unreadCount, { color: account.unreadCount > 0 ? "#ef4444" : colors.foreground }]}>
-              {account.unreadCount}
-            </Text>
-          </View>
-        )}
-
         {canDisconnect && (
           <Pressable
             onPress={() => onDisconnect(account)}
@@ -634,9 +625,6 @@ const styles = StyleSheet.create({
   cardDetails: { gap: 4 },
   accountIdentifier: { fontSize: 14, fontFamily: "Inter_400Regular" },
   connectedDate: { fontSize: 12, fontFamily: "Inter_400Regular" },
-  unreadRow: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8 },
-  unreadLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
-  unreadCount: { fontSize: 16, fontFamily: "Inter_700Bold" },
   disconnectBtn: { flexDirection: "row", alignItems: "center", gap: 6, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, alignSelf: "flex-start" },
   disconnectText: { fontSize: 13, fontFamily: "Inter_500Medium" },
   connectSection: { gap: 12 },

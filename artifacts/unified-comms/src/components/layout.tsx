@@ -54,12 +54,20 @@ export function Layout({ children }: { children: React.ReactNode }) {
       {/* Sidebar — slim (52px) on mobile, full (256px) on md+ */}
       <div className="w-[52px] md:w-64 flex-shrink-0 border-r bg-sidebar text-sidebar-foreground flex flex-col transition-all duration-200">
 
-        {/* Logo */}
-        <div className="p-3 md:p-4 flex items-center gap-3 min-h-[56px]">
+        {/* Logo + theme toggle */}
+        <div className="p-3 md:p-4 flex items-center gap-2 min-h-[56px]">
           <div className="w-8 h-8 rounded bg-primary flex items-center justify-center text-primary-foreground font-bold shadow-md flex-shrink-0 text-xs">
             PB
           </div>
-          <span className="font-semibold text-lg tracking-tight hidden md:block">PinnboxIO</span>
+          <span className="font-semibold text-lg tracking-tight hidden md:block flex-1">PinnboxIO</span>
+          <button
+            type="button"
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            title={theme === "dark" ? "Day mode" : "Dark mode"}
+            className="w-7 h-7 rounded-full flex items-center justify-center hover:bg-sidebar-accent/60 transition-colors text-sidebar-foreground/50 hover:text-sidebar-foreground flex-shrink-0"
+          >
+            {theme === "dark" ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+          </button>
         </div>
 
         {/* Action buttons */}
@@ -81,25 +89,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <Mail className="w-4 h-4" />
             Compose
           </Button>
-
-          <Button
-            type="button"
-            variant="outline"
-            size="lg"
-            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-            className="hidden md:flex w-full justify-start gap-2 font-medium"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-            {theme === "dark" ? "Day mode" : "Dark mode"}
-          </Button>
-          <button
-            type="button"
-            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-            title={theme === "dark" ? "Day mode" : "Dark mode"}
-            className="md:hidden w-8 h-8 mx-auto rounded-full border border-sidebar-border text-sidebar-foreground/80 flex items-center justify-center hover:bg-sidebar-accent transition-colors"
-          >
-            {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
-          </button>
         </div>
 
         <nav className="flex-1 overflow-y-auto py-3 px-1.5 md:px-3 flex flex-col gap-0.5">

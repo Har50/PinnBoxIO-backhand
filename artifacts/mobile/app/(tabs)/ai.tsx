@@ -41,9 +41,11 @@ type Provider = "openai" | "claude" | "gemini";
 
 const SUGGESTIONS = [
   "Summarize my unread emails",
-  "Who messaged me recently?",
   "Draft a reply to my latest email",
   "Translate this to English",
+  "What emails did I get today?",
+  "Read my latest PDF from storage",
+  "Write a professional email for me",
 ];
 
 function parseEmailDraft(content: string): { before: string; draft: Record<string, string>; after: string } | null {
@@ -93,7 +95,11 @@ function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSe
     setSendError(null);
     try {
       const token = await getAuthToken();
-      const apiUrl = process.env.EXPO_PUBLIC_DOMAIN ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api` : "/api";
+      const apiUrl = process.env.EXPO_PUBLIC_API_DOMAIN
+        ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
+        : process.env.EXPO_PUBLIC_DOMAIN
+          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+          : "/api";
       const res = await fetch(`${apiUrl}/messages/send`, {
         method: "POST",
         headers: {

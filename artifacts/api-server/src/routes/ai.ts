@@ -39,19 +39,38 @@ function isTextLikeFile(name: string, mimeType: string) {
   );
 }
 
+function isPdfFile(name: string, mimeType: string) {
+  return mimeType === "application/pdf" || name.toLowerCase().endsWith(".pdf");
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-async function getTextFileSnippet(storageKey: string, maxChars = 1200) {
+async function getTextFileSnippet(storageKey: string, maxChars = 1500) {
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) return null;
 
   try {
     const [buffer] = await objectStorageClient.bucket(bucketId).file(storageKey).download({ start: 0, end: 8191 });
     return buffer.toString("utf8").replace(/\s+/g, " ").trim().slice(0, maxChars) || null;
+  } catch {
+    return null;
+  }
+}
+
+async function getPdfTextSnippet(storageKey: string, maxChars = 2500) {
+  const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+  if (!bucketId) return null;
+
+  try {
+    const [buffer] = await objectStorageClient.bucket(bucketId).file(storageKey).download();
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const pdfParse = require("pdf-parse") as (buf: Buffer) => Promise<{ text: string }>;
+    const result = await pdfParse(buffer);
+    return result.text.replace(/\s+/g, " ").trim().slice(0, maxChars) || null;
   } catch {
     return null;
   }
@@ -120,15 +139,24 @@ async function getUserContext(userId: string): Promise<string> {
     .orderBy(desc(storageFilesTable.updatedAt))
     .limit(30);
 
+  const readableFiles = storedFiles.filter((file) => {
+    if (isPdfFile(file.name, file.mimeType)) return file.sizeBytes <= 30 * 1024 * 1024;
+    if (isTextLikeFile(file.name, file.mimeType)) return file.sizeBytes <= 2 * 1024 * 1024;
+    return false;
+  }).slice(0, 8);
+
   const textFileSnippets = await Promise.all(
-    storedFiles
-      .filter((file) => file.sizeBytes <= 1024 * 1024 && isTextLikeFile(file.name, file.mimeType))
-      .slice(0, 5)
-      .map(async (file) => ({
+    readableFiles.map(async (file) => {
+      const isPdf = isPdfFile(file.name, file.mimeType);
+      return {
         name: file.name,
         folder: file.folder,
-        snippet: await getTextFileSnippet(file.storageKey),
-      })),
+        type: isPdf ? "PDF" : "text",
+        snippet: isPdf
+          ? await getPdfTextSnippet(file.storageKey)
+          : await getTextFileSnippet(file.storageKey),
+      };
+    }),
   );
 
   const [gmailInbox, outlookInbox] = await Promise.all([
@@ -136,20 +164,29 @@ async function getUserContext(userId: string): Promise<string> {
     listOutlookMessages("Inbox", 10).catch(() => null),
   ]);
 
-  let context = "You are a smart communications assistant for PinnboxIO. Answer EXACTLY what the user asks — do not add unsolicited drafts or generic advice.\n";
-  context += "You help users manage email, contacts, and cloud storage.\n\n";
+  let context = "You are Pinnbox AI — a powerful personal communications assistant built into PinnboxIO. Answer EXACTLY what the user asks; never add unsolicited drafts or generic advice.\n\n";
+  context += "CAPABILITIES (you can do all of these):\n";
+  context += "- READ & SUMMARIZE EMAILS: you have access to recent inbox messages (stored + live Gmail/Outlook). Summarize, find specific messages, list senders, identify urgent items.\n";
+  context += "- DRAFT & SEND EMAILS: write full email drafts on request. Use the <email-draft> format so the user can send with one tap.\n";
+  context += "- REPLY DRAFTING: draft replies to specific emails in the user's name, matching the conversation tone.\n";
+  context += "- TRANSLATE: translate any text or email body to/from any language. If the user pastes text and asks for a translation, translate it completely.\n";
+  context += "- VOICE TRANSCRIPTION TRANSLATION: if the user shares transcribed voice text and asks to translate it, translate it accurately.\n";
+  context += "- READ PDFS & FILES: you have access to text extracted from the user's stored PDFs, documents, spreadsheets, and text files. Summarize, answer questions about them, or extract key info.\n";
+  context += "- CONTACTS: look up contacts by name, email, or company. Suggest contacts when drafting emails.\n";
+  context += "- DRAFTING ASSISTANCE: help draft any business document — proposals, follow-ups, introductions, complaints, thank-yous.\n";
+  context += "- RESOURCES & LINKS: when helpful, suggest relevant resources, best practices, or useful external links.\n\n";
   context += "LANGUAGE RULE (highest priority):\n";
   context += "- Detect the language the user is writing in and ALWAYS reply in that same language.\n";
   context += "- If the user writes in Chinese, reply in Chinese. If Spanish, reply in Spanish. If Arabic, reply in Arabic. Etc.\n";
-  context += "- When drafting emails, write the email body in whichever language the user requests (or their own language if not specified).\n";
-  context += "- You can translate text to/from any language when asked.\n\n";
+  context += "- When drafting emails, write the email body in whichever language the user requests.\n\n";
   context += "RULES (follow strictly):\n";
-  context += "1. Answer the user's specific question first. Only write an email draft if they explicitly ask for one.\n";
-  context += "2. When asked to write or send an email, always produce the COMPLETE draft in the special block below — never truncate.\n";
+  context += "1. Answer the user's specific question first. Only write an email draft if explicitly asked.\n";
+  context += "2. When asked to write or send an email, produce the COMPLETE draft in the special block — never truncate.\n";
   context += "3. Match the requested tone exactly. Default: concise, professional, human.\n";
   context += "4. You CAN send emails. Use the special format below when the user wants to send.\n";
-  context += "5. If details are missing (recipient email, etc.), ask for them before drafting.\n";
-  context += "6. Keep answers short unless the user asks for detail. Never pad with filler.\n\n";
+  context += "5. If recipient email is missing, ask for it before drafting.\n";
+  context += "6. Keep answers short unless the user asks for detail. Never pad with filler.\n";
+  context += "7. When reading a PDF or file, cite the filename and key findings clearly.\n\n";
   context += "EMAIL DRAFT FORMAT — use this EXACTLY when producing an email to send:\n";
   context += "<email-draft>{\"to\":\"recipient@example.com\",\"subject\":\"Subject here\",\"body\":\"Full email body here\"}</email-draft>\n\n";
 
@@ -158,7 +195,7 @@ async function getUserContext(userId: string): Promise<string> {
     for (const m of recentMessages) {
       const date = m.receivedAt ? new Date(m.receivedAt).toLocaleDateString() : "";
       context += `[${date}] ${m.folder.toUpperCase()} - From: ${m.fromName} <${m.fromEmail}> | Subject: ${m.subject}`;
-      if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 300)}`;
+      if (m.bodyText) context += ` | Preview: ${m.bodyText.slice(0, 500)}`;
       context += "\n";
     }
     context += "\n";
@@ -202,15 +239,11 @@ async function getUserContext(userId: string): Promise<string> {
 
   const snippets = textFileSnippets.filter((file) => file.snippet);
   if (snippets.length > 0) {
-    context += "=== Searchable Text File Snippets ===\n";
+    context += "=== File Contents (PDFs, Documents & Text Files) ===\n";
     for (const file of snippets) {
-      context += `${file.folder}/${file.name}: ${file.snippet}\n`;
+      context += `[${file.type}] ${file.folder}/${file.name}:\n${file.snippet}\n\n`;
     }
-    context += "\n";
   }
-
-  context +=
-    "You can help with: summarizing emails, drafting replies, writing tailored new emails, finding contacts, managing priorities, referencing stored files, and anything related to communications.";
 
   return context;
 }
