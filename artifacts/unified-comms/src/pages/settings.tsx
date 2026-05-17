@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useUser, useClerk } from "@clerk/react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -21,6 +21,10 @@ import {
   Mail,
   ChevronRight,
   ExternalLink,
+  Star,
+  Crown,
+  Zap,
+  HardDrive,
 } from "lucide-react";
 import { Link } from "wouter";
 import {
@@ -29,8 +33,58 @@ import {
   useUpdateUserPreferences,
   getGetUserPreferencesQueryKey,
 } from "@workspace/api-client-react";
+import { getAuthHeaders } from "@/lib/api-client";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+
+interface SubscriptionStatus {
+  plan: "free" | "pro";
+  renewsAt: string | null;
+  cancelAtPeriodEnd: boolean;
+  billingCycle: "monthly" | "annual" | null;
+  currency: string | null;
+  queriesLimit: number | null;
+  storageUsedBytes: number;
+  storageTotalBytes: number;
+}
+
+function useSubscriptionStatus() {
+  const [status, setStatus] = useState<SubscriptionStatus | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        if (!res.ok) throw new Error("Failed");
+        const data: SubscriptionStatus = await res.json();
+        if (!cancelled) setStatus(data);
+      } catch {
+        if (!cancelled) setStatus(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  return { status, loading, refetch: () => setLoading(true) };
+}
+
+async function startUpgrade(): Promise<void> {
+  const headers = await getAuthHeaders();
+  const res = await fetch(`${BASE}/api/subscription/create-order`, {
+    method: "POST",
+    headers: { ...headers, "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ planKey: "pro_monthly", currency: "inr" }),
+  });
+  if (!res.ok) throw new Error("Could not create order");
+  const { checkoutUrl } = await res.json();
+  if (checkoutUrl) window.open(checkoutUrl, "_blank", "noopener");
+}
 
 function useTheme() {
   const [theme, setThemeState] = useState<"light" | "dark">(() => {
@@ -83,8 +137,28 @@ export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
   const { prefs, toggle } = useNotificationPrefs();
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
 
   const { data: accounts } = useGetAccounts();
+  const { status: subStatus, loading: subLoading } = useSubscriptionStatus();
+
+  const isPro = subStatus?.plan === "pro";
+
+  const renewsAtDate = subStatus?.renewsAt ? new Date(subStatus.renewsAt) : null;
+  const renewsLabel = renewsAtDate
+    ? renewsAtDate.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" })
+    : null;
+
+  async function handleUpgrade() {
+    setUpgrading(true);
+    try {
+      await startUpgrade();
+    } catch {
+      // silent — checkout page failed to open
+    } finally {
+      setUpgrading(false);
+    }
+  }
 
   const userEmail = user?.primaryEmailAddress?.emailAddress ?? "";
   const userFirstName = user?.firstName ?? "";
@@ -151,6 +225,81 @@ export default function SettingsPage() {
                 <ExternalLink className="w-3 h-3 ml-1.5" />
               </Button>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Subscription */}
+        <Card data-testid="section-subscription">
+          <CardHeader className="pb-3">
+            <div className="flex items-center gap-2">
+              <Crown className="w-4 h-4 text-muted-foreground" />
+              <CardTitle className="text-sm font-semibold">Subscription</CardTitle>
+            </div>
+            <CardDescription className="text-xs">Your current plan and billing</CardDescription>
+          </CardHeader>
+          <CardContent>
+            {subLoading ? (
+              <div className="h-14 rounded-lg bg-muted/40 animate-pulse" />
+            ) : isPro ? (
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}>
+                  <Crown className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-semibold text-foreground">Pro Plan</p>
+                    <Badge className="text-xs bg-indigo-500/15 text-indigo-500 border-indigo-500/20 hover:bg-indigo-500/20">
+                      Active
+                    </Badge>
+                    {subStatus?.cancelAtPeriodEnd && (
+                      <Badge variant="outline" className="text-xs text-muted-foreground">
+                        Cancels at period end
+                      </Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {subStatus?.billingCycle === "annual" ? "Annual billing" : "Monthly billing"}
+                    {renewsLabel && !subStatus?.cancelAtPeriodEnd && ` · renews ${renewsLabel}`}
+                    {renewsLabel && subStatus?.cancelAtPeriodEnd && ` · access until ${renewsLabel}`}
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  onClick={() => window.open(`${BASE}/api/subscription/portal`, "_blank", "noopener")}
+                >
+                  Manage
+                  <ExternalLink className="w-3 h-3 ml-1.5" />
+                </Button>
+              </div>
+            ) : (
+              <button
+                data-testid="btn-upgrade-pro"
+                disabled={upgrading}
+                onClick={handleUpgrade}
+                className="w-full flex items-center gap-4 rounded-xl px-4 py-3.5 text-left transition-opacity hover:opacity-90 disabled:opacity-60"
+                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white" }}
+              >
+                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                  <Star className="w-4 h-4 text-white" fill="currentColor" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-sm text-white">Upgrade to Pro</p>
+                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                    <span className="flex items-center gap-1 text-xs text-indigo-200">
+                      <Zap className="w-3 h-3" />Unlimited AI
+                    </span>
+                    <span className="flex items-center gap-1 text-xs text-indigo-200">
+                      <HardDrive className="w-3 h-3" />25 GB storage
+                    </span>
+                    <span className="text-xs text-indigo-200">$7.99/mo</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-indigo-200 shrink-0" />
+              </button>
+            )}
           </CardContent>
         </Card>
 
