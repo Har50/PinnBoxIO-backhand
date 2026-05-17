@@ -4,6 +4,7 @@ import { Mail, Users, MessageSquare } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
+import WelcomeModal from "@/components/WelcomeModal";
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetOverviewStats();
@@ -11,6 +12,7 @@ export default function Dashboard() {
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
+      <WelcomeModal />
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
         <p className="text-muted-foreground mt-1">Overview of all your communications.</p>

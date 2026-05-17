@@ -17,6 +17,7 @@ import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
 import calendarRouter from "./calendar";
 import paymentsRouter, { paymentsPublicRouter } from "./payments";
+import waitlistRouter from "./waitlist";
 import { ensureUser } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
@@ -42,6 +43,7 @@ function addCapped(set: Set<string>, value: string, max: number): void {
 }
 
 router.use(healthRouter);
+router.use(waitlistRouter);
 router.use(linkedinPublicRouter);
 router.use(storagePublicRouter);
 router.use(paymentsPublicRouter);

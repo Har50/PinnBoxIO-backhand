@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useLocation } from "wouter";
 import {
   Mail,
@@ -108,6 +109,24 @@ export function AuthHeroPanel() {
 
 export default function LandingPage() {
   const [, setLocation] = useLocation();
+  const [email, setEmail] = useState("");
+  const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+
+  async function handleWaitlist(e: React.FormEvent) {
+    e.preventDefault();
+    if (!email.trim() || emailStatus === "loading") return;
+    setEmailStatus("loading");
+    try {
+      const res = await fetch(`${basePath}/api/waitlist`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim() }),
+      });
+      setEmailStatus(res.ok ? "success" : "error");
+    } catch {
+      setEmailStatus("error");
+    }
+  }
 
   return (
     <div style={{ backgroundColor: BG, color: FG, minHeight: "100vh", fontFamily: "Inter, system-ui, sans-serif" }}>
@@ -281,6 +300,93 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Email Capture */}
+      <section style={{ padding: "0 24px 80px", maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
+        <p style={{ fontSize: 13, fontWeight: 600, color: FG_SUBTLE, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
+          Join the community
+        </p>
+        <h2 style={{ fontSize: 26, fontWeight: 700, color: FG, margin: "0 0 12px", lineHeight: 1.3 }}>
+          Join 1,000+ professionals already using PinnboxIO
+        </h2>
+
+        {emailStatus === "success" ? (
+          <div
+            style={{
+              backgroundColor: "#0f2a1a",
+              border: "1px solid #166534",
+              borderRadius: 12,
+              padding: "18px 24px",
+              color: "#4ade80",
+              fontSize: 15,
+              fontWeight: 600,
+              marginTop: 28,
+            }}
+          >
+            You're in! We'll be in touch. 🎉
+          </div>
+        ) : (
+          <>
+            <form
+              onSubmit={handleWaitlist}
+              style={{ display: "flex", gap: 10, marginTop: 28, flexWrap: "wrap", justifyContent: "center" }}
+            >
+              <input
+                type="email"
+                required
+                placeholder="Your work email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                style={{
+                  flex: "1 1 260px",
+                  maxWidth: 320,
+                  backgroundColor: SURFACE,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 10,
+                  padding: "13px 16px",
+                  fontSize: 15,
+                  color: FG,
+                  outline: "none",
+                  fontFamily: "Inter, system-ui, sans-serif",
+                }}
+                onFocus={e => (e.currentTarget.style.borderColor = PRIMARY)}
+                onBlur={e => (e.currentTarget.style.borderColor = BORDER)}
+              />
+              <button
+                type="submit"
+                disabled={emailStatus === "loading"}
+                style={{
+                  backgroundColor: emailStatus === "loading" ? "#1d4ed8" : PRIMARY,
+                  color: "#fff",
+                  border: "none",
+                  borderRadius: 10,
+                  padding: "13px 22px",
+                  fontSize: 15,
+                  fontWeight: 700,
+                  cursor: emailStatus === "loading" ? "wait" : "pointer",
+                  whiteSpace: "nowrap",
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 6,
+                  fontFamily: "Inter, system-ui, sans-serif",
+                }}
+                onMouseEnter={e => { if (emailStatus !== "loading") e.currentTarget.style.backgroundColor = PRIMARY_HOVER; }}
+                onMouseLeave={e => { if (emailStatus !== "loading") e.currentTarget.style.backgroundColor = PRIMARY; }}
+              >
+                {emailStatus === "loading" ? "Sending…" : <>Get early access →</>}
+              </button>
+            </form>
+            {emailStatus === "error" && (
+              <p style={{ color: "#f87171", fontSize: 13, marginTop: 10 }}>
+                Something went wrong. Please try again.
+              </p>
+            )}
+            <p style={{ fontSize: 13, color: FG_SUBTLE, marginTop: 14 }}>
+              No spam. Unsubscribe anytime.
+            </p>
+          </>
+        )}
       </section>
 
       {/* Pricing */}

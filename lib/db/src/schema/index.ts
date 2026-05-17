@@ -8,3 +8,4 @@ export * from "./storage";
 export * from "./preferences";
 export * from "./calendar";
 export * from "./subscriptions";
+export * from "./waitlist";
