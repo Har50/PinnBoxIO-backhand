@@ -1,4 +1,4 @@
-const { withAppBuildGradle } = require("@expo/config-plugins");
+const { withAppBuildGradle } = require("expo/config-plugins");
 
 module.exports = function withAndroidPackagingFix(config) {
   return withAppBuildGradle(config, (config) => {
