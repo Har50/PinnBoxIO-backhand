@@ -160,7 +160,7 @@ router.get("/auth/gmail/callback", async (req, res) => {
     if (stateData.mobile) {
       res.redirect(`${base}/api/mobile-oauth-complete?connected=gmail`);
     } else {
-      res.redirect(`/settings?connected=gmail`);
+      res.redirect(`/accounts?connected=gmail`);
     }
   } catch (err) {
     console.error("[Gmail callback] unhandled error:", err);
@@ -266,7 +266,7 @@ router.get("/auth/outlook/callback", async (req, res) => {
     if (stateData.mobile) {
       res.redirect(`${base}/api/mobile-oauth-complete?connected=outlook`);
     } else {
-      res.redirect(`/settings?connected=outlook`);
+      res.redirect(`/accounts?connected=outlook`);
     }
   } catch {
     res.redirect(`/?error=outlook_callback_failed`);

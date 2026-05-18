@@ -249,6 +249,9 @@ export default function Accounts() {
     });
   };
 
+  const gmailOAuthAccount = accounts?.find((a) => a.provider === "gmail" && (a.id as number) < 0);
+  const outlookOAuthAccount = accounts?.find((a) => a.provider === "outlook" && (a.id as number) < 0);
+
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -261,6 +264,106 @@ export default function Accounts() {
           Add Account
         </Button>
       </div>
+
+      {/* OAuth mail connections */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="text-base">Mail Connections</CardTitle>
+          <CardDescription>Connect Gmail and Outlook to sync your inbox in real time.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {/* Gmail */}
+          <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+                <Mail className="w-4 h-4 text-red-500" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-medium text-sm">Gmail</div>
+                {oauthStatus?.gmail && gmailOAuthAccount?.email ? (
+                  <div className="text-xs text-muted-foreground truncate">{gmailOAuthAccount.email}</div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">Not connected</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {oauthStatus?.gmail ? (
+                <>
+                  <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50 dark:bg-green-950/20">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Connected
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8"
+                    disabled={disconnecting === "gmail"}
+                    onClick={() => handleDisconnect("gmail")}
+                  >
+                    {disconnecting === "gmail" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2Off className="w-3 h-3" />}
+                    <span className="ml-1.5 text-xs">Disconnect</span>
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  className="h-8 gap-1.5"
+                  onClick={() => window.location.assign(`${BASE}/api/auth/gmail/connect`)}
+                >
+                  <Link2 className="w-3 h-3" />
+                  Connect Gmail
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {/* Outlook */}
+          <div className="flex items-center justify-between gap-4 p-3 rounded-lg border bg-muted/30">
+            <div className="flex items-center gap-3 min-w-0">
+              <div className="w-9 h-9 rounded-lg bg-background border flex items-center justify-center flex-shrink-0">
+                <Mail className="w-4 h-4 text-blue-500" />
+              </div>
+              <div className="min-w-0">
+                <div className="font-medium text-sm">Outlook</div>
+                {oauthStatus?.outlook && outlookOAuthAccount?.email ? (
+                  <div className="text-xs text-muted-foreground truncate">{outlookOAuthAccount.email}</div>
+                ) : (
+                  <div className="text-xs text-muted-foreground">Not connected</div>
+                )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {oauthStatus?.outlook ? (
+                <>
+                  <Badge variant="outline" className="text-xs text-green-600 border-green-200 bg-green-50 dark:bg-green-950/20">
+                    <CheckCircle2 className="w-3 h-3 mr-1" /> Connected
+                  </Badge>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive hover:bg-destructive/10 h-8"
+                    disabled={disconnecting === "outlook"}
+                    onClick={() => handleDisconnect("outlook")}
+                  >
+                    {disconnecting === "outlook" ? <Loader2 className="w-3 h-3 animate-spin" /> : <Link2Off className="w-3 h-3" />}
+                    <span className="ml-1.5 text-xs">Disconnect</span>
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-8 gap-1.5"
+                  onClick={() => window.location.assign(`${BASE}/api/auth/outlook/connect`)}
+                >
+                  <Link2 className="w-3 h-3" />
+                  Connect Outlook
+                </Button>
+              )}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Account cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
