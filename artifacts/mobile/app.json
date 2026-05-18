@@ -61,7 +61,8 @@
         {
           "microphonePermission": "PinnboxIO uses your microphone so you can dictate messages and commands to the AI assistant."
         }
-      ]
+      ],
+      "expo-asset"
     ],
     "updates": {
       "url": "https://u.expo.dev/c34b27ee-d647-4e3c-b089-6088b3549bc1",
@@ -76,8 +77,6 @@
       "typedRoutes": true,
       "reactCompiler": true
     },
-    "marketingUrl": "https://pinnboxio.net",
-    "privacyPolicyUrl": "https://pinnboxio.net/privacy",
     "extra": {
       "eas": {
         "projectId": "c34b27ee-d647-4e3c-b089-6088b3549bc1"
