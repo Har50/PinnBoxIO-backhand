@@ -256,23 +256,27 @@ export default function StorageScreen() {
 
       const fileName = `scan_${Date.now()}.jpg`;
       const mimeType = "image/jpeg";
+      const fileSizeBytes = asset.fileSize ?? 0;
       const { uploadUrl, storageKey } = await apiPost<{ uploadUrl: string; storageKey: string }>("/storage/upload-url", {
         fileName,
         mimeType,
-        sizeBytes: asset.fileSize ?? 0,
+        sizeBytes: fileSizeBytes,
         folder: currentFolder,
       });
 
-      await FileSystem.uploadAsync(uploadUrl, asset.uri, {
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, asset.uri, {
         httpMethod: "PUT",
         headers: { "Content-Type": mimeType },
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       });
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`Upload failed (HTTP ${uploadResult.status})`);
+      }
 
       await apiPost("/storage/files", {
         name: fileName,
         mimeType,
-        sizeBytes: asset.fileSize ?? 0,
+        sizeBytes: fileSizeBytes,
         storageKey,
         folder: currentFolder,
       });
@@ -293,23 +297,28 @@ export default function StorageScreen() {
       const asset = result.assets[0];
       setUploading(true);
 
+      const fileSizeBytes = asset.size ?? 0;
+      const fileMimeType = asset.mimeType || "application/octet-stream";
       const { uploadUrl, storageKey } = await apiPost<{ uploadUrl: string; storageKey: string }>("/storage/upload-url", {
         fileName: asset.name,
-        mimeType: asset.mimeType,
-        sizeBytes: asset.size,
+        mimeType: fileMimeType,
+        sizeBytes: fileSizeBytes,
         folder: currentFolder,
       });
 
-      await FileSystem.uploadAsync(uploadUrl, asset.uri, {
+      const uploadResult = await FileSystem.uploadAsync(uploadUrl, asset.uri, {
         httpMethod: "PUT",
-        headers: { "Content-Type": asset.mimeType || "application/octet-stream" },
+        headers: { "Content-Type": fileMimeType },
         uploadType: FileSystem.FileSystemUploadType.BINARY_CONTENT,
       });
+      if (uploadResult.status < 200 || uploadResult.status >= 300) {
+        throw new Error(`Upload failed (HTTP ${uploadResult.status})`);
+      }
 
       await apiPost("/storage/files", {
         name: asset.name,
-        mimeType: asset.mimeType,
-        sizeBytes: asset.size,
+        mimeType: fileMimeType,
+        sizeBytes: fileSizeBytes,
         storageKey,
         folder: currentFolder,
       });
