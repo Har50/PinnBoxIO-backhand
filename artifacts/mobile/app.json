@@ -36,7 +36,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "versionCode": 5
+      "versionCode": 6
     },
     "web": {
       "favicon": "./assets/images/icon.png"

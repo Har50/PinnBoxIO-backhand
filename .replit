@@ -26,6 +26,10 @@ author = "agent"
 task = "workflow.run"
 args = "Mobile Production Build"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Android Binary Build"
+
 [[workflows.workflow]]
 name = "Mobile Production Build"
 author = "agent"
@@ -36,6 +40,17 @@ outputType = "console"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "cd /home/runner/workspace/artifacts/mobile && pnpm dlx eas-cli@latest update --branch production --message 'Production update' --non-interactive"
+
+[[workflows.workflow]]
+name = "Android Binary Build"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "cd /home/runner/workspace/artifacts/mobile && pnpm dlx eas-cli@latest build --platform android --profile production --non-interactive --wait && pnpm dlx eas-cli@latest submit --platform android --profile production --non-interactive --latest"
+
+[workflows.workflow.metadata]
+outputType = "console"
 
 [agent]
 stack = "PNPM_WORKSPACE"
