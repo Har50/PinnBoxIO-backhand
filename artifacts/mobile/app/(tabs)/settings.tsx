@@ -13,6 +13,9 @@ import { ProPaywallModal } from "@/components/ProPaywallModal";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
+const OAUTH_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : API_BASE;
 
 function SectionHeader({ title }: { title: string }) {
   const colors = useColors();
@@ -286,8 +289,8 @@ function EmailAccountsSection() {
     }
     setActionLoading(provider);
     try {
-      const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-      const completeUrl = `pinnboxio://auth-complete`;
+      const url = `${OAUTH_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
+      const completeUrl = `${OAUTH_BASE}/api/mobile-oauth-complete`;
       await WebBrowser.openAuthSessionAsync(url, completeUrl);
       setLoading(true);
       await fetchConnected();

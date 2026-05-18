@@ -34,6 +34,9 @@ import { setTokenGetter } from "@/lib/authToken";
 
 const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
 const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
+const OAUTH_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : API_BASE;
 
 const _apiBaseUrl = process.env.EXPO_PUBLIC_API_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
@@ -94,8 +97,8 @@ function GmailConnectModal({
   const handleConnect = useCallback(async () => {
     const token = await getToken();
     if (!token) return;
-    const mobileCompleteUrl = `${API_BASE}/api/mobile-oauth-complete`;
-    const url = `${API_BASE}/api/auth/gmail/connect?mobileToken=${encodeURIComponent(token)}`;
+    const mobileCompleteUrl = `${OAUTH_BASE}/api/mobile-oauth-complete`;
+    const url = `${OAUTH_BASE}/api/auth/gmail/connect?mobileToken=${encodeURIComponent(token)}`;
     await WebBrowser.openAuthSessionAsync(url, mobileCompleteUrl);
     onDismiss();
   }, [getToken, onDismiss]);

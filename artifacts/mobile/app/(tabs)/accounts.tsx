@@ -60,6 +60,9 @@ const API_BASE = process.env.EXPO_PUBLIC_API_DOMAIN
   : process.env.EXPO_PUBLIC_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
   : "https://pinn-box-io.replit.app";
+const OAUTH_BASE = process.env.EXPO_PUBLIC_DOMAIN
+  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
+  : API_BASE;
 
 function isImapVirtualId(id: number) {
   return id <= -3;
@@ -440,8 +443,8 @@ function ConnectSection({ onRefetch }: { onRefetch: () => void }) {
     if (provider === "gmail") setGmailLoading(true);
     else setOutlookLoading(true);
     try {
-      const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-      const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
+      const url = `${OAUTH_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
+      const completeUrl = `${OAUTH_BASE}/api/mobile-oauth-complete`;
       await WebBrowser.openAuthSessionAsync(url, completeUrl);
       onRefetch();
     } finally {
