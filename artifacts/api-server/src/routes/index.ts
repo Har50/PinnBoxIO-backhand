@@ -158,7 +158,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
     return;
   }
 
-  // Fall back to mobile session token
+  // Fall back to mobile session token or Clerk JWT Bearer token
   const authHeader = req.headers.authorization;
   const bearerToken = authHeader?.replace(/^Bearer\s+/i, "");
 
@@ -168,7 +168,20 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   }
 
   getMobileSessionUser(bearerToken).then(async (userId) => {
+    // If not a Replit OIDC session token, try verifying as a Clerk JWT
     if (!userId) {
+      try {
+        const payload = await clerkClient.verifyToken(bearerToken);
+        if (payload?.sub) {
+          (req as any).userId = payload.sub;
+          if (!seenUsers.has(payload.sub)) {
+            addCapped(seenUsers, payload.sub, MAX_SEEN_USERS);
+            ensureUser(payload.sub).catch(() => {});
+          }
+          next();
+          return;
+        }
+      } catch {}
       res.status(401).json({ error: "Unauthorized" });
       return;
     }
