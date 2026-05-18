@@ -36,7 +36,7 @@
         "android.permission.RECORD_AUDIO",
         "android.permission.MODIFY_AUDIO_SETTINGS"
       ],
-      "versionCode": 12
+      "versionCode": 13
     },
     "web": {
       "favicon": "./assets/images/icon.png"
@@ -63,18 +63,8 @@
         }
       ],
       "expo-asset",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "packagingOptions": {
-              "excludes": [
-                "META-INF/versions/9/OSGI-INF/MANIFEST.MF"
-              ]
-            }
-          }
-        }
-      ]
+      "expo-build-properties",
+      "./plugins/withAndroidPackagingFix"
     ],
     "updates": {
       "url": "https://u.expo.dev/c34b27ee-d647-4e3c-b089-6088b3549bc1",

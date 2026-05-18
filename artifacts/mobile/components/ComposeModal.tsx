@@ -336,17 +336,17 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
     }
 
     setSending(true);
+    const fullBody = [
+      body.trim(),
+      initialDraft?.quotedMeta ? `\n\n${initialDraft.quotedMeta}` : "",
+      initialDraft?.quotedText ? `\n${initialDraft.quotedText}` : "",
+    ].join("").trim() || " ";
     try {
       if (accountId < 0) {
         // Virtual connected account (Gmail id=-1, Outlook id=-2) — send via provider
         const provider: "gmail" | "outlook" = accountId === -2 ? "outlook" : "gmail";
         const token = await getAuthToken();
-        const apiBase = process.env.EXPO_PUBLIC_DOMAIN
-          ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
-          : process.env.EXPO_PUBLIC_API_DOMAIN
-            ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
-            : "/api";
-        const res = await fetch(`${apiBase}/messages/send`, {
+        const res = await fetch(`${getApiBase()}/messages/send`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -355,7 +355,7 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           body: JSON.stringify({
             to: to.trim(),
             subject: subject.trim(),
-            body: body.trim() || " ",
+            body: fullBody,
             provider,
           }),
         });
@@ -373,14 +373,14 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             fromEmail: selectedAccount.email ?? "",
             toList: to.trim(),
             ccList: cc.trim() || null,
-            bodyText: body.trim() || null,
+            bodyText: fullBody,
             receivedAt: new Date().toISOString(),
           },
         });
       }
       onClose();
-    } catch {
-      Alert.alert("Send failed", "Could not send the message. Please try again.");
+    } catch (err: any) {
+      Alert.alert("Send failed", err?.message || "Could not send the message. Please try again.");
     } finally {
       setSending(false);
     }

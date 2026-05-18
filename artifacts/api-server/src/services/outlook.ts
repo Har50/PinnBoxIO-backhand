@@ -318,7 +318,8 @@ export async function createOutlookDraft(
     });
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return { success: false, error: (err as any)?.error?.message ?? `Outlook API error ${res.status}` };
+      const msg = (err as any)?.error?.message ?? (err as any)?.error ?? `Outlook API error ${res.status}`;
+      return { success: false, error: typeof msg === "string" ? msg : JSON.stringify(msg) };
     }
     return { success: true };
   } catch (err: any) {
@@ -348,7 +349,8 @@ export async function sendOutlookMessage(
 
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
-      return { success: false, error: (err as any)?.error?.message ?? `Outlook API error ${res.status}` };
+      const msg = (err as any)?.error?.message ?? (err as any)?.error ?? `Outlook API error ${res.status}`;
+      return { success: false, error: typeof msg === "string" ? msg : JSON.stringify(msg) };
     }
     return { success: true };
   } catch (err: any) {
