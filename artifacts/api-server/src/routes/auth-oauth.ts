@@ -275,30 +275,7 @@ router.get("/auth/outlook/callback", async (req, res) => {
 
 router.get("/mobile-oauth-complete", (req, res) => {
   const connected = (req.query.connected as string) ?? "account";
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-      <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-        <title>Connected</title>
-        <style>
-          body { font-family: -apple-system, sans-serif; display: flex; align-items: center; justify-content: center;
-                 min-height: 100vh; margin: 0; background: #0f172a; color: #f1f5f9; text-align: center; padding: 24px; }
-          .card { max-width: 320px; }
-          .icon { font-size: 48px; margin-bottom: 16px; }
-          h1 { font-size: 22px; margin: 0 0 8px; }
-          p { font-size: 15px; color: #94a3b8; margin: 0; }
-        </style>
-      </head>
-      <body>
-        <div class="card">
-          <div class="icon">✅</div>
-          <h1>${connected.charAt(0).toUpperCase() + connected.slice(1)} Connected!</h1>
-          <p>You can close this window and return to PinnboxIO.</p>
-        </div>
-      </body>
-    </html>
-  `);
+  res.redirect(`pinnboxio://auth-complete?connected=${encodeURIComponent(connected)}`);
 });
 
 router.delete("/auth/gmail/disconnect", async (req: any, res) => {

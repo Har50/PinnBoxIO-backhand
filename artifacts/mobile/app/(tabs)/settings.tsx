@@ -287,7 +287,7 @@ function EmailAccountsSection() {
     setActionLoading(provider);
     try {
       const url = `${API_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-      const completeUrl = `${API_BASE}/api/mobile-oauth-complete`;
+      const completeUrl = `pinnboxio://auth-complete`;
       await WebBrowser.openAuthSessionAsync(url, completeUrl);
       setLoading(true);
       await fetchConnected();
