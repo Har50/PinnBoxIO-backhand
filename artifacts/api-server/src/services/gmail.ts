@@ -1,4 +1,6 @@
-import { getValidGmailToken, getOAuthToken } from "./tokenManager";
+// Gmail integration via Replit Connectors SDK
+// The SDK handles OAuth2 token injection and refresh automatically.
+import { ReplitConnectors } from "@replit/connectors-sdk";
 
 const GMAIL_ACCOUNT_ID = -1;
 const GMAIL_COLOR = "#ea4335";
@@ -83,9 +85,17 @@ function decodeHtmlEntities(text: string): string {
     .replace(/&[a-z]+;/gi, " ");
 }
 
-async function gmailFetch(accessToken: string, path: string) {
-  return fetch(`https://gmail.googleapis.com${path}`, {
-    headers: { Authorization: `Bearer ${accessToken}` },
+// Never cache the connectors instance — tokens expire.
+function getConnectors() {
+  return new ReplitConnectors();
+}
+
+async function gmailFetch(path: string, options?: { method?: string; body?: string; headers?: Record<string, string> }) {
+  const connectors = getConnectors();
+  return connectors.proxy("google-mail", path, {
+    method: options?.method ?? "GET",
+    body: options?.body,
+    headers: options?.headers,
   });
 }
 
@@ -160,16 +170,18 @@ function toMessageResponse(message: GmailMessage, profile: GmailProfile | null, 
   };
 }
 
-export async function isGmailConnected(userId: string): Promise<boolean> {
-  const token = await getOAuthToken(userId, "gmail");
-  return Boolean(token);
+export async function isGmailConnected(_userId: string): Promise<boolean> {
+  try {
+    const response = await gmailFetch("/gmail/v1/users/me/profile");
+    return response.ok;
+  } catch {
+    return false;
+  }
 }
 
-export async function getGmailProfile(userId: string): Promise<GmailProfile | null> {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return null;
+export async function getGmailProfile(_userId: string): Promise<GmailProfile | null> {
   try {
-    const response = await gmailFetch(accessToken, "/gmail/v1/users/me/profile");
+    const response = await gmailFetch("/gmail/v1/users/me/profile");
     if (!response.ok) return null;
     return (await response.json()) as GmailProfile;
   } catch {
@@ -193,11 +205,9 @@ export async function getGmailAccount(userId: string) {
   };
 }
 
-export async function getGmailUnreadCount(userId: string): Promise<number> {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return 0;
+export async function getGmailUnreadCount(_userId: string): Promise<number> {
   try {
-    const response = await gmailFetch(accessToken, "/gmail/v1/users/me/labels/INBOX");
+    const response = await gmailFetch("/gmail/v1/users/me/labels/INBOX");
     if (!response.ok) return 0;
     const data = (await response.json()) as GmailLabelDetail;
     return data.messagesUnread ?? 0;
@@ -206,11 +216,9 @@ export async function getGmailUnreadCount(userId: string): Promise<number> {
   }
 }
 
-export async function getGmailStarredCount(userId: string): Promise<number> {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return 0;
+export async function getGmailStarredCount(_userId: string): Promise<number> {
   try {
-    const response = await gmailFetch(accessToken, "/gmail/v1/users/me/labels/STARRED");
+    const response = await gmailFetch("/gmail/v1/users/me/labels/STARRED");
     if (!response.ok) return 0;
     const data = (await response.json()) as GmailLabelDetail;
     return data.messagesTotal ?? 0;
@@ -219,85 +227,84 @@ export async function getGmailStarredCount(userId: string): Promise<number> {
   }
 }
 
-export async function listGmailMessages(userId: string, folder?: string | null, limit = 25) {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return null;
+export async function listGmailMessages(_userId: string, folder?: string | null, limit = 25) {
+  try {
+    const profileResponse = await gmailFetch("/gmail/v1/users/me/profile");
+    if (!profileResponse.ok) return null;
+    const profile = (await profileResponse.json()) as GmailProfile;
 
-  const profile = await getGmailProfile(userId);
+    const params = new URLSearchParams();
+    params.set("maxResults", String(Math.min(Math.max(limit, 1), 25)));
+    const label = folder ? folderLabelMap[folder] : "INBOX";
+    if (label) {
+      params.append("labelIds", label);
+    } else if (folder === "Archive") {
+      params.set("q", "-in:inbox -in:sent -in:drafts -in:trash -in:spam");
+    }
 
-  const params = new URLSearchParams();
-  params.set("maxResults", String(Math.min(Math.max(limit, 1), 25)));
-  const label = folder ? folderLabelMap[folder] : "INBOX";
-  if (label) {
-    params.append("labelIds", label);
-  } else if (folder === "Archive") {
-    params.set("q", "-in:inbox -in:sent -in:drafts -in:trash -in:spam");
+    const listResponse = await gmailFetch(`/gmail/v1/users/me/messages?${params.toString()}`);
+    if (!listResponse.ok) return null;
+
+    const list = (await listResponse.json()) as GmailListResponse;
+    const messages = await Promise.all(
+      (list.messages ?? []).map(async (item) => {
+        const messageResponse = await gmailFetch(`/gmail/v1/users/me/messages/${item.id}?format=full`);
+        if (!messageResponse.ok) return null;
+        const message = (await messageResponse.json()) as GmailMessage;
+        return toMessageResponse(message, profile, folder);
+      }),
+    );
+
+    const filtered = messages.filter((message): message is NonNullable<typeof message> => Boolean(message));
+    return {
+      messages: filtered,
+      total: list.resultSizeEstimate ?? filtered.length,
+      hasMore: (list.resultSizeEstimate ?? filtered.length) > filtered.length,
+    };
+  } catch {
+    return null;
   }
-
-  const listResponse = await gmailFetch(accessToken, `/gmail/v1/users/me/messages?${params.toString()}`);
-  if (!listResponse.ok) return null;
-
-  const list = (await listResponse.json()) as GmailListResponse;
-  const messages = await Promise.all(
-    (list.messages ?? []).map(async (item) => {
-      const messageResponse = await gmailFetch(accessToken, `/gmail/v1/users/me/messages/${item.id}?format=full`);
-      if (!messageResponse.ok) return null;
-      const message = (await messageResponse.json()) as GmailMessage;
-      return toMessageResponse(message, profile, folder);
-    }),
-  );
-
-  const filtered = messages.filter((message): message is NonNullable<typeof message> => Boolean(message));
-  return {
-    messages: filtered,
-    total: list.resultSizeEstimate ?? filtered.length,
-    hasMore: (list.resultSizeEstimate ?? filtered.length) > filtered.length,
-  };
 }
 
-export async function getGmailMessage(userId: string, virtualId: number) {
+export async function getGmailMessage(_userId: string, virtualId: number) {
   const gmailId = gmailIdsByVirtualId.get(virtualId);
   if (!gmailId) return null;
 
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return null;
+  try {
+    const profileResponse = await gmailFetch("/gmail/v1/users/me/profile");
+    const profile = profileResponse.ok ? (await profileResponse.json()) as GmailProfile : null;
 
-  const profile = await getGmailProfile(userId);
-  const response = await gmailFetch(accessToken, `/gmail/v1/users/me/messages/${gmailId}?format=full`);
-  if (!response.ok) return null;
+    const response = await gmailFetch(`/gmail/v1/users/me/messages/${gmailId}?format=full`);
+    if (!response.ok) return null;
 
-  const message = (await response.json()) as GmailMessage;
-  return toMessageResponse(message, profile);
+    const message = (await response.json()) as GmailMessage;
+    return toMessageResponse(message, profile);
+  } catch {
+    return null;
+  }
 }
 
-export async function deleteGmailMessage(userId: string, virtualId: number): Promise<boolean> {
+export async function deleteGmailMessage(_userId: string, virtualId: number): Promise<boolean> {
   const gmailId = gmailIdsByVirtualId.get(virtualId);
   if (!gmailId) return false;
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return false;
   try {
-    const res = await fetch(`https://gmail.googleapis.com/gmail/v1/users/me/messages/${gmailId}/trash`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}` },
-    });
+    const res = await gmailFetch(`/gmail/v1/users/me/messages/${gmailId}/trash`, { method: "POST" });
     return res.ok;
   } catch {
     return false;
   }
 }
 
-export async function listGmailMessageSenders(userId: string, limit = 25): Promise<Array<{ name: string; email: string }>> {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return [];
+export async function listGmailMessageSenders(_userId: string, limit = 25): Promise<Array<{ name: string; email: string }>> {
   try {
     const params = new URLSearchParams();
     params.set("maxResults", String(Math.min(limit, 25)));
-    const listResponse = await gmailFetch(accessToken, `/gmail/v1/users/me/messages?${params.toString()}`);
+    const listResponse = await gmailFetch(`/gmail/v1/users/me/messages?${params.toString()}`);
     if (!listResponse.ok) return [];
     const list = (await listResponse.json()) as GmailListResponse;
     const senders = await Promise.all(
       (list.messages ?? []).map(async (item) => {
-        const msgResponse = await gmailFetch(accessToken, `/gmail/v1/users/me/messages/${item.id}?format=metadata&metadataHeaders=From`);
+        const msgResponse = await gmailFetch(`/gmail/v1/users/me/messages/${item.id}?format=metadata&metadataHeaders=From`);
         if (!msgResponse.ok) return null;
         const message = (await msgResponse.json()) as GmailMessage;
         const fromHeader = (message.payload?.headers ?? []).find((h) => h.name.toLowerCase() === "from");
@@ -312,17 +319,13 @@ export async function listGmailMessageSenders(userId: string, limit = 25): Promi
 }
 
 export async function sendGmailMessage(
-  userId: string,
+  _userId: string,
   to: string,
   subject: string,
   body: string,
   replyToMessageId?: string,
 ): Promise<{ success: boolean; error?: string }> {
-  const accessToken = await getValidGmailToken(userId);
-  if (!accessToken) return { success: false, error: "Gmail not connected" };
-
   try {
-    // Build RFC 2822 MIME message
     const lines = [
       `To: ${to}`,
       `Subject: ${subject}`,
@@ -334,9 +337,9 @@ export async function sendGmailMessage(
     if (replyToMessageId) lines.splice(3, 0, `In-Reply-To: ${replyToMessageId}`, `References: ${replyToMessageId}`);
     const raw = Buffer.from(lines.join("\r\n")).toString("base64url");
 
-    const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
+    const res = await gmailFetch("/gmail/v1/users/me/messages/send", {
       method: "POST",
-      headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ raw }),
     });
 
@@ -345,7 +348,7 @@ export async function sendGmailMessage(
       return { success: false, error: (err as any)?.error?.message ?? `Gmail API error ${res.status}` };
     }
     return { success: true };
-  } catch (err: any) {
-    return { success: false, error: err?.message ?? "Unknown error" };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
   }
 }
