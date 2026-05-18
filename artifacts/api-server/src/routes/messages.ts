@@ -1,8 +1,9 @@
 import { Router, type IRouter } from "express";
-import { eq, and, desc, ilike, or, count, sql } from "drizzle-orm";
-import { db, accountsTable, messagesTable, attachmentsTable, imapCredentialsTable } from "@workspace/db";
-import { getGmailMessage, listGmailMessages, sendGmailMessage, deleteGmailMessage } from "../services/gmail";
-import { getOutlookMessage, listOutlookMessages, sendOutlookMessage, deleteOutlookMessage } from "../services/outlook";
+import { eq, and, desc, ilike, or, count, sql, lte, isNull } from "drizzle-orm";
+import { db, accountsTable, messagesTable, attachmentsTable, imapCredentialsTable, scheduledSendsTable } from "@workspace/db";
+import { getGmailMessage, listGmailMessages, sendGmailMessage, deleteGmailMessage, createGmailDraft } from "../services/gmail";
+import { getOutlookMessage, listOutlookMessages, sendOutlookMessage, deleteOutlookMessage, createOutlookDraft } from "../services/outlook";
+import { logger } from "../lib/logger";
 import { listImapMessages, getImapMessage, isImapVirtualAccountId, isImapVirtualMsgId, credentialIdFromVirtualAccountId } from "../services/imap";
 import {
   CreateMessageBody,
@@ -380,6 +381,91 @@ router.post("/messages/:id/attachments", async (req, res): Promise<void> => {
   });
 });
 
+// Save draft
+router.post("/messages/save-draft", async (req: any, res) => {
+  const userId = req.userId as string;
+  const { to = "", subject = "", body = "", provider, accountId: rawAccountId } = req.body as {
+    to?: string;
+    subject?: string;
+    body?: string;
+    provider?: "gmail" | "outlook" | "local";
+    accountId?: number;
+  };
+
+  try {
+    if (provider === "outlook") {
+      const result = await createOutlookDraft(userId, to, subject, body);
+      if (!result.success) return res.status(500).json({ error: result.error ?? "Failed to save draft" });
+      return res.json({ saved: true });
+    }
+
+    if (provider === "gmail" || (!rawAccountId && provider !== "local")) {
+      const result = await createGmailDraft(userId, to, subject, body);
+      if (!result.success) return res.status(500).json({ error: result.error ?? "Failed to save draft" });
+      return res.json({ saved: true });
+    }
+
+    // Local account — save to DB
+    let accountId = rawAccountId;
+    if (!accountId) {
+      const [firstAccount] = await db.select().from(accountsTable).where(eq(accountsTable.userId, userId)).limit(1);
+      if (!firstAccount) return res.status(400).json({ error: "No account found to save draft to" });
+      accountId = firstAccount.id;
+    }
+    const [account] = await db.select().from(accountsTable).where(and(eq(accountsTable.id, accountId), eq(accountsTable.userId, userId)));
+    if (!account) return res.status(404).json({ error: "Account not found" });
+
+    await db.insert(messagesTable).values({
+      accountId,
+      folder: "Drafts",
+      subject: subject || "(No Subject)",
+      fromName: account.name,
+      fromEmail: account.email ?? "",
+      toList: to,
+      bodyText: body || null,
+      receivedAt: new Date(),
+    });
+    res.json({ saved: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? "Failed to save draft" });
+  }
+});
+
+// Schedule send
+router.post("/messages/schedule-send", async (req: any, res) => {
+  const userId = req.userId as string;
+  const { to, subject, body, provider = "gmail", accountId, scheduledAt } = req.body as {
+    to: string;
+    subject: string;
+    body: string;
+    provider?: string;
+    accountId?: number;
+    scheduledAt: string;
+  };
+
+  if (!to || !subject || !scheduledAt) {
+    return res.status(400).json({ error: "to, subject, and scheduledAt are required" });
+  }
+
+  const sendAt = new Date(scheduledAt);
+  if (isNaN(sendAt.getTime())) return res.status(400).json({ error: "Invalid scheduledAt date" });
+
+  try {
+    await db.insert(scheduledSendsTable).values({
+      userId,
+      to,
+      subject,
+      body: body || " ",
+      provider,
+      accountId: accountId ?? null,
+      scheduledAt: sendAt,
+    });
+    res.json({ scheduled: true, scheduledAt: sendAt.toISOString() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message ?? "Failed to schedule send" });
+  }
+});
+
 // Send email via Gmail or Outlook
 router.post("/messages/send", async (req: any, res) => {
   const { to, subject, body, provider = "gmail" } = req.body as {
@@ -409,3 +495,39 @@ router.post("/messages/send", async (req: any, res) => {
 });
 
 export default router;
+
+// Scheduled send polling worker — runs every 60 s
+async function runScheduledSendWorker() {
+  try {
+    const now = new Date();
+    const due = await db
+      .select()
+      .from(scheduledSendsTable)
+      .where(and(lte(scheduledSendsTable.scheduledAt, now), isNull(scheduledSendsTable.sentAt)));
+
+    for (const job of due) {
+      let result: { success: boolean; error?: string };
+      if (job.provider === "outlook") {
+        result = await sendOutlookMessage(job.userId, job.to, job.subject, job.body);
+      } else if (job.provider === "gmail") {
+        result = await sendGmailMessage(job.userId, job.to, job.subject, job.body);
+      } else {
+        // local account — mark sent without sending (already composed)
+        result = { success: true };
+      }
+
+      await db
+        .update(scheduledSendsTable)
+        .set({ sentAt: new Date(), error: result.success ? null : (result.error ?? "Unknown error") })
+        .where(eq(scheduledSendsTable.id, job.id));
+
+      if (!result.success) {
+        logger.warn({ jobId: job.id, error: result.error }, "Scheduled send failed");
+      }
+    }
+  } catch (err) {
+    logger.warn({ err }, "Scheduled send worker error");
+  }
+}
+
+setInterval(runScheduledSendWorker, 60_000);

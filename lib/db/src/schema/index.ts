@@ -9,3 +9,4 @@ export * from "./preferences";
 export * from "./calendar";
 export * from "./subscriptions";
 export * from "./waitlist";
+export * from "./scheduledSends";

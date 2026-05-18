@@ -47,6 +47,29 @@ interface AttachedFile {
 const FONT_FAMILIES = ["Default", "Arial", "Georgia", "Courier", "Times New Roman", "Verdana"];
 const FONT_SIZES = [10, 12, 14, 16, 18, 20, 24, 28];
 
+interface StorageFile {
+  id: number;
+  name: string;
+  mimeType: string;
+  sizeBytes: number;
+  folder: string;
+}
+
+const SCHEDULE_PRESETS = [
+  { label: "In 15 minutes", getDate: () => new Date(Date.now() + 15 * 60 * 1000) },
+  { label: "In 1 hour", getDate: () => new Date(Date.now() + 60 * 60 * 1000) },
+  { label: "Tonight at 7 PM", getDate: () => { const d = new Date(); d.setHours(19, 0, 0, 0); if (d <= new Date()) d.setDate(d.getDate() + 1); return d; } },
+  { label: "Tomorrow at 8 AM", getDate: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0); return d; } },
+  { label: "Tomorrow at 2 PM", getDate: () => { const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(14, 0, 0, 0); return d; } },
+];
+
+function formatBytes(bytes: number): string {
+  if (bytes === 0) return "—";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 type FormatPanel = "none" | "formatting" | "more";
 
 export function ComposeModal({ visible, onClose, initialDraft }: Props) {
@@ -66,6 +89,11 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
   const [sending, setSending] = useState(false);
   const [attachments, setAttachments] = useState<AttachedFile[]>([]);
   const [activePanel, setActivePanel] = useState<FormatPanel>("none");
+  const [showSchedulePicker, setShowSchedulePicker] = useState(false);
+  const [showStoragePicker, setShowStoragePicker] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [storageFiles, setStorageFiles] = useState<StorageFile[]>([]);
+  const [loadingStorage, setLoadingStorage] = useState(false);
 
   // Formatting state
   const [isBold, setIsBold] = useState(false);
@@ -183,6 +211,113 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
       ]);
     } catch {
       Alert.alert("Error", "Could not open camera. Please try again.");
+    }
+  }
+
+  const getApiBase = () =>
+    process.env.EXPO_PUBLIC_DOMAIN
+      ? `https://${process.env.EXPO_PUBLIC_DOMAIN}/api`
+      : process.env.EXPO_PUBLIC_API_DOMAIN
+        ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}/api`
+        : "/api";
+
+  async function handleSaveDraft() {
+    setSavingDraft(true);
+    try {
+      const token = await getAuthToken();
+      const provider: "gmail" | "outlook" | "local" = accountId === -2 ? "outlook" : accountId && accountId < 0 ? "gmail" : "local";
+      const res = await fetch(`${getApiBase()}/messages/save-draft`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          to: to.trim(),
+          subject: subject.trim(),
+          body: body.trim(),
+          provider,
+          accountId: accountId && accountId > 0 ? accountId : undefined,
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).error ?? "Failed to save draft");
+      }
+      Alert.alert("Draft Saved", "Your draft has been saved to the Drafts folder.");
+      onClose();
+    } catch (err: any) {
+      Alert.alert("Save Failed", err.message);
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleScheduleSend(scheduledAt: Date) {
+    if (!to.trim() || !subject.trim()) {
+      Alert.alert("Missing fields", "Please fill in To and Subject before scheduling.");
+      return;
+    }
+    setSending(true);
+    try {
+      const token = await getAuthToken();
+      const provider: "gmail" | "outlook" | "local" = accountId === -2 ? "outlook" : accountId && accountId < 0 ? "gmail" : "local";
+      const res = await fetch(`${getApiBase()}/messages/schedule-send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+        body: JSON.stringify({
+          to: to.trim(),
+          subject: subject.trim(),
+          body: body.trim() || " ",
+          provider,
+          accountId: accountId && accountId > 0 ? accountId : undefined,
+          scheduledAt: scheduledAt.toISOString(),
+        }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error((data as any).error ?? "Failed to schedule");
+      }
+      const timeStr = scheduledAt.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+      Alert.alert("Scheduled", `Your email will be sent on ${timeStr}.`);
+      onClose();
+    } catch (err: any) {
+      Alert.alert("Schedule Failed", err.message);
+    } finally {
+      setSending(false);
+      setShowSchedulePicker(false);
+    }
+  }
+
+  async function loadStorageFiles() {
+    setLoadingStorage(true);
+    setStorageFiles([]);
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${getApiBase()}/storage/files?folder=/`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Failed to load files");
+      const data = await res.json();
+      setStorageFiles((data.files ?? []).filter((f: StorageFile) => !f.name.startsWith(".pinnbox-folder")));
+    } catch {
+      setStorageFiles([]);
+    } finally {
+      setLoadingStorage(false);
+    }
+  }
+
+  async function handleStorageFileSelect(file: StorageFile) {
+    try {
+      const token = await getAuthToken();
+      const res = await fetch(`${getApiBase()}/storage/files/${file.id}/download-url`, {
+        headers: { ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+      });
+      if (!res.ok) throw new Error("Failed to get file link");
+      const { downloadUrl } = await res.json();
+      const link = `\n\n📎 ${file.name}\n${downloadUrl}`;
+      setBody((prev) => prev + link);
+      setAttachments((prev) => [...prev, { name: file.name, size: formatBytes(file.sizeBytes), type: "file" }]);
+      setShowStoragePicker(false);
+    } catch {
+      Alert.alert("Error", "Could not attach file. Please try again.");
     }
   }
 
@@ -533,22 +668,23 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             <View style={{ paddingHorizontal: 16, paddingVertical: 12 }}>
               <Text style={[s.panelSectionLabel, { color: colors.mutedForeground, marginBottom: 10 }]}>More Options</Text>
               <View style={{ flexDirection: "row", gap: 12 }}>
-                {[
-                  { icon: "clock", label: "Schedule" },
-                  { icon: "flag", label: "Priority" },
-                  { icon: "bookmark", label: "Save Draft" },
-                ].map((opt) => (
-                  <TouchableOpacity
-                    key={opt.label}
-                    style={[s.moreOption, { borderColor: colors.border, backgroundColor: colors.muted }]}
-                    onPress={() =>
-                      Alert.alert(opt.label, `${opt.label} feature coming soon.`)
-                    }
-                  >
-                    <Feather name={opt.icon as any} size={20} color={colors.foreground} />
-                    <Text style={[s.moreOptionLabel, { color: colors.foreground }]}>{opt.label}</Text>
-                  </TouchableOpacity>
-                ))}
+                <TouchableOpacity
+                  style={[s.moreOption, { borderColor: colors.border, backgroundColor: colors.muted }]}
+                  onPress={() => { setActivePanel("none"); setShowSchedulePicker(true); }}
+                >
+                  <Feather name="clock" size={20} color={colors.foreground} />
+                  <Text style={[s.moreOptionLabel, { color: colors.foreground }]}>Schedule</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[s.moreOption, { borderColor: colors.border, backgroundColor: colors.muted }]}
+                  disabled={savingDraft}
+                  onPress={() => { setActivePanel("none"); handleSaveDraft(); }}
+                >
+                  {savingDraft
+                    ? <ActivityIndicator size="small" color={colors.foreground} />
+                    : <Feather name="bookmark" size={20} color={colors.foreground} />}
+                  <Text style={[s.moreOptionLabel, { color: colors.foreground }]}>Save Draft</Text>
+                </TouchableOpacity>
               </View>
             </View>
           )}
@@ -590,8 +726,8 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           <TouchableOpacity
             style={s.toolbarBtn}
             onPress={() =>
-              Alert.alert("Drive / Storage", "Choose a source", [
-                { text: "PinnboxIO Storage", onPress: pickDocument },
+              Alert.alert("Attach File", "Choose a source", [
+                { text: "PinnboxIO Storage", onPress: () => { loadStorageFiles(); setShowStoragePicker(true); } },
                 { text: "Files on Device", onPress: pickDocument },
                 { text: "Cancel", style: "cancel" },
               ])
@@ -609,6 +745,66 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Schedule Picker */}
+      <Modal visible={showSchedulePicker} transparent animationType="slide" onRequestClose={() => setShowSchedulePicker(false)}>
+        <Pressable style={s.overlay} onPress={() => setShowSchedulePicker(false)}>
+          <Pressable style={[s.sheet, { backgroundColor: colors.card }]} onPress={() => {}}>
+            <Text style={[s.sheetTitle, { color: colors.foreground }]}>Schedule Send</Text>
+            {SCHEDULE_PRESETS.map((preset) => (
+              <TouchableOpacity
+                key={preset.label}
+                style={[s.sheetItem, { borderBottomColor: colors.border }]}
+                onPress={() => handleScheduleSend(preset.getDate())}
+                disabled={sending}
+              >
+                <Feather name="clock" size={16} color={colors.primary} />
+                <Text style={[s.sheetItemText, { color: colors.foreground }]}>{preset.label}</Text>
+                {sending && <ActivityIndicator size="small" color={colors.primary} />}
+              </TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[s.sheetItem, { borderBottomColor: "transparent" }]} onPress={() => setShowSchedulePicker(false)}>
+              <Text style={[s.sheetItemText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      {/* PinnboxIO Storage Picker */}
+      <Modal visible={showStoragePicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowStoragePicker(false)}>
+        <View style={[s.root, { backgroundColor: colors.background }]}>
+          <View style={s.header}>
+            <Pressable onPress={() => setShowStoragePicker(false)} style={s.headerBtn}>
+              <Text style={[s.headerBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+            </Pressable>
+            <Text style={s.headerTitle}>PinnboxIO Storage</Text>
+            <View style={s.headerBtn} />
+          </View>
+          {loadingStorage ? (
+            <ActivityIndicator style={{ marginTop: 48 }} color={colors.primary} />
+          ) : storageFiles.length === 0 ? (
+            <Text style={[s.emptyText, { color: colors.mutedForeground }]}>No files in storage</Text>
+          ) : (
+            <FlatList
+              data={storageFiles}
+              keyExtractor={(item) => String(item.id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[s.storageItem, { borderBottomColor: colors.border }]}
+                  onPress={() => handleStorageFileSelect(item)}
+                >
+                  <Feather name="file" size={18} color={colors.primary} style={{ marginRight: 10 }} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[s.storageItemName, { color: colors.foreground }]} numberOfLines={1}>{item.name}</Text>
+                    <Text style={[s.storageItemMeta, { color: colors.mutedForeground }]}>{formatBytes(item.sizeBytes)}</Text>
+                  </View>
+                  <Feather name="paperclip" size={16} color={colors.mutedForeground} />
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -809,5 +1005,27 @@ function makeStyles(colors: any) {
       fontSize: 12,
       fontFamily: "Inter_500Medium",
     },
+    overlay: { flex: 1, justifyContent: "flex-end", backgroundColor: "rgba(0,0,0,0.45)" },
+    sheet: { borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingBottom: 36 },
+    sheetTitle: { fontSize: 16, fontFamily: "Inter_600SemiBold", textAlign: "center", paddingVertical: 18 },
+    sheetItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 14,
+      paddingHorizontal: 22,
+      paddingVertical: 15,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    sheetItemText: { fontSize: 15, fontFamily: "Inter_400Regular", flex: 1 },
+    storageItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 16,
+      paddingVertical: 13,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+    },
+    storageItemName: { fontSize: 14, fontFamily: "Inter_500Medium" },
+    storageItemMeta: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 2 },
+    emptyText: { textAlign: "center", marginTop: 48, fontSize: 14, fontFamily: "Inter_400Regular" },
   });
 }

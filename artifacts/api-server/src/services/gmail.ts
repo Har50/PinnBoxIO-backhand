@@ -330,6 +330,37 @@ export async function listGmailMessageSenders(userId: string, limit = 25): Promi
   }
 }
 
+export async function createGmailDraft(
+  userId: string,
+  to: string,
+  subject: string,
+  body: string,
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const lines = [
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      "MIME-Version: 1.0",
+      "Content-Type: text/plain; charset=UTF-8",
+      "",
+      body,
+    ];
+    const raw = Buffer.from(lines.join("\r\n")).toString("base64url");
+    const res = await gmailFetch(userId, "/gmail/v1/users/me/drafts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: { raw } }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      return { success: false, error: (err as any)?.error?.message ?? `Gmail API error ${res.status}` };
+    }
+    return { success: true };
+  } catch (err: unknown) {
+    return { success: false, error: err instanceof Error ? err.message : "Unknown error" };
+  }
+}
+
 export async function sendGmailMessage(
   userId: string,
   to: string,
