@@ -14,6 +14,26 @@ const PRO_PLANS = {
   annual: { usd: 5999, inr: 399900, label: "Pro Annual" },
 };
 
+// Startup validation: detect copy-paste mistakes between monthly/annual plan IDs.
+(function validateRazorpayPlanIds() {
+  const monthlyInr = process.env.RAZORPAY_PLAN_ID_MONTHLY_INR;
+  const annualInr = process.env.RAZORPAY_PLAN_ID_ANNUAL_INR;
+  const monthlyUsd = process.env.RAZORPAY_PLAN_ID_MONTHLY_USD;
+  const annualUsd = process.env.RAZORPAY_PLAN_ID_ANNUAL_USD;
+  if (monthlyInr && annualInr && monthlyInr === annualInr) {
+    logger.warn(
+      { monthlyInr, annualInr },
+      "RAZORPAY_PLAN_ID_ANNUAL_INR is identical to RAZORPAY_PLAN_ID_MONTHLY_INR — annual checkout will charge the monthly price. Create a separate annual plan in Razorpay and update the secret.",
+    );
+  }
+  if (monthlyUsd && annualUsd && monthlyUsd === annualUsd) {
+    logger.warn(
+      { monthlyUsd, annualUsd },
+      "RAZORPAY_PLAN_ID_ANNUAL_USD is identical to RAZORPAY_PLAN_ID_MONTHLY_USD — annual checkout will charge the monthly price.",
+    );
+  }
+})();
+
 const pendingOrders = new Map<string, { userId: string; billingCycle: string; currency: string; expiresAt: number }>();
 
 function getRazorpay() {
@@ -372,6 +392,20 @@ router.post("/subscription/create-order", async (req: any, res) => {
     if (!planId) {
       return res.status(500).json({
         error: "Subscription plan not configured. Please contact support.",
+      });
+    }
+
+    // Guard against the annual plan ID being set to the monthly plan ID (or vice-versa).
+    const oppositePlanId = currency === "inr"
+      ? (isAnnual ? process.env.RAZORPAY_PLAN_ID_MONTHLY_INR : process.env.RAZORPAY_PLAN_ID_ANNUAL_INR)
+      : (isAnnual ? process.env.RAZORPAY_PLAN_ID_MONTHLY_USD : process.env.RAZORPAY_PLAN_ID_ANNUAL_USD);
+    if (oppositePlanId && oppositePlanId === planId) {
+      logger.error(
+        { planKey, planId, currency },
+        "Annual and monthly plan IDs are identical — refusing to create order to avoid charging the wrong amount.",
+      );
+      return res.status(500).json({
+        error: "Subscription plan misconfigured. Please contact support.",
       });
     }
 
