@@ -26,11 +26,10 @@ const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
 export function clerkProxyMiddleware(): RequestHandler {
-  // Only run proxy in production — Clerk proxying doesn't work for dev instances
-  if (process.env.NODE_ENV !== "production") {
-    return (_req, _res, next) => next();
-  }
-
+  // Run the proxy whenever a Clerk secret key is available. Previously this was
+  // gated on NODE_ENV === "production", but mobile TestFlight builds point at
+  // the Replit workspace URL (NODE_ENV=development), which silently disabled
+  // the proxy and caused Clerk to hang on a blank screen.
   const secretKey = process.env.CLERK_SECRET_KEY;
   if (!secretKey) {
     return (_req, _res, next) => next();
