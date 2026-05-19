@@ -468,17 +468,34 @@ export default function Inbox() {
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.min(160, z + 10))}><ZoomIn className="h-4 w-4" /></Button>
             </div>
 
-            <div
-              className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary"
-              style={{ fontSize: `${bodyZoom}%` }}
-              onClick={handleBodyLinkClick}
-            >
-              {activeMessage.bodyHtml ? (
-                <div dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
-              ) : (
-                <div className="whitespace-pre-wrap font-sans">{activeMessage.bodyText}</div>
-              )}
-            </div>
+            {activeMessage.bodyHtml ? (
+              <div
+                className="email-body-card bg-white text-slate-900 rounded-lg shadow-sm border border-border/40 overflow-hidden"
+                style={{ fontSize: `${bodyZoom}%` }}
+                onClick={handleBodyLinkClick}
+              >
+                <style>{`
+                  .email-body-card { width: 100%; }
+                  .email-body-card > div > * { max-width: 100% !important; }
+                  .email-body-card table { max-width: 100% !important; height: auto !important; }
+                  .email-body-card img { max-width: 100% !important; height: auto !important; }
+                  .email-body-card center > table,
+                  .email-body-card > div > center,
+                  .email-body-card > div > table { width: 100% !important; margin: 0 auto !important; }
+                  .email-body-card a { color: #2563eb; }
+                  .email-body-card p:first-child, .email-body-card div:first-child { margin-top: 0; }
+                `}</style>
+                <div className="p-4 md:p-6" dangerouslySetInnerHTML={{ __html: activeMessage.bodyHtml }} />
+              </div>
+            ) : (
+              <div
+                className="prose prose-sm md:prose-base dark:prose-invert max-w-none prose-p:leading-relaxed prose-headings:font-bold prose-a:text-primary whitespace-pre-wrap font-sans"
+                style={{ fontSize: `${bodyZoom}%` }}
+                onClick={handleBodyLinkClick}
+              >
+                {activeMessage.bodyText}
+              </div>
+            )}
 
             {/* Gmail-style reply/forward buttons at the bottom of the message */}
             <div className="mt-8 pt-5 border-t border-border/30 flex items-center gap-3">
