@@ -29,7 +29,7 @@ export default function WelcomeModal() {
 
   function upgrade() {
     dismiss();
-    setLocation(`${basePath}/paywall`);
+    setLocation(`${basePath}/settings`);
   }
 
   if (!open) return null;

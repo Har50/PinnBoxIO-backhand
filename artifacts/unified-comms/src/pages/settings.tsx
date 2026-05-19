@@ -73,13 +73,13 @@ function useSubscriptionStatus() {
   return { status, loading, refetch: () => setLoading(true) };
 }
 
-async function startUpgrade(): Promise<void> {
+async function startUpgrade(cycle: "monthly" | "annual"): Promise<void> {
   const headers = await getAuthHeaders();
   const res = await fetch(`${BASE}/api/subscription/create-order`, {
     method: "POST",
     headers: { ...headers, "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({ planKey: "pro_monthly", currency: "inr" }),
+    body: JSON.stringify({ planKey: cycle === "annual" ? "pro_annual" : "pro_monthly", currency: "inr" }),
   });
   if (!res.ok) throw new Error("Could not create order");
   const { checkoutUrl } = await res.json();
@@ -138,6 +138,7 @@ export default function SettingsPage() {
   const { prefs, toggle } = useNotificationPrefs();
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+  const [selectedCycle, setSelectedCycle] = useState<"monthly" | "annual">("annual");
 
   const { data: accounts } = useGetAccounts();
   const { status: subStatus, loading: subLoading } = useSubscriptionStatus();
@@ -152,7 +153,7 @@ export default function SettingsPage() {
   async function handleUpgrade() {
     setUpgrading(true);
     try {
-      await startUpgrade();
+      await startUpgrade(selectedCycle);
     } catch {
       // silent — checkout page failed to open
     } finally {
@@ -275,30 +276,66 @@ export default function SettingsPage() {
                 </Button>
               </div>
             ) : (
-              <button
-                data-testid="btn-upgrade-pro"
-                disabled={upgrading}
-                onClick={handleUpgrade}
-                className="w-full flex items-center gap-4 rounded-xl px-4 py-3.5 text-left transition-opacity hover:opacity-90 disabled:opacity-60"
-                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white" }}
-              >
-                <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
-                  <Star className="w-4 h-4 text-white" fill="currentColor" />
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCycle("monthly")}
+                    className={`text-left rounded-xl border p-3 transition-all ${
+                      selectedCycle === "monthly"
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-border/60 hover:border-border bg-muted/20"
+                    }`}
+                  >
+                    <p className="text-xs font-medium text-muted-foreground">Monthly</p>
+                    <p className="text-base font-bold text-foreground mt-0.5">$7.99<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedCycle("annual")}
+                    className={`relative text-left rounded-xl border p-3 transition-all ${
+                      selectedCycle === "annual"
+                        ? "border-indigo-500 bg-indigo-500/10"
+                        : "border-border/60 hover:border-border bg-muted/20"
+                    }`}
+                  >
+                    <span className="absolute -top-2 right-2 text-[10px] font-semibold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
+                      SAVE 37%
+                    </span>
+                    <p className="text-xs font-medium text-muted-foreground">Annual</p>
+                    <p className="text-base font-bold text-foreground mt-0.5">$59.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
+                    <p className="text-[10px] text-emerald-500 mt-0.5">~$5/mo</p>
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="font-semibold text-sm text-white">Upgrade to Pro</p>
-                  <div className="flex items-center gap-3 mt-0.5 flex-wrap">
-                    <span className="flex items-center gap-1 text-xs text-indigo-200">
-                      <Zap className="w-3 h-3" />Unlimited AI
-                    </span>
-                    <span className="flex items-center gap-1 text-xs text-indigo-200">
-                      <HardDrive className="w-3 h-3" />25 GB storage
-                    </span>
-                    <span className="text-xs text-indigo-200">$7.99/mo</span>
+                <button
+                  data-testid="btn-upgrade-pro"
+                  disabled={upgrading}
+                  onClick={handleUpgrade}
+                  className="w-full flex items-center gap-4 rounded-xl px-4 py-3.5 text-left transition-opacity hover:opacity-90 disabled:opacity-60"
+                  style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white" }}
+                >
+                  <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center shrink-0">
+                    <Star className="w-4 h-4 text-white" fill="currentColor" />
                   </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-indigo-200 shrink-0" />
-              </button>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-white">
+                      Upgrade to Pro — {selectedCycle === "annual" ? "Annual" : "Monthly"}
+                    </p>
+                    <div className="flex items-center gap-3 mt-0.5 flex-wrap">
+                      <span className="flex items-center gap-1 text-xs text-indigo-200">
+                        <Zap className="w-3 h-3" />Unlimited AI
+                      </span>
+                      <span className="flex items-center gap-1 text-xs text-indigo-200">
+                        <HardDrive className="w-3 h-3" />25 GB storage
+                      </span>
+                      <span className="text-xs text-indigo-200">
+                        {selectedCycle === "annual" ? "$59.99/yr" : "$7.99/mo"}
+                      </span>
+                    </div>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-indigo-200 shrink-0" />
+                </button>
+              </div>
             )}
           </CardContent>
         </Card>

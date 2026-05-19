@@ -846,7 +846,7 @@ function AiChat() {
               <button
                 onClick={() => {
                   setShowVoiceGate(false);
-                  navigate(`${BASE}/paywall`);
+                  navigate(`${BASE}/settings`);
                 }}
                 className="w-full h-11 rounded-lg text-white font-medium transition-opacity hover:opacity-90"
                 style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
