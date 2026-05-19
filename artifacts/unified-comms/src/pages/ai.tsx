@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
+import { useLocation } from "wouter";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import {
@@ -8,6 +9,30 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+
+type AiSubscriptionPlan = { plan: "free" | "pro" | string };
+
+function useAiSubscriptionPlan() {
+  const [plan, setPlan] = useState<"free" | "pro" | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        if (!res.ok) throw new Error("Failed");
+        const data: AiSubscriptionPlan = await res.json();
+        if (!cancelled) setPlan(data.plan === "pro" ? "pro" : "free");
+      } catch {
+        if (!cancelled) setPlan("free");
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+  return plan;
+}
 
 type Provider = "openai" | "claude" | "gemini";
 
@@ -157,6 +182,9 @@ function AiChat() {
   const [showAttachMenu, setShowAttachMenu] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
+  const [showVoiceGate, setShowVoiceGate] = useState(false);
+  const plan = useAiSubscriptionPlan();
+  const [, navigate] = useLocation();
   const [historySearch, setHistorySearch] = useState("");
   const speechRef = useRef<any>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -174,6 +202,10 @@ function AiChat() {
     if (isListening) {
       try { speechRef.current?.stop(); } catch {}
       setIsListening(false);
+      return;
+    }
+    if (plan !== "pro") {
+      setShowVoiceGate(true);
       return;
     }
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -222,7 +254,7 @@ function AiChat() {
     setInput("");
     finalTranscript = "";
     try { recognition.start(); setIsListening(true); } catch (err: any) { setIsListening(false); alert("Couldn't start voice input: " + (err?.message || err)); }
-  }, [isListening]);
+  }, [isListening, plan]);
 
   const fetchConversations = useCallback(async () => {
     const res = await apiFetch("/ai/conversations");
@@ -775,6 +807,62 @@ function AiChat() {
           </div>
         </div>
       </div>
+
+      {showVoiceGate && (
+        <div
+          onClick={() => setShowVoiceGate(false)}
+          style={{
+            position: "fixed",
+            inset: 0,
+            zIndex: 1000,
+            backgroundColor: "rgba(0,0,0,0.6)",
+            backdropFilter: "blur(4px)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            padding: 16,
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-background border border-border rounded-2xl shadow-xl"
+            style={{ maxWidth: 420, width: "100%", padding: 24 }}
+          >
+            <div className="flex items-center gap-3 mb-3">
+              <div
+                className="w-10 h-10 rounded-xl flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+              >
+                <Mic className="h-5 w-5 text-white" />
+              </div>
+              <h2 className="text-lg font-semibold text-foreground">
+                Voice to Email is a Pro Feature
+              </h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">
+              Upgrade to Pro to dictate emails with your voice.
+            </p>
+            <div className="flex flex-col gap-2">
+              <button
+                onClick={() => {
+                  setShowVoiceGate(false);
+                  navigate(`${BASE}/paywall`);
+                }}
+                className="w-full h-11 rounded-lg text-white font-medium transition-opacity hover:opacity-90"
+                style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)" }}
+              >
+                Upgrade to Pro
+              </button>
+              <button
+                onClick={() => setShowVoiceGate(false)}
+                className="w-full h-11 rounded-lg font-medium text-muted-foreground hover:bg-muted/40 transition-colors"
+              >
+                Maybe later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
