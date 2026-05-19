@@ -74,16 +74,45 @@ function useSubscriptionStatus() {
 }
 
 async function startUpgrade(cycle: "monthly" | "annual"): Promise<void> {
-  const headers = await getAuthHeaders();
-  const res = await fetch(`${BASE}/api/subscription/create-order`, {
-    method: "POST",
-    headers: { ...headers, "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ planKey: cycle === "annual" ? "pro_annual" : "pro_monthly", currency: "inr" }),
-  });
-  if (!res.ok) throw new Error("Could not create order");
-  const { checkoutUrl } = await res.json();
-  if (checkoutUrl) window.open(checkoutUrl, "_blank", "noopener");
+  // Open the popup BEFORE the async fetch to avoid popup blockers. We'll navigate it
+  // to the real checkout URL once the backend responds.
+  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
+
+  try {
+    const headers = await getAuthHeaders();
+    const res = await fetch(`${BASE}/api/subscription/create-order`, {
+      method: "POST",
+      headers: { ...headers, "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ planKey: cycle === "annual" ? "pro_annual" : "pro_monthly", currency: "inr" }),
+    });
+
+    if (!res.ok) {
+      let serverMsg = "";
+      try {
+        const body = await res.json();
+        serverMsg = body?.error || body?.message || "";
+      } catch {}
+      if (popup) popup.close();
+      throw new Error(serverMsg || `Could not create order (HTTP ${res.status})`);
+    }
+
+    const { checkoutUrl } = await res.json();
+    if (!checkoutUrl) {
+      if (popup) popup.close();
+      throw new Error("Checkout URL missing from server response");
+    }
+
+    if (popup && !popup.closed) {
+      popup.location.href = checkoutUrl;
+    } else {
+      // Fallback if popup was blocked despite pre-opening
+      window.location.href = checkoutUrl;
+    }
+  } catch (err) {
+    if (popup && !popup.closed) popup.close();
+    throw err;
+  }
 }
 
 function useTheme() {
@@ -154,8 +183,8 @@ export default function SettingsPage() {
     setUpgrading(true);
     try {
       await startUpgrade(selectedCycle);
-    } catch {
-      // silent — checkout page failed to open
+    } catch (err: any) {
+      alert(`Couldn't open checkout: ${err?.message || "Unknown error"}`);
     } finally {
       setUpgrading(false);
     }
