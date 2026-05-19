@@ -396,7 +396,7 @@ export default function Inbox() {
   const messageDetailView = (
     <div className="flex flex-col h-full bg-background">
       {/* Sticky top toolbar */}
-      <div className="sticky top-0 z-10 px-4 py-2 border-b flex items-center gap-3 shrink-0 bg-background/95 backdrop-blur">
+      <div className="sticky top-0 z-10 px-4 py-2 border-b flex items-center gap-3 shrink-0 bg-background">
         <Button variant="ghost" size="sm" className="gap-1.5 px-2 text-muted-foreground hover:text-foreground" onClick={handleBackToList}>
           <ChevronLeft className="h-4 w-4" />
           Back
@@ -437,7 +437,7 @@ export default function Inbox() {
           <div className="space-y-3 pt-6"><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /></div>
         </div>
       ) : activeMessage ? (
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto overscroll-contain" style={{ contain: "paint", WebkitOverflowScrolling: "touch" }}>
           <div className="p-4 md:p-6 w-full">
             <div className="mb-8">
               <h1 className="text-2xl font-bold text-foreground tracking-tight leading-tight mb-4">{activeMessage.subject}</h1>
