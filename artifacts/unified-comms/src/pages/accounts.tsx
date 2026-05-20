@@ -1,6 +1,7 @@
 import { useGetAccounts, useDeleteAccount, useCreateAccount } from "@workspace/api-client-react";
 import { apiFetch } from "@/lib/api-client";
 import { useState, useEffect } from "react";
+import { useAuth } from "@clerk/react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -110,6 +111,24 @@ export default function Accounts() {
   const createAccount = useCreateAccount();
   const { toast } = useToast();
   const [location] = useLocation();
+  const { getToken } = useAuth();
+
+  async function startGmailConnect() {
+    try {
+      const token = await getToken();
+      const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
+      const url = token
+        ? `${base}/api/auth/gmail/connect?token=${encodeURIComponent(token)}`
+        : `${base}/api/auth/gmail/connect`;
+      window.location.href = url;
+    } catch (err: any) {
+      toast({
+        title: "Couldn't start Gmail connection",
+        description: err?.message ?? "Please try again.",
+        variant: "destructive",
+      });
+    }
+  }
 
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<{ gmail: boolean; outlook: boolean } | null>(null);
@@ -308,7 +327,7 @@ export default function Accounts() {
                   size="sm"
                   variant="outline"
                   className="text-xs h-7 px-3 gap-1"
-                  onClick={() => window.location.href = "/api/auth/gmail/connect"}
+                  onClick={startGmailConnect}
                 >
                   <Link2 className="w-3 h-3" /> Connect
                 </Button>

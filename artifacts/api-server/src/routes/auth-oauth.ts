@@ -58,6 +58,15 @@ async function resolveUserId(req: any): Promise<{ userId: string | null; isMobil
       if (payload?.sub) return { userId: payload.sub, isMobile: true };
     } catch {}
   }
+  // Web top-level navigations (e.g. window.location.href) can't send Authorization
+  // headers, so the web client passes the Clerk session token as ?token=...
+  const webToken = req.query.token as string | undefined;
+  if (webToken) {
+    try {
+      const payload = await clerkClient.verifyToken(webToken);
+      if (payload?.sub) return { userId: payload.sub, isMobile: false };
+    } catch {}
+  }
   const auth = getAuth(req);
   return { userId: auth?.userId ?? null, isMobile: false };
 }
