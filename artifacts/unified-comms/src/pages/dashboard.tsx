@@ -70,30 +70,34 @@ export default function Dashboard() {
           Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-32 rounded-xl" />)
         ) : (
           <>
-            <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Accounts</CardTitle>
-                <div className="p-2 bg-indigo-500/10 rounded-full">
-                  <Mail className="w-4 h-4 text-indigo-500" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stats?.totalAccounts || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Connected accounts</p>
-              </CardContent>
-            </Card>
-            <Card className="hover-elevate transition-shadow cursor-default border-border shadow-sm">
-              <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium text-muted-foreground">Contacts</CardTitle>
-                <div className="p-2 bg-emerald-500/10 rounded-full">
-                  <Users className="w-4 h-4 text-emerald-500" />
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="text-3xl font-bold">{stats?.totalContacts || 0}</div>
-                <p className="text-xs text-muted-foreground mt-1">Saved contacts</p>
-              </CardContent>
-            </Card>
+            <Link href="/accounts" className="block">
+              <Card className="hover-elevate transition-shadow cursor-pointer border-border shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Accounts</CardTitle>
+                  <div className="p-2 bg-indigo-500/10 rounded-full">
+                    <Mail className="w-4 h-4 text-indigo-500" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{stats?.totalAccounts || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Connected accounts</p>
+                </CardContent>
+              </Card>
+            </Link>
+            <Link href="/contacts" className="block">
+              <Card className="hover-elevate transition-shadow cursor-pointer border-border shadow-sm">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Contacts</CardTitle>
+                  <div className="p-2 bg-emerald-500/10 rounded-full">
+                    <Users className="w-4 h-4 text-emerald-500" />
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="text-3xl font-bold">{stats?.totalContacts || 0}</div>
+                  <p className="text-xs text-muted-foreground mt-1">Saved contacts</p>
+                </CardContent>
+              </Card>
+            </Link>
           </>
         )}
       </div>

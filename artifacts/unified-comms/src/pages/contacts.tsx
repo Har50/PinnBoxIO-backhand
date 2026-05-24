@@ -1,8 +1,11 @@
-import { useGetContacts, useGetContactMessages } from "@workspace/api-client-react";
-import { useState } from "react";
+import { useGetContacts, useGetContactMessages, getGetContactsQueryKey } from "@workspace/api-client-react";
+import { useState, useEffect, useRef } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useDebounce } from "@/hooks/use-debounce";
+import { apiFetch } from "@/lib/api-client";
 import { Input } from "@/components/ui/input";
-import { Search, Mail, Phone, Building2, MessageSquare, Clock, Users, ArrowLeft, Inbox } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Search, Mail, Phone, Building2, MessageSquare, Clock, Users, ArrowLeft, Inbox, RefreshCw } from "lucide-react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -88,17 +91,58 @@ export default function Contacts() {
   const [search, setSearch] = useState("");
   const debouncedSearch = useDebounce(search, 300);
   const [selectedContactId, setSelectedContactId] = useState<number | null>(null);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [syncError, setSyncError] = useState<string | null>(null);
+  const autoSyncedRef = useRef(false);
+  const queryClient = useQueryClient();
 
   const { data: contacts, isLoading } = useGetContacts({ q: debouncedSearch || undefined });
 
   const selectedContact = contacts?.find(c => c.id === selectedContactId);
+
+  const runSync = async () => {
+    if (isSyncing) return;
+    setIsSyncing(true);
+    setSyncError(null);
+    try {
+      await apiFetch("/api/contacts/sync", { method: "POST" });
+      await queryClient.invalidateQueries({ queryKey: getGetContactsQueryKey() });
+    } catch (e: any) {
+      setSyncError(e?.message || "Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (autoSyncedRef.current) return;
+    if (isLoading) return;
+    if ((contacts?.length ?? 0) > 0) {
+      autoSyncedRef.current = true;
+      return;
+    }
+    autoSyncedRef.current = true;
+    runSync();
+  }, [isLoading, contacts]);
 
   return (
     <div className="h-full flex overflow-hidden bg-background">
       {/* List Column */}
       <div className={`${selectedContact ? "hidden md:flex" : "flex"} w-full md:w-[350px] md:shrink-0 border-r flex-col bg-muted/10`}>
         <div className="p-4 border-b space-y-3">
-          <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
+          <div className="flex items-center justify-between">
+            <h1 className="text-xl font-semibold tracking-tight">Contacts</h1>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={runSync}
+              disabled={isSyncing}
+              title="Sync contacts from your connected email accounts"
+            >
+              <RefreshCw className={`w-4 h-4 mr-1.5 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Syncing..." : "Sync"}
+            </Button>
+          </div>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
@@ -108,6 +152,9 @@ export default function Contacts() {
               className="pl-9 bg-background shadow-sm border-muted-foreground/20"
             />
           </div>
+          {syncError && (
+            <p className="text-xs text-destructive">{syncError}</p>
+          )}
         </div>
 
         <ScrollArea className="flex-1">
@@ -117,7 +164,21 @@ export default function Contacts() {
                 <div key={i} className="flex items-center gap-3 p-2"><Skeleton className="h-10 w-10 rounded-full" /><div className="space-y-2 flex-1"><Skeleton className="h-4 w-2/3" /><Skeleton className="h-3 w-1/2" /></div></div>
               ))
             ) : contacts?.length === 0 ? (
-              <div className="text-center p-8 text-muted-foreground text-sm">No contacts found.</div>
+              <div className="flex flex-col items-center text-center p-8 text-muted-foreground text-sm gap-3">
+                <Users className="w-10 h-10 opacity-20" />
+                <div>
+                  {debouncedSearch
+                    ? "No contacts match your search."
+                    : isSyncing
+                      ? "Pulling contacts from your inbox..."
+                      : "No contacts yet. Connect an email account, then click Sync."}
+                </div>
+                {!debouncedSearch && !isSyncing && (
+                  <Button size="sm" variant="outline" onClick={runSync}>
+                    <RefreshCw className="w-4 h-4 mr-1.5" /> Sync now
+                  </Button>
+                )}
+              </div>
             ) : (
               contacts?.map((contact) => (
                 <div
