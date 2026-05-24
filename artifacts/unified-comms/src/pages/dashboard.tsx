@@ -7,12 +7,45 @@ import { formatDistanceToNow } from "date-fns";
 import WelcomeModal from "@/components/WelcomeModal";
 import { useUser } from "@clerk/react";
 
-function getGreeting(): string {
+function getGreeting(name: string): string {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  if (hour < 21) return "Good evening";
-  return "Hello";
+  const n = name ? `, ${name}` : "";
+  const nightOwl = name ? `, ${name}` : " there";
+
+  let options: string[];
+  if (hour < 5) {
+    options = [
+      `Burning the midnight oil${n}?`,
+      `Still up${n}?`,
+      `Hey night owl${nightOwl}`,
+    ];
+  } else if (hour < 12) {
+    options = [
+      `Rise and shine${n}`,
+      `Morning${n}`,
+      `Good morning${n}`,
+    ];
+  } else if (hour < 17) {
+    options = [
+      `Afternoon vibes${n}`,
+      `Hey${n}`,
+      `Good afternoon${n}`,
+    ];
+  } else if (hour < 21) {
+    options = [
+      `Evening${n}`,
+      `Winding down${n}?`,
+      `Good evening${n}`,
+    ];
+  } else {
+    options = [
+      `Burning the midnight oil${n}?`,
+      `Still up${n}?`,
+      `Hey night owl${nightOwl}`,
+    ];
+  }
+
+  return options[Math.floor(Math.random() * options.length)];
 }
 
 export default function Dashboard() {
@@ -26,7 +59,7 @@ export default function Dashboard() {
       <WelcomeModal />
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-foreground">
-          {getGreeting()}{firstName ? `, ${firstName}` : ""}
+          {getGreeting(firstName)}
         </h1>
         <p className="text-muted-foreground mt-1">Here's your communications overview.</p>
       </div>
