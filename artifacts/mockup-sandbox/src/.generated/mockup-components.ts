@@ -10,12 +10,12 @@ export const modules: ModuleMap = {
   "./components/mockups/ai-chat/Redesigned.tsx": () => import("../components/mockups/ai-chat/Redesigned.tsx"),
   "./components/mockups/ai-chat/ThreePanel.tsx": () => import("../components/mockups/ai-chat/ThreePanel.tsx"),
   "./components/mockups/ai-chat/TopNav.tsx": () => import("../components/mockups/ai-chat/TopNav.tsx"),
+  "./components/mockups/storage-redesign/DropboxStyle.tsx": () => import("../components/mockups/storage-redesign/DropboxStyle.tsx"),
+  "./components/mockups/storage-redesign/ModernGrid.tsx": () => import("../components/mockups/storage-redesign/ModernGrid.tsx"),
   "./components/mockups/mobile-layout/AiFirst.tsx": () => import("../components/mockups/mobile-layout/AiFirst.tsx"),
   "./components/mockups/mobile-layout/BentoGlass.tsx": () => import("../components/mockups/mobile-layout/BentoGlass.tsx"),
   "./components/mockups/mobile-layout/BottomNav.tsx": () => import("../components/mockups/mobile-layout/BottomNav.tsx"),
   "./components/mockups/mobile-layout/Current.tsx": () => import("../components/mockups/mobile-layout/Current.tsx"),
   "./components/mockups/mobile-layout/DarkCockpit.tsx": () => import("../components/mockups/mobile-layout/DarkCockpit.tsx"),
-  "./components/mockups/mobile-layout/EditorialCalm.tsx": () => import("../components/mockups/mobile-layout/EditorialCalm.tsx"),
-  "./components/mockups/storage-redesign/DropboxStyle.tsx": () => import("../components/mockups/storage-redesign/DropboxStyle.tsx"),
-  "./components/mockups/storage-redesign/ModernGrid.tsx": () => import("../components/mockups/storage-redesign/ModernGrid.tsx")
+  "./components/mockups/mobile-layout/EditorialCalm.tsx": () => import("../components/mockups/mobile-layout/EditorialCalm.tsx")
 };

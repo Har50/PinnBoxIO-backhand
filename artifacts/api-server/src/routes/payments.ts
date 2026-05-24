@@ -411,6 +411,11 @@ router.post("/subscription/create-order", async (req: any, res) => {
 
     const rzp = getRazorpay();
 
+    logger.info(
+      { planKey, currency, planIdLength: planId.length, planIdPrefix: planId.slice(0, 8) },
+      "subscription create-order: using plan",
+    );
+
     const subscription = await rzp.subscriptions.create({
       plan_id: planId,
       total_count: isAnnual ? 12 : 120,
