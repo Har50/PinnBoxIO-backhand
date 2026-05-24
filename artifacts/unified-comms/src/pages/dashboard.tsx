@@ -5,17 +5,30 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import WelcomeModal from "@/components/WelcomeModal";
+import { useUser } from "@clerk/react";
+
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  if (hour < 21) return "Good evening";
+  return "Hello";
+}
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useGetOverviewStats();
   const { data: recent, isLoading: recentLoading } = useGetRecentMessages({ limit: 5 });
+  const { user } = useUser();
+  const firstName = user?.firstName || user?.username || "";
 
   return (
     <div className="p-8 max-w-6xl mx-auto space-y-8">
       <WelcomeModal />
       <div>
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
-        <p className="text-muted-foreground mt-1">Overview of all your communications.</p>
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">
+          {getGreeting()}{firstName ? `, ${firstName}` : ""}
+        </h1>
+        <p className="text-muted-foreground mt-1">Here's your communications overview.</p>
       </div>
 
       {/* Stats row */}
