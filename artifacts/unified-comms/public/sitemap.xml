@@ -2,37 +2,38 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
     <loc>https://pinnboxio.net/</loc>
+    <lastmod>2026-05-24</lastmod>
     <priority>1.0</priority>
     <changefreq>weekly</changefreq>
   </url>
   <url>
-    <loc>https://pinnboxio.net/inbox</loc>
-    <priority>0.9</priority>
-    <changefreq>daily</changefreq>
-  </url>
-  <url>
-    <loc>https://pinnboxio.net/ai</loc>
-    <priority>0.8</priority>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://pinnboxio.net/storage</loc>
-    <priority>0.8</priority>
-    <changefreq>weekly</changefreq>
-  </url>
-  <url>
-    <loc>https://pinnboxio.net/contacts</loc>
+    <loc>https://pinnboxio.net/login</loc>
+    <lastmod>2026-05-24</lastmod>
     <priority>0.7</priority>
-    <changefreq>weekly</changefreq>
+    <changefreq>monthly</changefreq>
   </url>
   <url>
-    <loc>https://pinnboxio.net/calendar</loc>
-    <priority>0.7</priority>
-    <changefreq>weekly</changefreq>
+    <loc>https://pinnboxio.net/privacy</loc>
+    <lastmod>2026-05-24</lastmod>
+    <priority>0.5</priority>
+    <changefreq>yearly</changefreq>
   </url>
   <url>
-    <loc>https://pinnboxio.net/search</loc>
-    <priority>0.6</priority>
-    <changefreq>weekly</changefreq>
+    <loc>https://pinnboxio.net/terms</loc>
+    <lastmod>2026-05-24</lastmod>
+    <priority>0.5</priority>
+    <changefreq>yearly</changefreq>
+  </url>
+  <url>
+    <loc>https://pinnboxio.net/refunds</loc>
+    <lastmod>2026-05-24</lastmod>
+    <priority>0.4</priority>
+    <changefreq>yearly</changefreq>
+  </url>
+  <url>
+    <loc>https://pinnboxio.net/cookies</loc>
+    <lastmod>2026-05-24</lastmod>
+    <priority>0.4</priority>
+    <changefreq>yearly</changefreq>
   </url>
 </urlset>
