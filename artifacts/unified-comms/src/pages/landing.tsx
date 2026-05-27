@@ -11,7 +11,6 @@ import {
   Inbox,
   Zap,
   Shield,
-  Star,
   Twitter,
   Linkedin,
   Link as LinkIcon,
@@ -338,7 +337,7 @@ export default function LandingPage() {
         </p>
       </section>
 
-      {/* Social proof bar */}
+      {/* Value-prop bar (honest, no fabricated numbers) */}
       <section style={{ padding: "0 24px 64px", maxWidth: 900, margin: "0 auto" }}>
         <div
           style={{
@@ -353,24 +352,20 @@ export default function LandingPage() {
           }}
         >
           <div>
-            <div style={{ display: "flex", justifyContent: "center", gap: 2, marginBottom: 6 }}>
-              {[0, 1, 2, 3, 4].map(i => (
-                <Star key={i} size={14} color="#fbbf24" fill="#fbbf24" />
-              ))}
-            </div>
-            <p style={{ margin: 0, fontSize: 13, color: FG_MUTED }}>4.8 avg · 127 reviews</p>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: FG }}>2 mailboxes</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>Gmail + Outlook unified</p>
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>1,000+</p>
-            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>professionals onboard</p>
-          </div>
-          <div>
-            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>3 AI models</p>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: FG }}>3 AI models</p>
             <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>GPT-4o · Claude · Gemini</p>
           </div>
           <div>
-            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>iOS · Android · Web</p>
-            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>Anywhere you are</p>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: FG }}>1 GB free</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>AI-tagged cloud storage</p>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 18, fontWeight: 700, color: FG }}>iOS · Android · Web</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>One account, every device</p>
           </div>
         </div>
       </section>
@@ -424,10 +419,10 @@ export default function LandingPage() {
       {/* Email Capture */}
       <section style={{ padding: "0 24px 80px", maxWidth: 680, margin: "0 auto", textAlign: "center" }}>
         <p style={{ fontSize: 13, fontWeight: 600, color: FG_SUBTLE, letterSpacing: 0.5, textTransform: "uppercase", marginBottom: 12 }}>
-          Join the community
+          Early access
         </p>
         <h2 style={{ fontSize: 26, fontWeight: 700, color: FG, margin: "0 0 12px", lineHeight: 1.3 }}>
-          Join 1,000+ professionals already using PinnboxIO
+          Be first to try new AI features
         </h2>
 
         {emailStatus === "success" ? (
@@ -508,42 +503,65 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* Testimonials */}
+      {/* Use cases */}
       <section style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto" }}>
         <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 700, marginBottom: 12, color: FG }}>
-          Loved by busy inboxes
+          Built for the way you actually work
         </h2>
         <p style={{ textAlign: "center", color: FG_MUTED, marginBottom: 48, fontSize: 16 }}>
-          Real users. Real time saved.
+          One workspace for inbox, AI, files and calendar &mdash; on every device.
         </p>
         <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
           {[
-            { q: "I cut my email triage time in half. Asking Claude to summarise threads is a cheat code.", a: "Maya R.", role: "Product Manager" },
-            { q: "Finally, my Gmail and Outlook in one place. The smart search just works.", a: "Daniel K.", role: "Freelance Designer" },
-            { q: "The voice-to-email on mobile is unreal. I dictate replies between meetings.", a: "Priya S.", role: "Sales Lead" },
-          ].map(t => (
-            <div
-              key={t.a}
-              style={{
-                backgroundColor: SURFACE,
-                border: `1px solid ${BORDER}`,
-                borderRadius: 16,
-                padding: 24,
-              }}
-            >
-              <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
-                {[0, 1, 2, 3, 4].map(i => (
-                  <Star key={i} size={13} color="#fbbf24" fill="#fbbf24" />
-                ))}
+            {
+              icon: Inbox,
+              title: "Triage faster",
+              body: "Summarise long threads with Claude, draft replies with GPT-4o, archive in one tap. Stop spending the morning sorting email.",
+            },
+            {
+              icon: Search,
+              title: "Find anything, fast",
+              body: "Search Gmail, Outlook, contacts and stored files in plain English. No more &ldquo;what was the name of that PDF again?&rdquo;",
+            },
+            {
+              icon: Mic,
+              title: "Work on the move",
+              body: "Dictate replies hands-free on mobile. AI cleans up grammar and tone so what you send still sounds like you.",
+            },
+          ].map(item => {
+            const Icon = item.icon;
+            return (
+              <div
+                key={item.title}
+                style={{
+                  backgroundColor: SURFACE,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 16,
+                  padding: 24,
+                }}
+              >
+                <div
+                  style={{
+                    width: 40,
+                    height: 40,
+                    borderRadius: 10,
+                    backgroundColor: `${PRIMARY}18`,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    marginBottom: 14,
+                  }}
+                >
+                  <Icon size={18} color={PRIMARY} />
+                </div>
+                <h3 style={{ fontSize: 16, fontWeight: 700, color: FG, margin: "0 0 8px" }}>{item.title}</h3>
+                <p
+                  style={{ fontSize: 14, color: FG_MUTED, margin: 0, lineHeight: 1.65 }}
+                  dangerouslySetInnerHTML={{ __html: item.body }}
+                />
               </div>
-              <p style={{ fontSize: 15, color: FG, margin: "0 0 16px", lineHeight: 1.6 }}>
-                &ldquo;{t.q}&rdquo;
-              </p>
-              <p style={{ fontSize: 13, color: FG_MUTED, margin: 0 }}>
-                <span style={{ color: FG, fontWeight: 600 }}>{t.a}</span> · {t.role}
-              </p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </section>
 
