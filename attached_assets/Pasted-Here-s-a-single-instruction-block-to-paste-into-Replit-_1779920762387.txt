@@ -1,0 +1,184 @@
+Here’s a single instruction block to paste into Replit. Copy everything from the start of the next line through the end of this message.
+
+I need you to make four updates to the legal/compliance surfaces of PinnboxIO. Apply them as separate commits if possible. Where I’ve used placeholders in square brackets, leave them in the code as TODO: comments and surface them back to me as a list at the end so I can fill them in before going live.
+
+Task 1 — Replace the Privacy Policy
+
+Replace the full content of src/pages/privacy.tsx with the following. Keep the existing page layout (header, “Back to PinnboxIO” link, styling, last-updated date pattern) — only the policy body changes.
+
+New “Last updated” date: use today’s date.
+
+New body:
+
+1. Overview
+
+PinnboxIO (“PinnboxIO,” “we,” “our,” or “us”) is a unified communications platform that helps you manage messages, files, and AI-assisted drafts across multiple channels in one place. This Privacy Policy explains what information we collect, how we use and share it, your rights, and how to contact us.
+
+This Policy applies to users of pinnboxio.net, the PinnboxIO web app, the PinnboxIO iOS app, and any future PinnboxIO apps.
+
+2. Data Controller
+
+PinnboxIO is operated by [LEGAL ENTITY NAME], registered at [REGISTERED ADDRESS, INDIA]. For all data protection inquiries, contact our Grievance Officer (Section 13).
+
+3. Information We Collect
+
+	•	Account information: Your name and email address when you sign in.
+	•	Connected account data: OAuth tokens for third-party services you link (Gmail, Outlook, LinkedIn). Tokens are encrypted at rest. We never see or store your passwords.
+	•	Message content: The subject, body, attachments, recipients, and metadata of messages you send, receive, or interact with through PinnboxIO.
+	•	Files: Files you upload to PinnboxIO Storage.
+	•	Voice input: Audio you record for voice-driven drafting. Audio is transcribed; raw audio is not retained after transcription unless you save it.
+	•	Usage data: Feature usage, error logs, device type, and approximate location (from IP).
+	•	Payment data: Subscription status and billing identifiers from our payment processors. We do not store your full payment card details.
+
+4. How We Use AI to Process Your Data
+
+PinnboxIO uses third-party AI providers to draft replies, summarize messages, and answer questions about your inbox.
+
+When you use AI features, we send relevant content — which may include message subjects, bodies, attachments, contact names, and your voice transcripts — to one or more of the following providers to generate the requested AI output:
+
+	•	OpenAI (GPT-4o and related models)
+	•	Anthropic (Claude models)
+	•	Google (Gemini models)
+
+Under our agreements with these providers:
+
+	•	Your data is not used to train any of their AI models.
+	•	Your data is retained only briefly by the provider for abuse-monitoring purposes (typically 30 days) and is then deleted.
+	•	Each provider operates under its own privacy and security commitments.
+
+You can disable AI features at any time in Settings. When disabled, no message content is sent to any AI provider.
+
+5. How We Use Your Information
+
+We use the data above to:
+
+	•	Provide, operate, and maintain the PinnboxIO service.
+	•	Authenticate you and keep your account secure.
+	•	Sync, display, and search messages from your connected accounts.
+	•	Generate AI drafts, summaries, and answers when you request them.
+	•	Store and serve files you upload to PinnboxIO Storage.
+	•	Process subscription payments through Razorpay (web) and RevenueCat with the applicable app store (mobile).
+	•	Diagnose technical issues, improve reliability, and prevent abuse.
+	•	Communicate service updates, security notices, and (if you opt in) product news.
+
+We do not sell, rent, or share your personal information with advertisers.
+
+6. Lawful Basis (GDPR / UK GDPR)
+
+If you are in the European Economic Area, United Kingdom, or Switzerland, we process your personal data on the following lawful bases:
+
+	•	Performance of a contract — to provide the service you signed up for.
+	•	Legitimate interests — to maintain security, prevent abuse, and improve reliability.
+	•	Consent — for optional features such as AI processing and marketing communications.
+	•	Legal obligation — where required by law.
+
+You may withdraw consent at any time.
+
+7. Subprocessors
+
+We use the following subprocessors. Each is bound by contractual data protection obligations.
+
+
+
+|Subprocessor        |Purpose                     |Location  |
+|--------------------|----------------------------|----------|
+|Google Cloud Storage|File storage                |US, EU    |
+|Clerk               |Authentication              |US        |
+|Razorpay            |Web subscription payments   |India     |
+|RevenueCat          |Mobile subscription payments|US        |
+|OpenAI              |AI text generation          |US        |
+|Anthropic           |AI text generation          |US        |
+|Google (Gemini)     |AI text generation          |US        |
+|Render              |Application hosting         |US        |
+|[ANALYTICS PROVIDER]|Usage analytics             |[LOCATION]|
+
+Material changes to this list will be notified by email or in-app.
+
+8. International Transfers
+
+PinnboxIO operates from India, and several subprocessors are based in the United States. For transfers outside your country, we rely on Standard Contractual Clauses (SCCs) or equivalent safeguards under applicable law.
+
+9. Data Security
+
+Data is stored in encrypted databases. Files live in Google Cloud Storage and are served via presigned, access-controlled URLs. We use TLS in transit and encryption at rest. Production access is restricted to authorized personnel under formal access controls and audit logging.
+
+If we become aware of a breach affecting your data, we will notify you and applicable regulators as required by law.
+
+10. Data Retention
+
+We retain your data for as long as your account is active. You can delete your account at any time via Settings → Account or by emailing privacy@pinnboxio.net. Upon deletion, personal data is permanently removed within 30 days, subject to limited retention for legal, tax, or audit obligations. Backups containing deleted data cycle out within 90 days.
+
+11. Your Rights
+
+Depending on your jurisdiction, you have the right to access, correct, delete, restrict, or object to processing of your personal data, receive a portable copy, withdraw consent, and lodge a complaint with your data protection authority.
+
+Indian users (DPDP Act): You additionally have the right to nominate another person to exercise rights on your behalf and to grievance redressal through our Grievance Officer.
+
+Email privacy@pinnboxio.net to exercise any right. We respond within 30 days.
+
+12. Children’s Privacy
+
+PinnboxIO is not directed at children. We do not knowingly collect personal data from users under 18 in India, or under 16 in other jurisdictions. Contact privacy@pinnboxio.net if a child has provided data.
+
+13. Grievance Officer (India)
+
+In compliance with India’s Digital Personal Data Protection Act, 2023:
+
+Name: [GRIEVANCE OFFICER NAME]
+Email: grievance@pinnboxio.net
+Address: [REGISTERED ADDRESS]
+
+Grievances are addressed within 7 working days.
+
+14. Cookies and Tracking
+
+We use only essential session cookies. See our Cookie Policy at pinnboxio.net/cookies.
+
+15. Changes to This Policy
+
+Material changes will be notified by email or in-app at least 14 days before they take effect. The “Last updated” date reflects the most recent revision.
+
+16. Contact Us
+
+	•	Privacy questions: privacy@pinnboxio.net
+	•	Grievance Officer (India): grievance@pinnboxio.net
+	•	Legal: legal@pinnboxio.net
+	•	Address: [REGISTERED ADDRESS]
+
+Also create the grievance@pinnboxio.net email alias if it doesn’t already exist (route to the same mailbox as privacy@ for now).
+
+Task 2 — Fix the free-tier storage contradiction
+
+The Refunds page (src/pages/refunds.tsx) currently says the free tier is 2 GB. The Privacy Policy, landing page, and pricing all say or imply 1 GB. Confirm with me which number is correct, then update every reference — the four legal pages, the landing page, pricing, in-app upgrade prompts, the “Manage Subscription” screen, and any onboarding copy — so all references match.
+
+Do not guess. Ask me which value is correct before changing anything.
+
+Task 3 — Add signup consent microcopy
+
+In the signup form component (wherever the “Sign up” / “Create account” button is rendered), add the following line of text immediately below the submit button, in muted small text:
+
+By creating an account, you agree to our Terms of Service and Privacy Policy.
+
+Both links should open in the same tab and route to the existing pages. Do this for both the web signup and the iOS app signup (use the platform-appropriate routing).
+
+Task 4 — Add a pre-OAuth consent screen
+
+Currently the Gmail/Outlook/LinkedIn OAuth flow (artifacts/api-server/src/routes/auth-oauth.ts and its frontend caller) redirects straight to the provider. Before that redirect, show a small modal or dedicated page with this content:
+
+Connecting your [Gmail / Outlook / LinkedIn] account
+PinnboxIO will read your messages to draft replies, summarize threads, and surface what matters. Message content is processed by our AI providers (OpenAI, Anthropic, Google) and is not used to train their models. You can revoke access anytime.
+Privacy Policy · [Continue]
+
+The provider name should be templated based on which integration the user is connecting. The “Continue” button triggers the existing OAuth redirect; a “Cancel” link should return to the previous screen.
+
+What I need back from you
+
+At the end of these changes, please list:
+
+	1.	All TODO: placeholders that still need values from me (legal entity, address, grievance officer name, analytics provider).
+	2.	Which storage number (1 GB vs 2 GB) you want me to confirm.
+	3.	A summary of files changed and any place you weren’t sure how to apply a change.
+
+Don’t deploy to production until I review the changes and provide the missing values.
+
+End of paste-into-Replit block. After Replit responds, share what they come back with and we’ll handle placeholders, the storage size decision, and the Cookie Policy v2 (still pending your analytics call: Plausible/Fathom swap, or keep GA4 with a consent banner).
