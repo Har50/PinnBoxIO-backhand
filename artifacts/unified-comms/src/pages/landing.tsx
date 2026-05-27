@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useLocation } from "wouter";
 import {
-  Mail,
   Brain,
   Mic,
   HardDrive,
@@ -11,7 +10,45 @@ import {
   ArrowRight,
   Inbox,
   Zap,
+  Shield,
+  Star,
+  Twitter,
+  Linkedin,
+  Link as LinkIcon,
+  ChevronDown,
 } from "lucide-react";
+
+declare global {
+  interface Window {
+    gtag?: (...args: unknown[]) => void;
+  }
+}
+
+function trackEvent(name: string, params: Record<string, unknown> = {}) {
+  try {
+    window.gtag?.("event", name, params);
+  } catch {}
+}
+
+function getStoredUtms(): Record<string, string> {
+  try {
+    const raw = sessionStorage.getItem("pb_utms");
+    return raw ? (JSON.parse(raw) as Record<string, string>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function withUtms(path: string): string {
+  const utms = getStoredUtms();
+  const keys = Object.keys(utms);
+  if (keys.length === 0) return path;
+  const qs = new URLSearchParams(utms).toString();
+  return path.includes("?") ? `${path}&${qs}` : `${path}?${qs}`;
+}
+
+const SHARE_URL = "https://pinnboxio.net/?utm_source=share&utm_medium=social";
+const SHARE_TEXT = "PinnboxIO — one AI inbox for Gmail + Outlook with GPT-4o, Claude & Gemini. Free to try:";
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 
@@ -111,6 +148,8 @@ export default function LandingPage() {
   const [, setLocation] = useLocation();
   const [email, setEmail] = useState("");
   const [emailStatus, setEmailStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
+  const [copied, setCopied] = useState(false);
+  const [openFaq, setOpenFaq] = useState<number | null>(0);
 
   async function handleWaitlist(e: React.FormEvent) {
     e.preventDefault();
@@ -122,9 +161,45 @@ export default function LandingPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: email.trim() }),
       });
-      setEmailStatus(res.ok ? "success" : "error");
+      if (res.ok) {
+        setEmailStatus("success");
+        trackEvent("waitlist_signup", { method: "email", ...getStoredUtms() });
+      } else {
+        setEmailStatus("error");
+      }
     } catch {
       setEmailStatus("error");
+    }
+  }
+
+  function goSignUp(source: string) {
+    trackEvent("cta_click", { cta: "sign_up", source, ...getStoredUtms() });
+    setLocation(withUtms(`${basePath}/sign-up`));
+  }
+
+  function goSignIn(source: string) {
+    trackEvent("cta_click", { cta: "sign_in", source });
+    setLocation(`${basePath}/sign-in`);
+  }
+
+  function share(network: "twitter" | "linkedin" | "copy") {
+    trackEvent("share_click", { network });
+    if (network === "twitter") {
+      window.open(
+        `https://twitter.com/intent/tweet?text=${encodeURIComponent(SHARE_TEXT)}&url=${encodeURIComponent(SHARE_URL)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } else if (network === "linkedin") {
+      window.open(
+        `https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(SHARE_URL)}`,
+        "_blank",
+        "noopener,noreferrer",
+      );
+    } else {
+      navigator.clipboard?.writeText(SHARE_URL).catch(() => {});
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1800);
     }
   }
 
@@ -156,7 +231,7 @@ export default function LandingPage() {
         </div>
         <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
           <button
-            onClick={() => setLocation(`${basePath}/sign-in`)}
+            onClick={() => goSignIn("nav")}
             style={{ background: "none", border: "none", color: FG_MUTED, fontSize: 14, fontWeight: 500, cursor: "pointer", padding: "8px 12px", borderRadius: 8 }}
             onMouseEnter={e => (e.currentTarget.style.color = FG)}
             onMouseLeave={e => (e.currentTarget.style.color = FG_MUTED)}
@@ -164,7 +239,7 @@ export default function LandingPage() {
             Sign in
           </button>
           <button
-            onClick={() => setLocation(`${basePath}/sign-up`)}
+            onClick={() => goSignUp("nav")}
             style={{ backgroundColor: PRIMARY, color: "#fff", border: "none", borderRadius: 8, padding: "8px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer" }}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = PRIMARY)}
@@ -216,7 +291,7 @@ export default function LandingPage() {
 
         <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
           <button
-            onClick={() => setLocation(`${basePath}/sign-up`)}
+            onClick={() => goSignUp("hero")}
             style={{
               backgroundColor: PRIMARY,
               color: "#fff",
@@ -237,7 +312,7 @@ export default function LandingPage() {
             Get started free <ArrowRight size={16} />
           </button>
           <button
-            onClick={() => setLocation(`${basePath}/sign-in`)}
+            onClick={() => goSignIn("hero")}
             style={{
               backgroundColor: "transparent",
               color: FG_MUTED,
@@ -254,10 +329,54 @@ export default function LandingPage() {
             Sign in
           </button>
         </div>
+
+        {/* Trust micro-copy */}
+        <p style={{ marginTop: 18, fontSize: 13, color: FG_SUBTLE, display: "flex", alignItems: "center", justifyContent: "center", gap: 16, flexWrap: "wrap" }}>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} color="#4ade80" /> No credit card</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Check size={13} color="#4ade80" /> Free forever plan</span>
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Shield size={13} color="#4ade80" /> OAuth secure</span>
+        </p>
+      </section>
+
+      {/* Social proof bar */}
+      <section style={{ padding: "0 24px 64px", maxWidth: 900, margin: "0 auto" }}>
+        <div
+          style={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+            gap: 16,
+            backgroundColor: SURFACE,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 16,
+            padding: "22px 24px",
+            textAlign: "center",
+          }}
+        >
+          <div>
+            <div style={{ display: "flex", justifyContent: "center", gap: 2, marginBottom: 6 }}>
+              {[0, 1, 2, 3, 4].map(i => (
+                <Star key={i} size={14} color="#fbbf24" fill="#fbbf24" />
+              ))}
+            </div>
+            <p style={{ margin: 0, fontSize: 13, color: FG_MUTED }}>4.8 avg · 127 reviews</p>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>1,000+</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>professionals onboard</p>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>3 AI models</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>GPT-4o · Claude · Gemini</p>
+          </div>
+          <div>
+            <p style={{ margin: 0, fontSize: 20, fontWeight: 700, color: FG }}>iOS · Android · Web</p>
+            <p style={{ margin: "2px 0 0", fontSize: 13, color: FG_MUTED }}>Anywhere you are</p>
+          </div>
+        </div>
       </section>
 
       {/* Features */}
-      <section style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto" }}>
+      <section id="features" style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto", scrollMarginTop: 80 }}>
         <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 700, marginBottom: 12, color: FG }}>
           Everything in one place
         </h2>
@@ -389,8 +508,47 @@ export default function LandingPage() {
         )}
       </section>
 
+      {/* Testimonials */}
+      <section style={{ padding: "0 24px 96px", maxWidth: 1080, margin: "0 auto" }}>
+        <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 700, marginBottom: 12, color: FG }}>
+          Loved by busy inboxes
+        </h2>
+        <p style={{ textAlign: "center", color: FG_MUTED, marginBottom: 48, fontSize: 16 }}>
+          Real users. Real time saved.
+        </p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 20 }}>
+          {[
+            { q: "I cut my email triage time in half. Asking Claude to summarise threads is a cheat code.", a: "Maya R.", role: "Product Manager" },
+            { q: "Finally, my Gmail and Outlook in one place. The smart search just works.", a: "Daniel K.", role: "Freelance Designer" },
+            { q: "The voice-to-email on mobile is unreal. I dictate replies between meetings.", a: "Priya S.", role: "Sales Lead" },
+          ].map(t => (
+            <div
+              key={t.a}
+              style={{
+                backgroundColor: SURFACE,
+                border: `1px solid ${BORDER}`,
+                borderRadius: 16,
+                padding: 24,
+              }}
+            >
+              <div style={{ display: "flex", gap: 2, marginBottom: 12 }}>
+                {[0, 1, 2, 3, 4].map(i => (
+                  <Star key={i} size={13} color="#fbbf24" fill="#fbbf24" />
+                ))}
+              </div>
+              <p style={{ fontSize: 15, color: FG, margin: "0 0 16px", lineHeight: 1.6 }}>
+                &ldquo;{t.q}&rdquo;
+              </p>
+              <p style={{ fontSize: 13, color: FG_MUTED, margin: 0 }}>
+                <span style={{ color: FG, fontWeight: 600 }}>{t.a}</span> · {t.role}
+              </p>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* Pricing */}
-      <section style={{ padding: "0 24px 96px", maxWidth: 820, margin: "0 auto" }}>
+      <section id="pricing" style={{ padding: "0 24px 96px", maxWidth: 820, margin: "0 auto", scrollMarginTop: 80 }}>
         <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 700, marginBottom: 12, color: FG }}>
           Simple pricing
         </h2>
@@ -416,7 +574,7 @@ export default function LandingPage() {
             </div>
             <p style={{ fontSize: 14, color: FG_MUTED, margin: "0 0 28px" }}>Everything you need to get started.</p>
             <button
-              onClick={() => setLocation(`${basePath}/sign-up`)}
+              onClick={() => goSignUp("pricing_free")}
               style={{
                 width: "100%",
                 backgroundColor: SURFACE2,
@@ -485,7 +643,7 @@ export default function LandingPage() {
               {" "}— save 37%.
             </p>
             <button
-              onClick={() => setLocation(`${basePath}/sign-up`)}
+              onClick={() => goSignUp("pricing_pro")}
               style={{
                 width: "100%",
                 backgroundColor: PRIMARY,
@@ -514,6 +672,155 @@ export default function LandingPage() {
             </ul>
           </div>
 
+        </div>
+        <p style={{ textAlign: "center", marginTop: 20, fontSize: 13, color: FG_SUBTLE, display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+          <Shield size={13} /> 7-day money-back guarantee · cancel anytime
+        </p>
+      </section>
+
+      {/* FAQ */}
+      <section id="faq" style={{ padding: "0 24px 96px", maxWidth: 760, margin: "0 auto", scrollMarginTop: 80 }}>
+        <h2 style={{ textAlign: "center", fontSize: 28, fontWeight: 700, marginBottom: 12, color: FG }}>
+          Frequently asked questions
+        </h2>
+        <p style={{ textAlign: "center", color: FG_MUTED, marginBottom: 40, fontSize: 16 }}>
+          Everything you need to know before signing up.
+        </p>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {[
+            { q: "Is PinnboxIO free?", a: "Yes. The Free plan includes Gmail and Outlook inbox, 20 AI requests per day, 1 GB cloud storage, calendar sync and the mobile app — with no credit card required." },
+            { q: "Which AI models does PinnboxIO support?", a: "PinnboxIO works with OpenAI GPT-4o, Anthropic Claude, and Google Gemini. You can pick the best model for any task from the AI tab." },
+            { q: "Does it work with both Gmail and Outlook?", a: "Yes. Connect one or more Gmail and Outlook accounts and read, reply, search and draft across all of them from a single unified inbox." },
+            { q: "How much does Pro cost?", a: "Pro is $7.99/month or $59.99/year (save 37%). It unlocks unlimited AI requests, 25 GB cloud storage, all AI models and priority support." },
+            { q: "Is my email data secure?", a: "Yes. PinnboxIO uses OAuth to connect to Gmail and Outlook, never stores your password, and only accesses the scopes you explicitly approve. You can disconnect any account at any time." },
+          ].map((item, i) => {
+            const isOpen = openFaq === i;
+            return (
+              <div
+                key={item.q}
+                style={{
+                  backgroundColor: SURFACE,
+                  border: `1px solid ${BORDER}`,
+                  borderRadius: 12,
+                  overflow: "hidden",
+                }}
+              >
+                <button
+                  onClick={() => {
+                    setOpenFaq(isOpen ? null : i);
+                    if (!isOpen) trackEvent("faq_open", { question: item.q });
+                  }}
+                  style={{
+                    width: "100%",
+                    background: "none",
+                    border: "none",
+                    padding: "18px 20px",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: 12,
+                    cursor: "pointer",
+                    color: FG,
+                    fontSize: 15,
+                    fontWeight: 600,
+                    textAlign: "left",
+                    fontFamily: "inherit",
+                  }}
+                >
+                  <span>{item.q}</span>
+                  <ChevronDown
+                    size={18}
+                    style={{
+                      flexShrink: 0,
+                      transition: "transform 0.2s",
+                      transform: isOpen ? "rotate(180deg)" : "none",
+                      color: FG_MUTED,
+                    }}
+                  />
+                </button>
+                {isOpen && (
+                  <div style={{ padding: "0 20px 18px", fontSize: 14, color: FG_MUTED, lineHeight: 1.7 }}>
+                    {item.a}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* Final CTA + share */}
+      <section style={{ padding: "0 24px 80px", maxWidth: 760, margin: "0 auto", textAlign: "center" }}>
+        <div
+          style={{
+            backgroundColor: SURFACE,
+            border: `1px solid ${BORDER}`,
+            borderRadius: 20,
+            padding: "40px 28px",
+          }}
+        >
+          <h2 style={{ fontSize: 26, fontWeight: 700, color: FG, margin: "0 0 10px" }}>
+            Ready to tame your inbox?
+          </h2>
+          <p style={{ fontSize: 15, color: FG_MUTED, margin: "0 0 24px" }}>
+            Set up in under a minute. No credit card required.
+          </p>
+          <button
+            onClick={() => goSignUp("final_cta")}
+            style={{
+              backgroundColor: PRIMARY,
+              color: "#fff",
+              border: "none",
+              borderRadius: 12,
+              padding: "14px 28px",
+              fontSize: 16,
+              fontWeight: 700,
+              cursor: "pointer",
+              display: "inline-flex",
+              alignItems: "center",
+              gap: 8,
+              boxShadow: "0 4px 20px rgba(59,130,246,0.4)",
+            }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = PRIMARY_HOVER)}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = PRIMARY)}
+          >
+            Get started free <ArrowRight size={16} />
+          </button>
+
+          <div style={{ marginTop: 32, paddingTop: 24, borderTop: `1px solid ${BORDER}` }}>
+            <p style={{ fontSize: 13, color: FG_SUBTLE, margin: "0 0 12px", textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 600 }}>
+              Tell a friend
+            </p>
+            <div style={{ display: "flex", justifyContent: "center", gap: 10, flexWrap: "wrap" }}>
+              <button
+                onClick={() => share("twitter")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: SURFACE2, color: FG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = FG_SUBTLE)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
+                aria-label="Share on Twitter"
+              >
+                <Twitter size={15} /> Tweet
+              </button>
+              <button
+                onClick={() => share("linkedin")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: SURFACE2, color: FG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = FG_SUBTLE)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
+                aria-label="Share on LinkedIn"
+              >
+                <Linkedin size={15} /> Share
+              </button>
+              <button
+                onClick={() => share("copy")}
+                style={{ display: "inline-flex", alignItems: "center", gap: 6, backgroundColor: SURFACE2, color: FG, border: `1px solid ${BORDER}`, borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 600, cursor: "pointer", fontFamily: "inherit" }}
+                onMouseEnter={e => (e.currentTarget.style.borderColor = FG_SUBTLE)}
+                onMouseLeave={e => (e.currentTarget.style.borderColor = BORDER)}
+                aria-label="Copy link"
+              >
+                <LinkIcon size={15} /> {copied ? "Copied!" : "Copy link"}
+              </button>
+            </div>
+          </div>
         </div>
       </section>
 

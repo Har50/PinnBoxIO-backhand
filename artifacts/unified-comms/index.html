@@ -33,6 +33,78 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
       function gtag(){dataLayer.push(arguments);}
       gtag('js', new Date());
       gtag('config', 'G-L5LE6S11MV');
+      // Capture UTM params on first landing so they survive through signup
+      try {
+        var p = new URLSearchParams(window.location.search);
+        var utms = {};
+        ['utm_source','utm_medium','utm_campaign','utm_term','utm_content','ref'].forEach(function(k){
+          var v = p.get(k); if (v) utms[k] = v;
+        });
+        if (Object.keys(utms).length) {
+          sessionStorage.setItem('pb_utms', JSON.stringify(utms));
+          gtag('event', 'campaign_landing', utms);
+        }
+      } catch(e) {}
+    </script>
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://pinnboxio.net/#org",
+          "name": "PinnboxIO",
+          "url": "https://pinnboxio.net/",
+          "logo": "https://pinnboxio.net/logo.svg",
+          "sameAs": []
+        },
+        {
+          "@type": "SoftwareApplication",
+          "name": "PinnboxIO",
+          "applicationCategory": "BusinessApplication",
+          "operatingSystem": "Web, iOS, Android",
+          "description": "Unified AI inbox for Gmail and Outlook with GPT-4o, Claude and Gemini, cloud storage, calendar sync and smart search.",
+          "url": "https://pinnboxio.net/",
+          "image": "https://pinnboxio.net/opengraph.jpg",
+          "offers": [
+            { "@type": "Offer", "price": "0", "priceCurrency": "USD", "name": "Free" },
+            { "@type": "Offer", "price": "7.99", "priceCurrency": "USD", "name": "Pro Monthly" },
+            { "@type": "Offer", "price": "59.99", "priceCurrency": "USD", "name": "Pro Yearly" }
+          ],
+          "publisher": { "@id": "https://pinnboxio.net/#org" }
+        },
+        {
+          "@type": "FAQPage",
+          "mainEntity": [
+            {
+              "@type": "Question",
+              "name": "Is PinnboxIO free?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. The Free plan includes Gmail and Outlook inbox, 20 AI requests per day, 1 GB cloud storage, calendar sync and the mobile app — with no credit card required." }
+            },
+            {
+              "@type": "Question",
+              "name": "Which AI models does PinnboxIO support?",
+              "acceptedAnswer": { "@type": "Answer", "text": "PinnboxIO works with OpenAI GPT-4o, Anthropic Claude, and Google Gemini. You can pick the best model for any task from the AI tab." }
+            },
+            {
+              "@type": "Question",
+              "name": "Does it work with both Gmail and Outlook?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. Connect one or more Gmail and Outlook accounts and read, reply, search and draft across all of them from a single unified inbox." }
+            },
+            {
+              "@type": "Question",
+              "name": "How much does Pro cost?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Pro is $7.99/month or $59.99/year (save 37%). It unlocks unlimited AI requests, 25 GB cloud storage, all AI models and priority support." }
+            },
+            {
+              "@type": "Question",
+              "name": "Is my email data secure?",
+              "acceptedAnswer": { "@type": "Answer", "text": "Yes. PinnboxIO uses OAuth to connect to Gmail and Outlook, never stores your password, and only accesses the scopes you explicitly approve. You can disconnect any account at any time." }
+            }
+          ]
+        }
+      ]
+    }
     </script>
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
