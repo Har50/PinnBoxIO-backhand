@@ -133,6 +133,20 @@ export default function Accounts() {
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<{ gmail: boolean; outlook: boolean } | null>(null);
   const [disconnecting, setDisconnecting] = useState<"gmail" | null>(null);
+  const [pendingOAuth, setPendingOAuth] = useState<null | "gmail" | "outlook" | "linkedin">(null);
+
+  function requestOAuthConnect(provider: "gmail" | "outlook" | "linkedin") {
+    setPendingOAuth(provider);
+  }
+
+  function confirmOAuthConnect() {
+    const provider = pendingOAuth;
+    setPendingOAuth(null);
+    if (provider === "gmail") {
+      startGmailConnect();
+    }
+    // TODO: wire confirm action for outlook / linkedin once their connect endpoints are surfaced in the UI.
+  }
 
   const [isImapOpen, setIsImapOpen] = useState(false);
   const [imapForm, setImapForm] = useState<ImapForm>(defaultImapForm());
@@ -327,7 +341,7 @@ export default function Accounts() {
                   size="sm"
                   variant="outline"
                   className="text-xs h-7 px-3 gap-1"
-                  onClick={startGmailConnect}
+                  onClick={() => requestOAuthConnect("gmail")}
                 >
                   <Link2 className="w-3 h-3" /> Connect
                 </Button>
@@ -675,6 +689,42 @@ export default function Accounts() {
               </Button>
             </div>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Pre-OAuth consent modal */}
+      <Dialog open={pendingOAuth !== null} onOpenChange={(open) => { if (!open) setPendingOAuth(null); }}>
+        <DialogContent className="sm:max-w-[460px]">
+          <DialogHeader>
+            <DialogTitle>
+              Connecting your {pendingOAuth === "gmail" ? "Gmail" : pendingOAuth === "outlook" ? "Outlook" : "LinkedIn"} account
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+            <p>
+              PinnboxIO will read your messages to draft replies, summarize threads, and surface what matters.
+            </p>
+            <p>
+              Message content is processed by our AI providers (OpenAI, Anthropic, Google) and is{" "}
+              <strong className="text-foreground">not used to train their models</strong>. You can revoke access
+              anytime from this page.
+            </p>
+            <p>
+              See our{" "}
+              <a href={`${(import.meta.env.BASE_URL ?? "/").replace(/\/$/, "")}/privacy`} target="_blank" rel="noopener noreferrer" className="text-primary underline hover:no-underline">
+                Privacy Policy
+              </a>{" "}for details.
+            </p>
+          </div>
+          <div className="pt-4 flex justify-end gap-2 border-t">
+            <Button type="button" variant="ghost" onClick={() => setPendingOAuth(null)}>
+              Cancel
+            </Button>
+            <Button type="button" onClick={confirmOAuthConnect} className="gap-2">
+              <Link2 className="w-4 h-4" />
+              Continue
+            </Button>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

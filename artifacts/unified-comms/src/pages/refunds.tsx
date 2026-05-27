@@ -89,7 +89,7 @@ export default function RefundsAndCancellations() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">Free Tier</h2>
               <p className="text-muted-foreground leading-relaxed">
-                The free tier (2 GB storage, core messaging features) is always free and does not require a payment method. There is nothing to cancel or refund for free-tier usage.
+                The free tier (1 GB storage, core messaging features) is always free and does not require a payment method. There is nothing to cancel or refund for free-tier usage.
               </p>
             </section>
 

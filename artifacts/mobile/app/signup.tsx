@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   Animated,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -25,6 +26,12 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRef, useState, useEffect } from "react";
+
+const WEB_DOMAIN = process.env.EXPO_PUBLIC_DOMAIN ?? "pinnboxio.net";
+const TERMS_URL = `https://${WEB_DOMAIN}/terms`;
+const PRIVACY_URL = `https://${WEB_DOMAIN}/privacy`;
+const openTerms = () => Linking.openURL(TERMS_URL).catch(() => {});
+const openPrivacy = () => Linking.openURL(PRIVACY_URL).catch(() => {});
 
 const SLIDE_DATA = [
   {
@@ -297,8 +304,8 @@ export default function SignUpScreen() {
 
           <Text style={[styles.footerNote, { color: c.mutedForeground }]}>
             By continuing you agree to our{" "}
-            <Text style={[styles.footerLink, { color: c.primary }]}>Terms</Text> and{" "}
-            <Text style={[styles.footerLink, { color: c.primary }]}>Privacy Policy</Text>.
+            <Text style={[styles.footerLink, { color: c.primary }]} onPress={openTerms}>Terms of Service</Text> and{" "}
+            <Text style={[styles.footerLink, { color: c.primary }]} onPress={openPrivacy}>Privacy Policy</Text>.
           </Text>
         </View>
 
@@ -459,9 +466,9 @@ export default function SignUpScreen() {
         )}
 
         <Text style={[styles.footerNote, { color: c.mutedForeground }]}>
-          By continuing you agree to our{" "}
-          <Text style={[styles.footerLink, { color: c.primary }]}>Terms</Text> and{" "}
-          <Text style={[styles.footerLink, { color: c.primary }]}>Privacy Policy</Text>.
+          By creating an account, you agree to our{" "}
+          <Text style={[styles.footerLink, { color: c.primary }]} onPress={openTerms}>Terms of Service</Text> and{" "}
+          <Text style={[styles.footerLink, { color: c.primary }]} onPress={openPrivacy}>Privacy Policy</Text>.
         </Text>
       </View>
 

@@ -234,6 +234,12 @@ function SignUpPage() {
         path={`${basePath}/sign-up`}
         signInUrl={`${basePath}/sign-in`}
       />
+      <p className="mt-4 max-w-[440px] text-center text-xs text-muted-foreground leading-relaxed">
+        By creating an account, you agree to our{" "}
+        <a href={`${basePath}/terms`} className="underline hover:text-foreground">Terms of Service</a>{" "}
+        and{" "}
+        <a href={`${basePath}/privacy`} className="underline hover:text-foreground">Privacy Policy</a>.
+      </p>
     </AuthPageShell>
   );
 }
