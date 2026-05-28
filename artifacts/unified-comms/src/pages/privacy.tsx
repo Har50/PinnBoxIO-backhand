@@ -139,7 +139,7 @@ export default function PrivacyPolicy() {
                   { name: "Google (Gemini)", purpose: "AI text generation", location: "US" },
                   { name: "Render", purpose: "Application hosting", location: "US" },
                   // TODO: Confirm analytics provider (GA4 currently loaded) and its data location.
-                  { name: "[ANALYTICS PROVIDER]", purpose: "Usage analytics", location: "[LOCATION]" },
+                  { name: "Plausible Insights ehf.", purpose: "Privacy-friendly, cookie-less usage analytics (aggregate page views, referrers, device type — no personal identifiers)", location: "Iceland / EU" },
                 ].map((row, i) => (
                   <div key={i} className="px-4 py-3 grid grid-cols-3 gap-4 border-t border-border text-sm">
                     <span className="text-foreground font-medium">{row.name}</span>
