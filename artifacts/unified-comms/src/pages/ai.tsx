@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
+import { startUpgrade } from "@/lib/subscription";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -183,6 +184,7 @@ function AiChat() {
   const [isListening, setIsListening] = useState(false);
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceGate, setShowVoiceGate] = useState(false);
+  const [limitUpgradeBusy, setLimitUpgradeBusy] = useState(false);
   const plan = useAiSubscriptionPlan();
   const [, navigate] = useLocation();
   const [historySearch, setHistorySearch] = useState("");
@@ -638,46 +640,18 @@ function AiChat() {
                   })()}
                   {msg.limitReached && (
                     <button
-                      className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                      disabled={limitUpgradeBusy}
+                      className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
                       style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
                       onClick={async () => {
+                        if (limitUpgradeBusy) return;
+                        setLimitUpgradeBusy(true);
                         try {
-                          const headers = await getAuthHeaders();
-                          const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
-                          const orderRes = await fetch(`${base}/api/payments/razorpay/pro/order`, {
-                            method: "POST",
-                            headers: { ...headers, "Content-Type": "application/json" },
-                            credentials: "include",
-                          });
-                          if (!orderRes.ok) throw new Error();
-                          const { orderId, amount, currency, keyId } = await orderRes.json();
-                          const RzpCheckout = (window as any).Razorpay;
-                          if (!RzpCheckout) { window.location.assign(`${import.meta.env.BASE_URL}storage`); return; }
-                          const rzp = new RzpCheckout({
-                            key: keyId,
-                            amount,
-                            currency,
-                            name: "PinnboxIO",
-                            description: "Pro Plan – Unlimited AI",
-                            order_id: orderId,
-                            handler: async (response: any) => {
-                              const verifyRes = await fetch(`${base}/api/payments/razorpay/pro/verify`, {
-                                method: "POST",
-                                headers: { ...headers, "Content-Type": "application/json" },
-                                credentials: "include",
-                                body: JSON.stringify({
-                                  razorpay_order_id: response.razorpay_order_id,
-                                  razorpay_payment_id: response.razorpay_payment_id,
-                                  razorpay_signature: response.razorpay_signature,
-                                }),
-                              });
-                              if (verifyRes.ok) window.location.reload();
-                            },
-                            theme: { color: "#6366f1" },
-                          });
-                          rzp.open();
-                        } catch {
-                          window.location.assign(`${import.meta.env.BASE_URL}storage`);
+                          await startUpgrade("annual");
+                        } catch (err: any) {
+                          alert(`Couldn't open checkout: ${err?.message || "Unknown error"}`);
+                        } finally {
+                          setLimitUpgradeBusy(false);
                         }
                       }}
                     >

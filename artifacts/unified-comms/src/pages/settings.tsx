@@ -34,6 +34,7 @@ import {
   getGetUserPreferencesQueryKey,
 } from "@workspace/api-client-react";
 import { getAuthHeaders } from "@/lib/api-client";
+import { startUpgrade } from "@/lib/subscription";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -71,48 +72,6 @@ function useSubscriptionStatus() {
   }, []);
 
   return { status, loading, refetch: () => setLoading(true) };
-}
-
-async function startUpgrade(cycle: "monthly" | "annual"): Promise<void> {
-  // Open the popup BEFORE the async fetch to avoid popup blockers. We'll navigate it
-  // to the real checkout URL once the backend responds.
-  const popup = window.open("about:blank", "_blank", "noopener,noreferrer");
-
-  try {
-    const headers = await getAuthHeaders();
-    const res = await fetch(`${BASE}/api/subscription/create-order`, {
-      method: "POST",
-      headers: { ...headers, "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify({ planKey: cycle === "annual" ? "pro_annual" : "pro_monthly", currency: "inr" }),
-    });
-
-    if (!res.ok) {
-      let serverMsg = "";
-      try {
-        const body = await res.json();
-        serverMsg = body?.error || body?.message || "";
-      } catch {}
-      if (popup) popup.close();
-      throw new Error(serverMsg || `Could not create order (HTTP ${res.status})`);
-    }
-
-    const { checkoutUrl } = await res.json();
-    if (!checkoutUrl) {
-      if (popup) popup.close();
-      throw new Error("Checkout URL missing from server response");
-    }
-
-    if (popup && !popup.closed) {
-      popup.location.href = checkoutUrl;
-    } else {
-      // Fallback if popup was blocked despite pre-opening
-      window.location.href = checkoutUrl;
-    }
-  } catch (err) {
-    if (popup && !popup.closed) popup.close();
-    throw err;
-  }
 }
 
 function useTheme() {

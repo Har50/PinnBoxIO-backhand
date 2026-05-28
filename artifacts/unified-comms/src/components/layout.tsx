@@ -1,11 +1,15 @@
 import { Link, useLocation } from "wouter";
-import { Mail, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays } from "lucide-react";
+import { Mail, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays, Crown } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "./ui/dialog";
 import { useEffect, useState } from "react";
 import { useUser, useClerk } from "@clerk/react";
 import { Avatar, AvatarFallback, AvatarImage } from "./ui/avatar";
+import { getAuthHeaders } from "@/lib/api-client";
+import { startUpgrade } from "@/lib/subscription";
+
+const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
 const basePath = import.meta.env.BASE_URL.replace(/\/$/, "");
 const signInPath = `${basePath}/sign-in`;
@@ -21,11 +25,40 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
   const { user } = useUser();
   const { signOut } = useClerk();
+  const [isPro, setIsPro] = useState<boolean | null>(null);
+  const [upgradeBusy, setUpgradeBusy] = useState(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
     window.localStorage.setItem("pinnboxio_theme", theme);
   }, [theme]);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        if (!res.ok) throw new Error();
+        const data = await res.json();
+        if (!cancelled) setIsPro(data?.plan === "pro");
+      } catch {
+        if (!cancelled) setIsPro(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [location]);
+
+  async function handleUpgradeClick() {
+    setUpgradeBusy(true);
+    try {
+      await startUpgrade("annual");
+    } catch (err: any) {
+      alert(`Couldn't open checkout: ${err?.message || "Unknown error"}`);
+    } finally {
+      setUpgradeBusy(false);
+    }
+  }
 
   const navItems = [
     { href: "/", label: "Dashboard", icon: LayoutDashboard },
@@ -107,6 +140,21 @@ export function Layout({ children }: { children: React.ReactNode }) {
               </Link>
             );
           })}
+
+          {/* Upgrade to Pro CTA (free users only) */}
+          {isPro === false && (
+            <button
+              type="button"
+              onClick={handleUpgradeClick}
+              disabled={upgradeBusy}
+              title="Upgrade to Pro"
+              className="mt-1 flex items-center justify-center md:justify-start gap-2 px-2 md:px-3 py-2 rounded-md text-sm font-medium transition-opacity hover:opacity-90 disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", boxShadow: "0 0 12px rgba(99,102,241,0.3)" }}
+            >
+              <Crown className="w-4 h-4 flex-shrink-0" />
+              <span className="hidden md:block flex-1 text-left">Upgrade to Pro</span>
+            </button>
+          )}
 
           {/* Divider */}
           <div className="mx-1.5 md:mx-3 my-2 border-t border-sidebar-border/40" />
