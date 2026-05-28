@@ -21,6 +21,9 @@ import type {
   Attachment,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
+  BlogPostDetail,
+  BlogPostList,
+  BlogTag,
   Contact,
   CreateAccountBody,
   CreateAttachmentBody,
@@ -37,6 +40,7 @@ import type {
   ImapConnectBody,
   ImapConnectResponse,
   ImapTestResponse,
+  ListBlogPostsParams,
   LogoutSuccess,
   Message,
   MessagesResponse,
@@ -745,6 +749,262 @@ export const useUpdateUserPreferences = <
 > => {
   return useMutation(getUpdateUserPreferencesMutationOptions(options));
 };
+
+/**
+ * @summary List published blog posts from Notion
+ */
+export const getListBlogPostsUrl = (params?: ListBlogPostsParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/blog/posts?${stringifiedParams}`
+    : `/api/blog/posts`;
+};
+
+export const listBlogPosts = async (
+  params?: ListBlogPostsParams,
+  options?: RequestInit,
+): Promise<BlogPostList> => {
+  return customFetch<BlogPostList>(getListBlogPostsUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBlogPostsQueryKey = (params?: ListBlogPostsParams) => {
+  return [`/api/blog/posts`, ...(params ? [params] : [])] as const;
+};
+
+export const getListBlogPostsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBlogPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBlogPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBlogPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBlogPostsQueryKey(params);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBlogPosts>>> = ({
+    signal,
+  }) => listBlogPosts(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBlogPosts>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBlogPostsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBlogPosts>>
+>;
+export type ListBlogPostsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List published blog posts from Notion
+ */
+
+export function useListBlogPosts<
+  TData = Awaited<ReturnType<typeof listBlogPosts>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: ListBlogPostsParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof listBlogPosts>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBlogPostsQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get a single blog post by slug, including rendered HTML body
+ */
+export const getGetBlogPostUrl = (slug: string) => {
+  return `/api/blog/posts/${slug}`;
+};
+
+export const getBlogPost = async (
+  slug: string,
+  options?: RequestInit,
+): Promise<BlogPostDetail> => {
+  return customFetch<BlogPostDetail>(getGetBlogPostUrl(slug), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetBlogPostQueryKey = (slug: string) => {
+  return [`/api/blog/posts/${slug}`] as const;
+};
+
+export const getGetBlogPostQueryOptions = <
+  TData = Awaited<ReturnType<typeof getBlogPost>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBlogPost>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetBlogPostQueryKey(slug);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getBlogPost>>> = ({
+    signal,
+  }) => getBlogPost(slug, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!slug,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getBlogPost>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetBlogPostQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getBlogPost>>
+>;
+export type GetBlogPostQueryError = ErrorType<void>;
+
+/**
+ * @summary Get a single blog post by slug, including rendered HTML body
+ */
+
+export function useGetBlogPost<
+  TData = Awaited<ReturnType<typeof getBlogPost>>,
+  TError = ErrorType<void>,
+>(
+  slug: string,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getBlogPost>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetBlogPostQueryOptions(slug, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary List all tags used in published blog posts with counts
+ */
+export const getListBlogTagsUrl = () => {
+  return `/api/blog/tags`;
+};
+
+export const listBlogTags = async (
+  options?: RequestInit,
+): Promise<BlogTag[]> => {
+  return customFetch<BlogTag[]>(getListBlogTagsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getListBlogTagsQueryKey = () => {
+  return [`/api/blog/tags`] as const;
+};
+
+export const getListBlogTagsQueryOptions = <
+  TData = Awaited<ReturnType<typeof listBlogTags>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBlogTags>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getListBlogTagsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof listBlogTags>>> = ({
+    signal,
+  }) => listBlogTags({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof listBlogTags>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type ListBlogTagsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof listBlogTags>>
+>;
+export type ListBlogTagsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary List all tags used in published blog posts with counts
+ */
+
+export function useListBlogTags<
+  TData = Awaited<ReturnType<typeof listBlogTags>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof listBlogTags>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getListBlogTagsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
 
 /**
  * @summary Connect a new IMAP email account

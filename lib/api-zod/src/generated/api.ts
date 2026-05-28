@@ -111,6 +111,70 @@ export const UpdateUserPreferencesResponse = zod.object({
 });
 
 /**
+ * @summary List published blog posts from Notion
+ */
+export const ListBlogPostsQueryParams = zod.object({
+  tag: zod.coerce.string().nullish(),
+  limit: zod.coerce.number().nullish(),
+});
+
+export const ListBlogPostsResponse = zod.object({
+  posts: zod.array(
+    zod.object({
+      id: zod.string(),
+      slug: zod.string(),
+      title: zod.string(),
+      excerpt: zod.string().nullish(),
+      coverImage: zod.string().nullish(),
+      author: zod.string().nullish(),
+      publishedAt: zod.string().nullish(),
+      tags: zod.array(zod.string()).optional(),
+      readingMinutes: zod.number().nullish(),
+      seoTitle: zod.string().nullish(),
+      seoDescription: zod.string().nullish(),
+      aiSummary: zod.string().nullish(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get a single blog post by slug, including rendered HTML body
+ */
+export const GetBlogPostParams = zod.object({
+  slug: zod.coerce.string(),
+});
+
+export const GetBlogPostResponse = zod
+  .object({
+    id: zod.string(),
+    slug: zod.string(),
+    title: zod.string(),
+    excerpt: zod.string().nullish(),
+    coverImage: zod.string().nullish(),
+    author: zod.string().nullish(),
+    publishedAt: zod.string().nullish(),
+    tags: zod.array(zod.string()).optional(),
+    readingMinutes: zod.number().nullish(),
+    seoTitle: zod.string().nullish(),
+    seoDescription: zod.string().nullish(),
+    aiSummary: zod.string().nullish(),
+  })
+  .and(
+    zod.object({
+      bodyHtml: zod.string(),
+    }),
+  );
+
+/**
+ * @summary List all tags used in published blog posts with counts
+ */
+export const ListBlogTagsResponseItem = zod.object({
+  name: zod.string(),
+  count: zod.number(),
+});
+export const ListBlogTagsResponse = zod.array(ListBlogTagsResponseItem);
+
+/**
  * @summary Connect a new IMAP email account
  */
 export const ConnectImapAccountBody = zod.object({

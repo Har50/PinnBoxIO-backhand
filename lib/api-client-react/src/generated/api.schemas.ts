@@ -299,6 +299,42 @@ export interface SuccessResponse {
   success: boolean;
 }
 
+export interface BlogPost {
+  id: string;
+  slug: string;
+  title: string;
+  /** @nullable */
+  excerpt?: string | null;
+  /** @nullable */
+  coverImage?: string | null;
+  /** @nullable */
+  author?: string | null;
+  /** @nullable */
+  publishedAt?: string | null;
+  tags?: string[];
+  /** @nullable */
+  readingMinutes?: number | null;
+  /** @nullable */
+  seoTitle?: string | null;
+  /** @nullable */
+  seoDescription?: string | null;
+  /** @nullable */
+  aiSummary?: string | null;
+}
+
+export type BlogPostDetail = BlogPost & {
+  bodyHtml: string;
+};
+
+export interface BlogPostList {
+  posts: BlogPost[];
+}
+
+export interface BlogTag {
+  name: string;
+  count: number;
+}
+
 /**
  * Opaque session token — `Bearer <sid>`.
  */
@@ -312,6 +348,17 @@ export type HandleBrowserLoginCallbackParams = {
   code?: string;
   state?: string;
   iss?: string;
+};
+
+export type ListBlogPostsParams = {
+  /**
+   * @nullable
+   */
+  tag?: string | null;
+  /**
+   * @nullable
+   */
+  limit?: number | null;
 };
 
 export type GetMessagesParams = {

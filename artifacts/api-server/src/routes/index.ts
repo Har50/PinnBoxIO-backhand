@@ -18,6 +18,7 @@ import preferencesRouter from "./preferences";
 import calendarRouter from "./calendar";
 import paymentsRouter, { paymentsPublicRouter } from "./payments";
 import waitlistRouter from "./waitlist";
+import blogRouter from "./blog";
 import { ensureUser } from "../services/tokenManager";
 import { logger } from "../lib/logger";
 
@@ -47,6 +48,7 @@ router.use(waitlistRouter);
 router.use(linkedinPublicRouter);
 router.use(storagePublicRouter);
 router.use(paymentsPublicRouter);
+router.use(blogRouter);
 router.use(authOAuthRouter);
 router.use(mobileAuthRouter);
 
