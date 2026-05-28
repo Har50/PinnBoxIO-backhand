@@ -215,9 +215,24 @@ function AuthPageShell({ children }: { children: React.ReactNode }) {
   );
 }
 
+function GoogleUnavailableNotice() {
+  return (
+    <div
+      role="status"
+      className="mb-4 max-w-[440px] w-full rounded-lg border border-amber-300/60 bg-amber-50 text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200 px-3 py-2.5 text-xs leading-relaxed flex gap-2"
+    >
+      <span aria-hidden="true" className="mt-0.5">⚠️</span>
+      <span>
+        <strong className="font-semibold">Heads up:</strong> Google sign-in is temporarily unavailable while our Google account verification is in review. Please use email sign-in for now — we'll restore Google login as soon as verification is approved.
+      </span>
+    </div>
+  );
+}
+
 function SignInPage() {
   return (
     <AuthPageShell>
+      <GoogleUnavailableNotice />
       <SignIn
         routing="path"
         path={`${basePath}/sign-in`}
@@ -230,6 +245,7 @@ function SignInPage() {
 function SignUpPage() {
   return (
     <AuthPageShell>
+      <GoogleUnavailableNotice />
       <SignUp
         routing="path"
         path={`${basePath}/sign-up`}
