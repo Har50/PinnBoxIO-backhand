@@ -268,6 +268,7 @@ export default function SettingsPage() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     type="button"
+                    aria-pressed={selectedCycle === "monthly"}
                     onClick={() => setSelectedCycle("monthly")}
                     className={`text-left rounded-xl border p-3 transition-all ${
                       selectedCycle === "monthly"
@@ -276,10 +277,11 @@ export default function SettingsPage() {
                     }`}
                   >
                     <p className="text-xs font-medium text-muted-foreground">Monthly</p>
-                    <p className="text-base font-bold text-foreground mt-0.5">$7.99<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
+                    <p className="text-base font-bold text-foreground mt-0.5">₹499<span className="text-xs font-normal text-muted-foreground">/mo</span></p>
                   </button>
                   <button
                     type="button"
+                    aria-pressed={selectedCycle === "annual"}
                     onClick={() => setSelectedCycle("annual")}
                     className={`relative text-left rounded-xl border p-3 transition-all ${
                       selectedCycle === "annual"
@@ -288,11 +290,11 @@ export default function SettingsPage() {
                     }`}
                   >
                     <span className="absolute -top-2 right-2 text-[10px] font-semibold bg-emerald-500 text-white px-1.5 py-0.5 rounded-full">
-                      SAVE 37%
+                      SAVE 33%
                     </span>
                     <p className="text-xs font-medium text-muted-foreground">Annual</p>
-                    <p className="text-base font-bold text-foreground mt-0.5">$59.99<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
-                    <p className="text-[10px] text-emerald-500 mt-0.5">~$5/mo</p>
+                    <p className="text-base font-bold text-foreground mt-0.5">₹3,999<span className="text-xs font-normal text-muted-foreground">/yr</span></p>
+                    <p className="text-[10px] text-emerald-500 mt-0.5">~₹333/mo</p>
                   </button>
                 </div>
                 <button
@@ -317,7 +319,7 @@ export default function SettingsPage() {
                         <HardDrive className="w-3 h-3" />25 GB storage
                       </span>
                       <span className="text-xs text-indigo-200">
-                        {selectedCycle === "annual" ? "$59.99/yr" : "$7.99/mo"}
+                        {selectedCycle === "annual" ? "₹3,999/yr" : "₹499/mo"}
                       </span>
                     </div>
                   </div>

@@ -236,6 +236,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             <p className="text-xs text-muted-foreground">© {new Date().getFullYear()} PinnboxIO. All rights reserved.</p>
             <nav className="flex flex-wrap items-center gap-4">
               {[
+                { href: "/pricing", label: "Pricing" },
                 { href: "/privacy", label: "Privacy Policy" },
                 { href: "/terms", label: "Terms of Service" },
                 { href: "/refunds", label: "Refunds & Cancellations" },

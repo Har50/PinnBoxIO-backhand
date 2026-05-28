@@ -32,6 +32,7 @@ import AiPage from "./pages/ai";
 import StoragePage from "./pages/storage";
 import SettingsPage from "./pages/settings";
 import CalendarPage from "./pages/calendar";
+import PricingPage from "./pages/pricing";
 
 const clerkPubKey = import.meta.env.VITE_CLERK_PUBLISHABLE_KEY;
 const clerkProxyUrl = import.meta.env.VITE_CLERK_PROXY_URL;
@@ -252,6 +253,7 @@ function Router() {
       <Route path="/terms" component={TermsOfService} />
       <Route path="/refunds" component={RefundsAndCancellations} />
       <Route path="/cookies" component={CookiePolicy} />
+      <Route path="/pricing" component={PricingPage} />
       <Route path="/sign-in/*?" component={SignInPage} />
       <Route path="/sign-up/*?" component={SignUpPage} />
       <Route path="/login" component={Login} />
