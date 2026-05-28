@@ -40,10 +40,8 @@ export default function PrivacyPolicy() {
             <section>
               <h2 className="text-lg font-semibold text-foreground mb-3">2. Data Controller</h2>
               <p>
-                {/* TODO: Replace [LEGAL ENTITY NAME] with registered legal entity name. */}
-                {/* TODO: Replace [REGISTERED ADDRESS, INDIA] with full registered address. */}
-                PinnboxIO is operated by <strong className="text-foreground">[LEGAL ENTITY NAME]</strong>, registered
-                at <strong className="text-foreground">[REGISTERED ADDRESS, INDIA]</strong>. For all data protection
+                PinnboxIO is operated by <strong className="text-foreground">Plavena Corporation</strong>, registered
+                at <strong className="text-foreground">SCO 202, The Summit, Ambala–Chandigarh Highway, Zirakpur, India – 140603</strong>. For all data protection
                 inquiries, contact our Grievance Officer (Section 13).
               </p>
             </section>
@@ -218,13 +216,12 @@ export default function PrivacyPolicy() {
               <p>In compliance with India's Digital Personal Data Protection Act, 2023:</p>
               <div className="bg-muted rounded-xl p-4 mt-3 space-y-1 text-sm">
                 {/* TODO: Replace [GRIEVANCE OFFICER NAME] with the appointed officer's name. */}
-                {/* TODO: Replace [REGISTERED ADDRESS] with full postal address. */}
-                {/* TODO: Provision the grievance@pinnboxio.net alias (route to same mailbox as privacy@ for now). */}
+                {/* TODO: Provision grievance@pinnboxio.net email alias (currently routes nowhere). */}
                 <p className="text-foreground"><strong>Name:</strong> [GRIEVANCE OFFICER NAME]</p>
                 <p><strong className="text-foreground">Email:</strong>{" "}
                   <a href="mailto:grievance@pinnboxio.net" className="text-primary hover:underline">grievance@pinnboxio.net</a>
                 </p>
-                <p><strong className="text-foreground">Address:</strong> [REGISTERED ADDRESS]</p>
+                <p><strong className="text-foreground">Address:</strong> Plavena Corporation, SCO 202, The Summit, Ambala–Chandigarh Highway, Zirakpur, India – 140603</p>
               </div>
               <p className="mt-3">Grievances are addressed within 7 working days.</p>
             </section>
@@ -257,7 +254,7 @@ export default function PrivacyPolicy() {
                 <li><strong className="text-foreground">Legal:</strong>{" "}
                   <a href="mailto:legal@pinnboxio.net" className="text-primary hover:underline">legal@pinnboxio.net</a>
                 </li>
-                <li><strong className="text-foreground">Address:</strong> [REGISTERED ADDRESS]</li>
+                <li><strong className="text-foreground">Address:</strong> Plavena Corporation, SCO 202, The Summit, Ambala–Chandigarh Highway, Zirakpur, India – 140603</li>
               </ul>
             </section>
           </div>
