@@ -17,3 +17,27 @@ id = "iseJABsVkJdUM1Fjkys_H"
 uri = "file://pinnboxio-mobile-build.zip"
 type = "unspecified"
 title = "PinnboxIO Mobile Build Files (v4 - Fixed)"
+
+[[outputs]]
+id = "zqz16_6WsTxIPymvN45RX"
+uri = "file://screenshots/pinnboxio_landing_full.jpg"
+type = "image"
+title = "Landing page — full scroll (hero + features + pricing)"
+
+[[outputs]]
+id = "eurRJNlatYu1ACtcdmNSm"
+uri = "file://attached_assets/screenshots/pinnboxio_net.png"
+type = "image"
+title = "Landing page — hero (above the fold)"
+
+[[outputs]]
+id = "qppPd5fl4GKmZ55CdBXAb"
+uri = "file://attached_assets/screenshots/pinnboxio_net_pricing.png"
+type = "image"
+title = "Pricing page — Free vs Pro"
+
+[[outputs]]
+id = "wzQITkDZBxKdZPOTMThnW"
+uri = "file://attached_assets/screenshots/pinnboxio_net_sign-in.png"
+type = "image"
+title = "Sign-in — with Google verification notice"
