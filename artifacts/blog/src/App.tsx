@@ -11,35 +11,48 @@ import About from "@/pages/about";
 import Bookmarks from "@/pages/bookmarks";
 import NotFound from "@/pages/not-found";
 
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      refetchOnWindowFocus: false,
-      staleTime: 1000 * 60 * 5, // 5 mins
+export function createQueryClient(): QueryClient {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+        staleTime: 1000 * 60 * 5, // 5 mins
+      },
     },
-  },
-});
+  });
+}
 
-function Router() {
+const BASE = import.meta.env.BASE_URL.replace(/\/$/, "");
+
+export function Routes() {
   return (
     <Switch>
       <Route path="/" component={Home} />
-      <Route path="/post/:slug" component={Post} />
-      <Route path="/category/:tag" component={Category} />
       <Route path="/about" component={About} />
       <Route path="/bookmarks" component={Bookmarks} />
+      <Route path="/category/:tag" component={Category} />
+      <Route path="/:slug" component={Post} />
       <Route component={NotFound} />
     </Switch>
   );
 }
 
-function App() {
+const sharedQueryClient = createQueryClient();
+
+interface AppProps {
+  queryClient?: QueryClient;
+  helmetContext?: object;
+  ssrPath?: string;
+}
+
+function App({ queryClient, helmetContext, ssrPath }: AppProps = {}) {
+  const client = queryClient ?? sharedQueryClient;
   return (
-    <HelmetProvider>
-      <QueryClientProvider client={queryClient}>
+    <HelmetProvider context={helmetContext}>
+      <QueryClientProvider client={client}>
         <TooltipProvider>
-          <WouterRouter base={import.meta.env.BASE_URL.replace(/\/$/, "")}>
-            <Router />
+          <WouterRouter base={BASE} ssrPath={ssrPath}>
+            <Routes />
           </WouterRouter>
           <Toaster />
         </TooltipProvider>
@@ -48,4 +61,5 @@ function App() {
   );
 }
 
+export { App };
 export default App;

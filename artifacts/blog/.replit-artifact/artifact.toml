@@ -11,7 +11,7 @@ version = "1.0.0"
 
 [[services]]
 name = "web"
-paths = [ "/blog/" ]
+paths = [ "/blog", "/blog/" ]
 localPort = 18790
 
 [services.development]
@@ -21,10 +21,6 @@ run = "pnpm --filter @workspace/blog run dev"
 build = [ "pnpm", "--filter", "@workspace/blog", "run", "build" ]
 publicDir = "artifacts/blog/dist/public"
 serve = "static"
-
-[[services.production.rewrites]]
-from = "/*"
-to = "/index.html"
 
 [services.env]
 PORT = "18790"

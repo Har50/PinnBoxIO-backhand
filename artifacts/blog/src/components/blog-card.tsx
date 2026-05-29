@@ -19,7 +19,7 @@ export function BlogCard({ post, index }: { post: BlogPost; index: number }) {
     >
       {/* Cover Image */}
       {post.coverImage && (
-        <Link href={`/post/${post.slug}`} className="w-full sm:w-1/3 aspect-[4/3] sm:aspect-square md:aspect-[4/3] overflow-hidden rounded-xl shrink-0 block">
+        <Link href={`/${post.slug}`} className="w-full sm:w-1/3 aspect-[4/3] sm:aspect-square md:aspect-[4/3] overflow-hidden rounded-xl shrink-0 block">
           <img 
             src={post.coverImage} 
             alt={post.title}
@@ -41,7 +41,7 @@ export function BlogCard({ post, index }: { post: BlogPost; index: number }) {
           )}
         </div>
 
-        <Link href={`/post/${post.slug}`} className="block group-hover:opacity-80 transition-opacity">
+        <Link href={`/${post.slug}`} className="block group-hover:opacity-80 transition-opacity">
           <h2 className="text-xl md:text-2xl font-semibold tracking-tight leading-snug mb-3 line-clamp-2">
             {post.title}
           </h2>
