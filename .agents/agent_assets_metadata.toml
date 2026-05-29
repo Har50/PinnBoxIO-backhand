@@ -6,6 +6,24 @@ uri = "file://artifacts/mobile/assets/images/icon.png"
 type = "image"
 title = "generated_image"
 
+[[generated]]
+id = "Eoxsa8XO1rbwRxr6w8gLm"
+uri = "file://artifacts/blog/public/og-fallback.png"
+type = "image"
+title = "OG fallback image"
+
+[[generated]]
+id = "jSprS2fk8-m7ck-E820aV"
+uri = "file://artifacts/blog/public/about-hero.png"
+type = "image"
+title = "About page hero"
+
+[[generated]]
+id = "kGggUP7f9JQ7YW4OfygVb"
+uri = "file://artifacts/blog/public/avatar-fallback.png"
+type = "image"
+title = "Author avatar fallback"
+
 [[outputs]]
 id = "3e4tq5MnUeaPu3QUiDRgO"
 uri = "file://artifacts/mobile/assets/images/icon.png"

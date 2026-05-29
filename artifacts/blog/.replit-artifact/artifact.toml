@@ -12,7 +12,7 @@ version = "1.0.0"
 [[services]]
 name = "web"
 paths = [ "/blog/" ]
-localPort = 24722
+localPort = 18790
 
 [services.development]
 run = "pnpm --filter @workspace/blog run dev"
@@ -27,5 +27,5 @@ from = "/*"
 to = "/index.html"
 
 [services.env]
-PORT = "24722"
+PORT = "18790"
 BASE_PATH = "/blog/"
