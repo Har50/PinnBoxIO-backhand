@@ -1,6 +1,7 @@
 import { Client, isFullPage } from "@notionhq/client";
 import { NotionToMarkdown } from "notion-to-md";
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
 import { logger } from "../lib/logger";
 
 type NotionPageProperties = Record<string, any>;
@@ -275,7 +276,29 @@ export async function getPostBySlug(
     const mdBlocks = await n2m.pageToMarkdown(match.id);
     const md = n2m.toMarkdownString(mdBlocks);
     const rawMd = typeof md === "string" ? md : md.parent;
-    bodyHtml = await marked.parse(rawMd ?? "", { async: true });
+    const rendered = await marked.parse(rawMd ?? "", { async: true });
+    bodyHtml = sanitizeHtml(rendered, {
+      allowedTags: sanitizeHtml.defaults.allowedTags.concat([
+        "img",
+        "h1",
+        "h2",
+        "figure",
+        "figcaption",
+      ]),
+      allowedAttributes: {
+        ...sanitizeHtml.defaults.allowedAttributes,
+        img: ["src", "alt", "title", "width", "height", "loading"],
+        a: ["href", "name", "target", "rel"],
+        "*": ["id"],
+      },
+      allowedSchemes: ["http", "https", "mailto"],
+      allowedSchemesByTag: { img: ["http", "https", "data"] },
+      transformTags: {
+        a: sanitizeHtml.simpleTransform("a", {
+          rel: "noopener noreferrer",
+        }),
+      },
+    });
   } catch (err) {
     logger.error({ err: String(err), slug }, "Failed to render Notion post body");
     bodyHtml = "<p>Unable to load post content.</p>";

@@ -18,9 +18,25 @@ localPort = 18790
 run = "pnpm --filter @workspace/blog run dev"
 
 [services.production]
-build = [ "pnpm", "--filter", "@workspace/blog", "run", "build" ]
-publicDir = "artifacts/blog/dist/public"
-serve = "static"
+
+[services.production.build]
+args = [ "pnpm", "--filter", "@workspace/blog", "run", "build" ]
+
+[services.production.build.env]
+NODE_ENV = "production"
+
+[services.production.run]
+args = [ "node", "--enable-source-maps", "artifacts/blog/dist/server-bundle/index.mjs" ]
+
+[services.production.run.env]
+PORT = "18790"
+NODE_ENV = "production"
+
+[services.production.health.startup]
+path = "/blog/healthz"
+
+[services.production.health.liveness]
+path = "/blog/healthz"
 
 [services.env]
 PORT = "18790"

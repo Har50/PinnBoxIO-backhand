@@ -96,6 +96,7 @@ EXPO_PUBLIC_AUTH_REDIRECT_DOMAIN = "38defd90-5362-4523-ab8a-d909d0a8000a-00-rdlm
 EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY = "pk_test_dGhhbmtmdWwtc3dpZnQtNDIuY2xlcmsuYWNjb3VudHMuZGV2JA"
 EXPO_PUBLIC_DOMAIN = "pinnboxio.net"
 EXPO_PUBLIC_API_DOMAIN = "38defd90-5362-4523-ab8a-d909d0a8000a-00-rdlmxu7tmz57.picard.replit.dev"
+NOTION_BLOG_DATABASE_ID = "ef7c23c0-6863-4935-9abc-c8309e94c768"
 
 [userenv.production]
 PUBLIC_URL = "https://pinnboxio.net"
