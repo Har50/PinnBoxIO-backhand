@@ -109,7 +109,7 @@ export default function Post() {
           <div className="flex items-center justify-between py-6 border-y border-border/60">
             <div className="flex items-center gap-4">
               <img 
-                src="/avatar-fallback.png" 
+                src={`${import.meta.env.BASE_URL}avatar-fallback.png`} 
                 alt={post.author || "Author"} 
                 className="w-10 h-10 rounded-full object-cover bg-secondary"
               />

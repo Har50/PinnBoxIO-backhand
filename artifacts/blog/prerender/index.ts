@@ -28,6 +28,17 @@ function toSummary(post: BlogPostDetail): BlogPostSummary {
   return summary;
 }
 
+// Prevent directory traversal / path separators from CMS-controlled tag names
+// being written into output file paths.
+function safeSegment(name: string): string {
+  const cleaned = name
+    .replace(/\.\.+/g, "")
+    .replace(/[\\/]+/g, "-")
+    .replace(/^[.\s]+|[.\s]+$/g, "")
+    .trim();
+  return cleaned || "untitled";
+}
+
 function prepareTemplate(raw: string): string {
   return raw
     .replace(/<title>[\s\S]*?<\/title>/i, "")
@@ -114,7 +125,7 @@ async function main(): Promise<void> {
       template,
       render,
       route,
-      `category/${tag.name}/index.html`,
+      `category/${safeSegment(tag.name)}/index.html`,
       (qc) => {
         qc.setQueryData(["blogPosts", { tag: tag.name }], { posts: tagPosts });
       },
@@ -130,8 +141,9 @@ async function main(): Promise<void> {
     sitemapUrls.push(`/blog/${post.slug}`);
   }
 
-  // 404 fallback page
-  writePage(template, render, "/__not_found__", "404.html");
+  // 404 fallback page — use a multi-segment path that cannot match the
+  // `/:slug` post route so the NotFound component renders (not the post page).
+  writePage(template, render, "/__not_found__/page", "404.html");
 
   writeSitemap(sitemapUrls);
   writeRobots();

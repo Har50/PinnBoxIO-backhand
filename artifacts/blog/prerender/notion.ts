@@ -1,7 +1,27 @@
 import { Client, isFullPage } from "@notionhq/client";
 import { NotionToMarkdown } from "notion-to-md";
 import { marked } from "marked";
+import sanitizeHtml from "sanitize-html";
 import type { BlogPostDetail, BlogPostSummary } from "./types";
+
+const SANITIZE_OPTIONS: sanitizeHtml.IOptions = {
+  allowedTags: [
+    ...sanitizeHtml.defaults.allowedTags,
+    "img",
+    "h1",
+    "h2",
+    "figure",
+    "figcaption",
+  ],
+  allowedAttributes: {
+    ...sanitizeHtml.defaults.allowedAttributes,
+    a: ["href", "name", "target", "rel"],
+    img: ["src", "alt", "title", "width", "height"],
+    code: ["class"],
+    span: ["class"],
+  },
+  allowedSchemes: ["http", "https", "mailto"],
+};
 
 type NotionPageProperties = Record<string, any>;
 
@@ -169,7 +189,8 @@ export async function fetchFromNotion(): Promise<BlogPostDetail[]> {
       const blocks = await n2m.pageToMarkdown(summary.id);
       const md = n2m.toMarkdownString(blocks);
       const rawMd = typeof md === "string" ? md : md.parent;
-      html = await marked.parse(rawMd ?? "", { async: true });
+      const parsed = await marked.parse(rawMd ?? "", { async: true });
+      html = sanitizeHtml(parsed, SANITIZE_OPTIONS);
     } catch {
       html = "<p>Unable to load post content.</p>";
     }

@@ -21,7 +21,7 @@ export default function About() {
 
         <figure className="mb-20 animate-in fade-in slide-in-from-bottom-4 duration-700">
           <img 
-            src="/about-hero.png" 
+            src={`${import.meta.env.BASE_URL}about-hero.png`} 
             alt="PinnboxIO workspace" 
             className="w-full aspect-video object-cover rounded-2xl shadow-sm border border-border/50"
           />
