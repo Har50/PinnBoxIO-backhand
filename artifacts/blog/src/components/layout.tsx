@@ -1,12 +1,14 @@
 import { Link, useLocation } from "wouter";
-import { Bookmark, Menu, X } from "lucide-react";
+import { Bookmark, Menu, Moon, Sun, X } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useBookmarks } from "@/hooks/use-bookmarks";
+import { useTheme } from "@/hooks/use-theme";
 
 export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { bookmarks } = useBookmarks();
+  const { theme, toggleTheme } = useTheme();
 
   useEffect(() => {
     setIsMobileMenuOpen(false);
@@ -33,15 +35,33 @@ export function Layout({ children }: { children: React.ReactNode }) {
                 </span>
               )}
             </Link>
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="w-8 h-8 rounded-full flex items-center justify-center hover:bg-accent transition-colors text-muted-foreground hover:text-foreground"
+            >
+              {theme === "dark" ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
           </nav>
 
-          {/* Mobile Nav Toggle */}
-          <button 
-            className="md:hidden p-2 -mr-2 text-foreground"
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-          >
-            {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
-          </button>
+          {/* Mobile right side: theme toggle + menu */}
+          <div className="md:hidden flex items-center gap-1">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+              className="p-2 rounded-full text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+            >
+              {theme === "dark" ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            <button
+              className="p-2 -mr-2 text-foreground"
+              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            >
+              {isMobileMenuOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
 
         {/* Mobile Nav */}

@@ -116,9 +116,11 @@ function prepareTemplate(raw: string): string {
     .replace(/<meta\s+name="twitter:image"[^>]*>/gi, "");
 }
 
+const ANTI_FLASH_SCRIPT = `<script>(function(){try{var t=localStorage.getItem('pinnboxio_theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();</script>`;
+
 function assemble(template: string, r: RenderResult): string {
   let out = template;
-  out = out.replace("</head>", `    ${r.headTags}\n  </head>`);
+  out = out.replace("</head>", `    ${r.headTags}\n  ${ANTI_FLASH_SCRIPT}\n  </head>`);
   out = out.replace('<div id="root"></div>', `<div id="root">${r.html}</div>`);
   out = out.replace("</body>", `    ${r.state}\n  </body>`);
   return out;
