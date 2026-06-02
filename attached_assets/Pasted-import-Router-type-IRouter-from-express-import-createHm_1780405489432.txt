@@ -122,6 +122,7 @@ async function handleWebhookEvent(event: string, body: any): Promise<void> {
     logger.info({ userId, rzpSubscriptionId }, "Subscription activated → pro");
 
   } else if (event === "subscription.charged") {
+    const currentEnd: number | undefined = subscriptionEntity?.current_end ?? paymentEntity?.subscription_id ? undefined : undefined;
     const chargedEnd: number | undefined = subscriptionEntity?.current_end;
     const renewsAt = chargedEnd ? new Date(chargedEnd * 1000) : null;
     await db

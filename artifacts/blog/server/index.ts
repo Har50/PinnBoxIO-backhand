@@ -1,3 +1,12 @@
+/**
+ * PinnboxIO Blog — SSG static-file server with background refresh.
+ *
+ * At startup it serves the static HTML files written by prerender.mjs.
+ * For routes not yet on disk (new posts published since the last build) it
+ * falls back to SSR and writes the result to disk for subsequent requests.
+ * A background job re-renders all known routes every BLOG_PAGE_TTL_MS
+ * (default 5 min) so Notion content appears without a full redeploy.
+ */
 import express, { type Request, type Response } from "express";
 import fs from "node:fs";
 import path from "node:path";
@@ -5,36 +14,30 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import type { QueryClient } from "@tanstack/react-query";
 
 const moduleDir = path.dirname(fileURLToPath(import.meta.url));
-// This bundle runs from artifacts/blog/dist/server-bundle/index.mjs
+// Running from dist/server-bundle/index.mjs → parent is dist/
 const distDir = path.resolve(moduleDir, "..");
 const publicDir = path.join(distDir, "public");
 const serverEntryUrl = pathToFileURL(
   path.join(distDir, "server", "entry-server.js"),
 ).href;
 
-const BASE = (process.env.BASE_PATH ?? "/blog/").replace(/\/+$/, "") || "/blog";
-const SITE_ORIGIN = process.env.BLOG_SITE_ORIGIN ?? "https://pinnboxio.net";
+const BASE =
+  (process.env.BASE_PATH ?? "/blog/").replace(/\/+$/, "") || "/blog";
+const SITE_ORIGIN =
+  process.env.BLOG_SITE_ORIGIN ?? "https://pinnboxio.net";
 const PORT = Number(process.env.PORT ?? 18790);
-const PAGE_TTL_MS = Number(process.env.BLOG_PAGE_TTL_MS ?? 5 * 60 * 1000);
-
-// Where to read blog data from. In production we go through the public domain
-// (which the shared proxy routes to the API server); in development we use the
-// local shared proxy at :80.
+const REFRESH_MS = Number(
+  process.env.BLOG_PAGE_TTL_MS ?? String(5 * 60 * 1000),
+);
 const API_BASE =
   process.env.BLOG_API_BASE ??
   (process.env.NODE_ENV === "production" && process.env.REPLIT_DOMAINS
     ? `https://${process.env.REPLIT_DOMAINS.split(",")[0].trim()}`
     : "http://localhost:80");
 
-interface RenderResult {
-  html: string;
-  headTags: string;
-  state: string;
-}
-type SeedFn = (qc: QueryClient) => void;
-type RenderFn = (fullPath: string, seed?: SeedFn) => RenderResult;
+// ── Types ──────────────────────────────────────────────────────────────────
 
-interface BlogPostSummary {
+interface BlogPost {
   id: string;
   slug: string;
   title: string;
@@ -48,229 +51,205 @@ interface BlogPostSummary {
   seoDescription: string | null;
   aiSummary: string | null;
 }
-interface BlogPostDetail extends BlogPostSummary {
+interface BlogPostDetail extends BlogPost {
   bodyHtml: string;
 }
-interface BlogTag {
-  name: string;
-  count: number;
-}
+type RenderFn = (
+  fullPath: string,
+  seed?: (qc: QueryClient) => void,
+) => { html: string; headTags: string; state: string };
 
-// --- Data access (from the API server, the single Notion source of truth) ---
+// ── Data fetching ──────────────────────────────────────────────────────────
 
-async function apiFetch(pathname: string): Promise<globalThis.Response> {
-  return fetch(`${API_BASE}${pathname}`, {
+async function apiFetch(pathname: string): Promise<unknown> {
+  const res = await fetch(`${API_BASE}${pathname}`, {
     headers: { Accept: "application/json" },
-    signal: AbortSignal.timeout(15_000),
+    signal: AbortSignal.timeout(12_000),
   });
+  if (!res.ok) throw new Error(`HTTP ${res.status} ${pathname}`);
+  return res.json();
 }
 
-async function fetchPosts(tag?: string): Promise<BlogPostSummary[]> {
-  const qs = tag ? `?tag=${encodeURIComponent(tag)}` : "";
-  const res = await apiFetch(`/api/blog/posts${qs}`);
-  if (!res.ok) throw new Error(`/api/blog/posts -> ${res.status}`);
-  const data = (await res.json()) as { posts?: BlogPostSummary[] };
+async function fetchPosts(): Promise<BlogPost[]> {
+  const data = (await apiFetch("/api/blog/posts")) as { posts?: BlogPost[] };
   return data.posts ?? [];
 }
 
-async function fetchTags(): Promise<BlogTag[]> {
-  const res = await apiFetch(`/api/blog/tags`);
-  if (!res.ok) throw new Error(`/api/blog/tags -> ${res.status}`);
-  return (await res.json()) as BlogTag[];
-}
-
 async function fetchPost(slug: string): Promise<BlogPostDetail | null> {
-  const res = await apiFetch(`/api/blog/posts/${encodeURIComponent(slug)}`);
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`/api/blog/posts/${slug} -> ${res.status}`);
-  return (await res.json()) as BlogPostDetail;
+  try {
+    const res = await fetch(
+      `${API_BASE}/api/blog/posts/${encodeURIComponent(slug)}`,
+      { headers: { Accept: "application/json" }, signal: AbortSignal.timeout(12_000) },
+    );
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json()) as BlogPostDetail;
+  } catch {
+    return null;
+  }
 }
 
-async function safePosts(tag?: string): Promise<BlogPostSummary[]> {
+async function fetchTags(): Promise<{ name: string; count: number }[]> {
   try {
-    return await fetchPosts(tag);
-  } catch (err) {
-    console.error("[blog-ssr] fetchPosts failed", String(err));
+    return (await apiFetch("/api/blog/tags")) as { name: string; count: number }[];
+  } catch {
     return [];
   }
 }
 
-async function safeTags(): Promise<BlogTag[]> {
-  try {
-    return await fetchTags();
-  } catch (err) {
-    console.error("[blog-ssr] fetchTags failed", String(err));
-    return [];
-  }
-}
+// ── HTML assembly ──────────────────────────────────────────────────────────
 
-// --- HTML template assembly ---
+const ANTI_FLASH = `<script>(function(){try{var t=localStorage.getItem('pinnboxio_theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();</script>`;
 
 function prepareTemplate(raw: string): string {
   return raw
     .replace(/<title>[\s\S]*?<\/title>/i, "")
     .replace(/<meta\s+name="description"[^>]*>/gi, "")
     .replace(/<meta\s+property="og:[^"]*"[^>]*>/gi, "")
-    .replace(/<meta\s+name="twitter:title"[^>]*>/gi, "")
-    .replace(/<meta\s+name="twitter:description"[^>]*>/gi, "")
-    .replace(/<meta\s+name="twitter:image"[^>]*>/gi, "");
+    .replace(/<meta\s+name="twitter:[^"]*"[^>]*>/gi, "");
 }
 
-const ANTI_FLASH_SCRIPT = `<script>(function(){try{var t=localStorage.getItem('pinnboxio_theme');if(t==='dark'||(t===null&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}}catch(e){}})();</script>`;
-
-function assemble(template: string, r: RenderResult): string {
-  let out = template;
-  out = out.replace("</head>", `    ${r.headTags}\n  ${ANTI_FLASH_SCRIPT}\n  </head>`);
-  out = out.replace('<div id="root"></div>', `<div id="root">${r.html}</div>`);
-  out = out.replace("</body>", `    ${r.state}\n  </body>`);
-  return out;
+function assemble(
+  tmpl: string,
+  r: { html: string; headTags: string; state: string },
+): string {
+  return tmpl
+    .replace("</head>", `    ${r.headTags}\n  ${ANTI_FLASH}\n  </head>`)
+    .replace('<div id="root"></div>', `<div id="root">${r.html}</div>`)
+    .replace("</body>", `    ${r.state}\n  </body>`);
 }
 
-let template = "";
+// ── Static file path helpers ───────────────────────────────────────────────
+
+/**
+ * Maps a route pathname (within BASE) to the corresponding HTML file on disk.
+ *   "/"        → publicDir/index.html
+ *   "/about"   → publicDir/about/index.html
+ *   "/my-post" → publicDir/my-post/index.html
+ */
+function htmlFilePath(pathname: string): string {
+  const clean = (pathname === "/" || pathname === "")
+    ? ""
+    : pathname.replace(/\/$/, "");
+  return clean
+    ? path.join(publicDir, clean, "index.html")
+    : path.join(publicDir, "index.html");
+}
+
+// ── Render + write to disk ─────────────────────────────────────────────────
+
 let renderFn: RenderFn;
+let template: string;
 
-// --- Route → render ---
-
-interface Rendered {
-  html: string;
-  status: number;
+function renderToHtml(
+  pathname: string,
+  seed?: (qc: QueryClient) => void,
+): string {
+  const fullPath = `${BASE}${pathname === "/" ? "/" : pathname}`;
+  return assemble(template, renderFn(fullPath, seed));
 }
 
-function renderNotFound(): Rendered {
-  const r = renderFn(`${BASE}/__not_found__/page`);
-  return { html: assemble(template, r), status: 404 };
+function writePage(pathname: string, html: string): void {
+  const filePath = htmlFilePath(pathname);
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+  fs.writeFileSync(filePath, html, "utf-8");
 }
 
-async function renderRoute(pathname: string): Promise<Rendered> {
-  if (pathname === "" || pathname === "/") {
-    const [posts, tags] = await Promise.all([safePosts(), safeTags()]);
-    const r = renderFn(`${BASE}/`, (qc) => {
-      qc.setQueryData(["blogPosts"], { posts });
-      qc.setQueryData(["blogPosts", "all"], { posts });
-      qc.setQueryData(["blogTags"], tags);
-    });
-    return { html: assemble(template, r), status: 200 };
-  }
+// ── Background refresh ─────────────────────────────────────────────────────
 
-  if (pathname === "/about") {
-    const r = renderFn(`${BASE}/about`);
-    return { html: assemble(template, r), status: 200 };
-  }
+let refreshing = false;
 
-  if (pathname === "/bookmarks") {
-    const posts = await safePosts();
-    const r = renderFn(`${BASE}/bookmarks`, (qc) => {
-      qc.setQueryData(["blogPosts", "all"], { posts });
-    });
-    return { html: assemble(template, r), status: 200 };
-  }
+async function refresh(): Promise<void> {
+  if (refreshing) return;
+  refreshing = true;
+  console.log("[blog-ssg] Background refresh started");
+  try {
+    const [posts, tags] = await Promise.all([fetchPosts(), fetchTags()]);
 
-  const categoryMatch = pathname.match(/^\/category\/(.+?)\/?$/);
-  if (categoryMatch) {
-    const tag = decodeURIComponent(categoryMatch[1]);
-    const tags = await safeTags();
-    if (tags.length > 0 && !tags.some((t) => t.name === tag)) {
-      return renderNotFound();
+    // Home
+    writePage(
+      "/",
+      renderToHtml("/", (qc) => {
+        qc.setQueryData(["blogPosts"], { posts });
+        qc.setQueryData(["blogPosts", "all"], { posts });
+        qc.setQueryData(["blogTags"], tags);
+      }),
+    );
+
+    // Static pages
+    writePage("/about", renderToHtml("/about"));
+    writePage(
+      "/bookmarks",
+      renderToHtml("/bookmarks", (qc) => {
+        qc.setQueryData(["blogPosts", "all"], { posts });
+      }),
+    );
+
+    // Category pages
+    const tagNames = [...new Set(posts.flatMap((p) => p.tags ?? []))];
+    for (const tag of tagNames) {
+      const tagPosts = posts.filter((p) => (p.tags ?? []).includes(tag));
+      writePage(
+        `/category/${tag}`,
+        renderToHtml(`/category/${encodeURIComponent(tag)}`, (qc) => {
+          qc.setQueryData(["blogPosts", { tag }], { posts: tagPosts });
+        }),
+      );
     }
-    const posts = await safePosts(tag);
-    const r = renderFn(`${BASE}/category/${tag}`, (qc) => {
-      qc.setQueryData(["blogPosts", { tag }], { posts });
-    });
-    return { html: assemble(template, r), status: 200 };
-  }
 
-  const slugMatch = pathname.match(/^\/([^/]+)\/?$/);
-  if (slugMatch) {
-    const slug = decodeURIComponent(slugMatch[1]);
-    const post = await fetchPost(slug);
-    if (!post) return renderNotFound();
-    const r = renderFn(`${BASE}/${slug}`, (qc) => {
-      qc.setQueryData(["blogPost", slug], post);
-    });
-    return { html: assemble(template, r), status: 200 };
-  }
-
-  return renderNotFound();
-}
-
-// --- ISR cache: per-path HTML with stale-while-revalidate (~5 min) ---
-
-interface CacheEntry {
-  html: string;
-  status: number;
-  at: number;
-  revalidating: boolean;
-}
-const pageCache = new Map<string, CacheEntry>();
-
-async function getPage(pathname: string): Promise<Rendered> {
-  const key = pathname || "/";
-  const now = Date.now();
-  const entry = pageCache.get(key);
-
-  if (entry) {
-    if (now - entry.at < PAGE_TTL_MS) {
-      return { html: entry.html, status: entry.status };
+    // Post pages
+    for (const summary of posts) {
+      const post = await fetchPost(summary.slug);
+      if (!post) continue;
+      writePage(
+        `/${summary.slug}`,
+        renderToHtml(`/${summary.slug}`, (qc) => {
+          qc.setQueryData(["blogPost", summary.slug], post);
+        }),
+      );
     }
-    if (!entry.revalidating) {
-      entry.revalidating = true;
-      renderRoute(pathname)
-        .then((r) =>
-          pageCache.set(key, { ...r, at: Date.now(), revalidating: false }),
-        )
-        .catch((err) => {
-          entry.revalidating = false;
-          console.error("[blog-ssr] revalidate failed", key, String(err));
-        });
-    }
-    return { html: entry.html, status: entry.status };
+
+    // Regenerate sitemap
+    const sitemapUrls = [
+      `${BASE}/`,
+      `${BASE}/about`,
+      ...posts.map((p) => `${BASE}/${p.slug}`),
+    ];
+    const sitemap = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
+      ...sitemapUrls.map(
+        (u) =>
+          `  <url><loc>${SITE_ORIGIN}${u}</loc><changefreq>weekly</changefreq></url>`,
+      ),
+      "</urlset>",
+      "",
+    ].join("\n");
+    fs.writeFileSync(path.join(publicDir, "sitemap.xml"), sitemap, "utf-8");
+
+    console.log(
+      `[blog-ssg] Refresh complete — ${posts.length} post(s) written to disk`,
+    );
+  } catch (err) {
+    console.error("[blog-ssg] Background refresh failed:", String(err));
+  } finally {
+    refreshing = false;
   }
-
-  const fresh = await renderRoute(pathname);
-  pageCache.set(key, { ...fresh, at: Date.now(), revalidating: false });
-  return fresh;
 }
 
-// --- Express app ---
-
-function buildSitemap(posts: BlogPostSummary[]): string {
-  const urls = [
-    `${BASE}/`,
-    `${BASE}/about`,
-    ...posts.map((p) => `${BASE}/${p.slug}`),
-  ];
-  const body = urls
-    .map(
-      (u) =>
-        `  <url><loc>${SITE_ORIGIN}${u}</loc><changefreq>weekly</changefreq></url>`,
-    )
-    .join("\n");
-  return `<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n${body}\n</urlset>\n`;
-}
+// ── Express app ────────────────────────────────────────────────────────────
 
 function createApp(): express.Express {
   const app = express();
   app.disable("x-powered-by");
+
   const router = express.Router();
 
   router.get("/healthz", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
+    res.json({ ok: true });
   });
 
-  router.get("/robots.txt", (_req: Request, res: Response) => {
-    res
-      .type("text/plain")
-      .send(
-        `User-agent: *\nAllow: /\n\nSitemap: ${SITE_ORIGIN}${BASE}/sitemap.xml\n`,
-      );
-  });
-
-  router.get("/sitemap.xml", async (_req: Request, res: Response) => {
-    const posts = await safePosts();
-    res.type("application/xml").send(buildSitemap(posts));
-  });
-
-  // Hashed build assets — safe to cache aggressively.
+  // Hashed build assets — immutable, long cache
   router.use(
     "/assets",
     express.static(path.join(publicDir, "assets"), {
@@ -280,7 +259,8 @@ function createApp(): express.Express {
     }),
   );
 
-  // Other public files (favicon, images). Never serve index.html directly.
+  // Other static files (favicon, images, robots.txt, sitemap.xml, …).
+  // index:false so we handle index.html ourselves below.
   router.use(
     express.static(publicDir, {
       index: false,
@@ -293,18 +273,59 @@ function createApp(): express.Express {
     }),
   );
 
-  // SSR catch-all (GET only).
+  // HTML pages — try pre-rendered file first, fall back to SSR.
   router.get(/.*/, async (req: Request, res: Response) => {
+    const pathname = req.path || "/";
+    const filePath = htmlFilePath(pathname);
+
+    // ① Serve pre-rendered static file if it exists
+    if (fs.existsSync(filePath)) {
+      return res
+        .set("Cache-Control", "public, max-age=0, must-revalidate")
+        .type("html")
+        .sendFile(filePath);
+    }
+
+    // ② SSR fallback: for single-segment paths treat as potential post slug
     try {
-      const { html, status } = await getPage(req.path);
-      res
-        .status(status)
+      const slugMatch = pathname.match(/^\/([^/]+)\/?$/);
+      if (
+        slugMatch &&
+        !["about", "bookmarks"].includes(slugMatch[1])
+      ) {
+        const slug = slugMatch[1];
+        const post = await fetchPost(slug);
+        if (!post) {
+          // Unknown slug → 404
+          const html = renderToHtml("/__not_found__");
+          return res
+            .status(404)
+            .set("Cache-Control", "no-store")
+            .type("html")
+            .send(html);
+        }
+        const html = renderToHtml(`/${slug}`, (qc) => {
+          qc.setQueryData(["blogPost", slug], post);
+        });
+        writePage(`/${slug}`, html);
+        return res
+          .status(200)
+          .set("Cache-Control", "public, max-age=0, must-revalidate")
+          .type("html")
+          .send(html);
+      }
+
+      // ③ Generic SSR for any other missing page
+      const html = renderToHtml(pathname);
+      writePage(pathname, html);
+      return res
+        .status(200)
         .set("Cache-Control", "public, max-age=0, must-revalidate")
         .type("html")
         .send(html);
     } catch (err) {
-      console.error("[blog-ssr] render error", req.path, String(err));
-      res
+      console.error("[blog-ssg] render error", pathname, String(err));
+      return res
         .status(500)
         .type("html")
         .send(
@@ -314,24 +335,13 @@ function createApp(): express.Express {
   });
 
   app.use(BASE, router);
-  app.get("/healthz", (_req: Request, res: Response) => {
-    res.status(200).json({ ok: true });
-  });
+  // Top-level healthz (outside BASE prefix) for the load balancer
+  app.get("/healthz", (_req: Request, res: Response) => res.json({ ok: true }));
 
   return app;
 }
 
-async function warm(): Promise<void> {
-  const posts = await safePosts();
-  const paths = [
-    "/",
-    "/about",
-    "/bookmarks",
-    ...posts.map((p) => `/${p.slug}`),
-  ];
-  await Promise.allSettled(paths.map((p) => getPage(p)));
-  console.log(`[blog-ssr] warmed ${paths.length} page(s)`);
-}
+// ── Boot ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   template = prepareTemplate(
@@ -343,13 +353,14 @@ async function main(): Promise<void> {
   const app = createApp();
   app.listen(PORT, () => {
     console.log(
-      `[blog-ssr] listening on ${PORT} base=${BASE} api=${API_BASE} ttl=${PAGE_TTL_MS}ms`,
+      `[blog-ssg] Listening on :${PORT}  base=${BASE}  api=${API_BASE}  refresh=${REFRESH_MS}ms`,
     );
-    void warm();
+    // Schedule background refresh — keeps static files up-to-date with Notion
+    setInterval(() => void refresh(), REFRESH_MS);
   });
 }
 
 main().catch((err) => {
-  console.error("[blog-ssr] fatal", err);
+  console.error("[blog-ssg] Fatal startup error:", err);
   process.exit(1);
 });
