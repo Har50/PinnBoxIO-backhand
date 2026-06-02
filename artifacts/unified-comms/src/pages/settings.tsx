@@ -35,6 +35,7 @@ import {
 } from "@workspace/api-client-react";
 import { getAuthHeaders } from "@/lib/api-client";
 import { startUpgrade } from "@/lib/subscription";
+import { useTheme } from "@/lib/theme";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -72,21 +73,6 @@ function useSubscriptionStatus() {
   }, []);
 
   return { status, loading, refetch: () => setLoading(true) };
-}
-
-function useTheme() {
-  const [theme, setThemeState] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
-    return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
-  });
-
-  const setTheme = (t: "light" | "dark") => {
-    setThemeState(t);
-    document.documentElement.classList.toggle("dark", t === "dark");
-    window.localStorage.setItem("pinnboxio_theme", t);
-  };
-
-  return { theme, setTheme };
 }
 
 function useNotificationPrefs() {

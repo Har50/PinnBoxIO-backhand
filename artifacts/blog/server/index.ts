@@ -138,15 +138,21 @@ function htmlFilePath(pathname: string): string {
 
 // ── Render + write to disk ─────────────────────────────────────────────────
 
-let renderFn: RenderFn;
-let template: string;
+let renderFn: RenderFn | null = null;
+let template: string | null = null;
+let readyPromise: Promise<void> | null = null;
 
 function renderToHtml(
   pathname: string,
   seed?: (qc: QueryClient) => void,
 ): string {
+  if (!renderFn || !template) throw new Error("SSR not yet initialised");
   const fullPath = `${BASE}${pathname === "/" ? "/" : pathname}`;
   return assemble(template, renderFn(fullPath, seed));
+}
+
+async function waitReady(): Promise<void> {
+  if (readyPromise) await readyPromise;
 }
 
 function writePage(pathname: string, html: string): void {
@@ -278,13 +284,16 @@ function createApp(): express.Express {
     const pathname = req.path || "/";
     const filePath = htmlFilePath(pathname);
 
-    // ① Serve pre-rendered static file if it exists
+    // ① Serve pre-rendered static file if it exists (no SSR needed)
     if (fs.existsSync(filePath)) {
       return res
         .set("Cache-Control", "public, max-age=0, must-revalidate")
         .type("html")
         .sendFile(filePath);
     }
+
+    // Wait for SSR bundle to finish loading before attempting render
+    await waitReady();
 
     // ② SSR fallback: for single-segment paths treat as potential post slug
     try {
@@ -344,19 +353,32 @@ function createApp(): express.Express {
 // ── Boot ───────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
-  template = prepareTemplate(
-    fs.readFileSync(path.join(publicDir, "index.html"), "utf-8"),
-  );
-  const mod = (await import(serverEntryUrl)) as { render: RenderFn };
-  renderFn = mod.render;
-
+  // Bind the port FIRST so Replit's health-check sees it immediately.
   const app = createApp();
-  app.listen(PORT, () => {
-    console.log(
-      `[blog-ssg] Listening on :${PORT}  base=${BASE}  api=${API_BASE}  refresh=${REFRESH_MS}ms`,
+  await new Promise<void>((resolve) => {
+    app.listen(PORT, () => {
+      console.log(
+        `[blog-ssg] Listening on :${PORT}  base=${BASE}  api=${API_BASE}  refresh=${REFRESH_MS}ms`,
+      );
+      resolve();
+    });
+  });
+
+  // Load the SSR bundle and template in the background.
+  // Pre-rendered static files are served without waiting for this.
+  readyPromise = (async () => {
+    template = prepareTemplate(
+      fs.readFileSync(path.join(publicDir, "index.html"), "utf-8"),
     );
+    const mod = (await import(serverEntryUrl)) as { render: RenderFn };
+    renderFn = mod.render;
+    console.log("[blog-ssg] SSR bundle loaded — SSR fallback active");
     // Schedule background refresh — keeps static files up-to-date with Notion
     setInterval(() => void refresh(), REFRESH_MS);
+  })();
+
+  readyPromise.catch((err) => {
+    console.error("[blog-ssg] SSR bundle load failed:", err);
   });
 }
 

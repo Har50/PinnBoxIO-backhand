@@ -336,6 +336,32 @@ router.get("/ai/conversations/:id", async (req: any, res) => {
   }
 });
 
+router.patch("/ai/conversations/:id", async (req: any, res) => {
+  try {
+    const id = parseInt(req.params.id);
+    const { title } = req.body as { title?: string };
+    if (!title?.trim()) return res.status(400).json({ error: "Title required" });
+
+    const [conversation] = await db
+      .select()
+      .from(aiConversationsTable)
+      .where(eq(aiConversationsTable.id, id));
+
+    if (!conversation || conversation.userId !== req.userId) {
+      return res.status(404).json({ error: "Not found" });
+    }
+
+    await db
+      .update(aiConversationsTable)
+      .set({ title: title.trim() })
+      .where(eq(aiConversationsTable.id, id));
+
+    res.json({ id, title: title.trim() });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 router.delete("/ai/conversations/:id", async (req: any, res) => {
   try {
     const id = parseInt(req.params.id);

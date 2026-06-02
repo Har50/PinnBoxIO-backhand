@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "test -f dist/server-bundle/index.mjs && exec node --enable-source-maps dist/server-bundle/index.mjs || (pnpm run build && exec node --enable-source-maps dist/server-bundle/index.mjs)",
+    "dev": "(test -f dist/server-bundle/index.mjs || pnpm run build) && node --enable-source-maps dist/server-bundle/index.mjs",
     "build": "vite build --config vite.config.ts && vite build --config vite.config.ts --ssr src/entry-server.tsx --outDir dist/server && node build.mjs && node prerender.mjs",
     "start": "node --enable-source-maps dist/server-bundle/index.mjs",
     "serve": "node --enable-source-maps dist/server-bundle/index.mjs",

@@ -1,4 +1,5 @@
 import { Link, useLocation } from "wouter";
+import { useTheme } from "@/lib/theme";
 import { Mail, Users, Settings, LayoutDashboard, Brain, LogOut, HardDrive, Moon, Sun, SlidersHorizontal, CalendarDays, Crown } from "lucide-react";
 import { Button } from "./ui/button";
 import { ComposeModal } from "./compose-modal";
@@ -18,20 +19,12 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const [location] = useLocation();
   const [isComposeOpen, setIsComposeOpen] = useState(false);
   const [showSignOutDialog, setShowSignOutDialog] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window === "undefined") return "light";
-    return window.localStorage.getItem("pinnboxio_theme") === "dark" ? "dark" : "light";
-  });
+  const { theme, setTheme } = useTheme();
 
   const { user } = useUser();
   const { signOut } = useClerk();
   const [isPro, setIsPro] = useState<boolean | null>(null);
   const [upgradeBusy, setUpgradeBusy] = useState(false);
-
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", theme === "dark");
-    window.localStorage.setItem("pinnboxio_theme", theme);
-  }, [theme]);
 
   useEffect(() => {
     let cancelled = false;

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { ThemeProvider, useTheme } from "@/lib/theme";
 import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -44,20 +45,6 @@ function stripBase(path: string): string {
     : path;
 }
 
-function useDarkMode(): boolean {
-  const mq =
-    typeof window !== "undefined" && typeof window.matchMedia === "function"
-      ? window.matchMedia("(prefers-color-scheme: dark)")
-      : null;
-  const [isDark, setIsDark] = useState<boolean>(mq?.matches ?? false);
-  useEffect(() => {
-    if (!mq) return;
-    const handler = (e: MediaQueryListEvent) => setIsDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-  return isDark;
-}
 
 function buildClerkAppearance(isDark: boolean) {
   const bg = isDark ? brand.dark.background : brand.light.background;
@@ -317,7 +304,7 @@ function Router() {
 
 function ClerkProviderWithRoutes() {
   const [, setLocation] = useLocation();
-  const isDark = useDarkMode();
+  const { isDark } = useTheme();
   const clerkAppearance = buildClerkAppearance(isDark);
 
   return (
@@ -357,7 +344,7 @@ function ClerkProviderWithRoutes() {
 }
 
 function BrandCssVars() {
-  const isDark = useDarkMode();
+  const { isDark } = useTheme();
   useEffect(() => {
     const root = document.documentElement;
     root.style.setProperty("--brand-primary", brand.primary);
@@ -385,10 +372,12 @@ function BrandCssVars() {
 
 function App() {
   return (
-    <WouterRouter base={basePath}>
-      <BrandCssVars />
-      <ClerkProviderWithRoutes />
-    </WouterRouter>
+    <ThemeProvider>
+      <WouterRouter base={basePath}>
+        <BrandCssVars />
+        <ClerkProviderWithRoutes />
+      </WouterRouter>
+    </ThemeProvider>
   );
 }
 
