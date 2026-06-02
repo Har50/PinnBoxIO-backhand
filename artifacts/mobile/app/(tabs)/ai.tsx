@@ -23,9 +23,10 @@ import { useColors } from "@/hooks/useColors";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 import { useAudioRecorder, RecordingPresets, requestRecordingPermissionsAsync } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import { useSubscription } from "@/lib/subscription";
 import { getAuthToken } from "@/lib/authToken";
+import { speakText, stopSpeaking, isTTSSupported } from "@/lib/tts";
 
 interface Message {
   role: "user" | "assistant";
@@ -242,6 +243,44 @@ function EmailDraftCard({ draft, onSend }: { draft: Record<string, string>; onSe
   );
 }
 
+function TtsButton({ text, colors }: { text: string; colors: any }) {
+  const [speaking, setSpeaking] = useState(false);
+  if (!isTTSSupported()) return null;
+
+  function toggle() {
+    if (speaking) {
+      stopSpeaking();
+      setSpeaking(false);
+    } else {
+      speakText(text);
+      setSpeaking(true);
+      setTimeout(() => setSpeaking(false), (text.length / 12) * 1000 + 3000);
+    }
+  }
+
+  return (
+    <Pressable
+      onPress={toggle}
+      style={{
+        flexDirection: "row" as const,
+        alignItems: "center" as const,
+        gap: 4,
+        alignSelf: "flex-start" as const,
+        paddingHorizontal: 8,
+        paddingVertical: 4,
+        borderRadius: 12,
+        marginTop: 4,
+        backgroundColor: speaking ? colors.primary + "20" : colors.muted,
+      }}
+    >
+      <Feather name={speaking ? "volume-2" : "volume-1"} size={12} color={speaking ? colors.primary : colors.mutedForeground} />
+      <Text style={{ fontSize: 11, fontFamily: "Inter_500Medium", color: speaking ? colors.primary : colors.mutedForeground }}>
+        {speaking ? "Stop" : "Listen"}
+      </Text>
+    </Pressable>
+  );
+}
+
 function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft: (d: ComposeDraft) => void; colors: any }) {
   const s = makeStyles(colors);
   if (msg.role === "user") {
@@ -256,6 +295,13 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
 
   const parsed = parseEmailDraft(msg.content);
   if (parsed) {
+    const draftText = [
+      parsed.before,
+      parsed.draft.to ? `To: ${parsed.draft.to}` : "",
+      parsed.draft.subject ? `Subject: ${parsed.draft.subject}` : "",
+      parsed.draft.body ?? "",
+      parsed.after,
+    ].filter(Boolean).join(". ");
     return (
       <View style={[s.bubbleWrap, s.bubbleWrapAssistant]}>
         <View style={s.aiBubbleAvatar}>
@@ -273,6 +319,7 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
               <Text style={s.assistantText}>{parsed.after}</Text>
             </View>
           ) : null}
+          <TtsButton text={draftText} colors={colors} />
         </View>
       </View>
     );
@@ -283,12 +330,122 @@ function MessageBubble({ msg, onSendDraft, colors }: { msg: Message; onSendDraft
       <View style={s.aiBubbleAvatar}>
         <BrainIcon size={11} color={colors.primary} strokeWidth={2.5} />
       </View>
-      <View style={[s.bubble, s.assistantBubble]}>
-        <Text style={s.assistantText}>{msg.content}</Text>
+      <View style={{ gap: 2 }}>
+        <View style={[s.bubble, s.assistantBubble]}>
+          <Text style={s.assistantText}>{msg.content}</Text>
+        </View>
+        <TtsButton text={msg.content} colors={colors} />
       </View>
     </View>
   );
 }
+
+const TRANSLATE_LANGUAGES = [
+  { code: "English",    flag: "🇺🇸" },
+  { code: "Spanish",    flag: "🇪🇸" },
+  { code: "French",     flag: "🇫🇷" },
+  { code: "German",     flag: "🇩🇪" },
+  { code: "Chinese",    flag: "🇨🇳" },
+  { code: "Japanese",   flag: "🇯🇵" },
+  { code: "Arabic",     flag: "🇸🇦" },
+  { code: "Portuguese", flag: "🇧🇷" },
+  { code: "Russian",    flag: "🇷🇺" },
+  { code: "Hindi",      flag: "🇮🇳" },
+];
+
+function TranslateModal({
+  visible,
+  inputText,
+  onClose,
+  onTranslate,
+}: {
+  visible: boolean;
+  inputText: string;
+  onClose: () => void;
+  onTranslate: (lang: string, text: string) => void;
+}) {
+  const colors = useColors();
+  const [selectedLang, setSelectedLang] = useState("Spanish");
+  const [textToTranslate, setTextToTranslate] = useState(inputText);
+
+  useEffect(() => {
+    if (visible) setTextToTranslate(inputText);
+  }, [visible, inputText]);
+
+  function handleGo() {
+    const prompt = textToTranslate.trim()
+      ? `Translate the following text to ${selectedLang}:\n\n${textToTranslate.trim()}`
+      : `I need a translation to ${selectedLang}. Please ask me what I'd like translated.`;
+    onTranslate(selectedLang, prompt);
+    onClose();
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <Pressable style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.5)", justifyContent: "flex-end" }} onPress={onClose}>
+        <Pressable style={[translateStyles.sheet, { backgroundColor: colors.card }]} onPress={() => {}}>
+          <View style={translateStyles.handle} />
+          <Text style={[translateStyles.title, { color: colors.foreground }]}>Translate</Text>
+          <Text style={[translateStyles.subtitle, { color: colors.mutedForeground }]}>Select a target language</Text>
+
+          <View style={translateStyles.langGrid}>
+            {TRANSLATE_LANGUAGES.map((lang) => (
+              <Pressable
+                key={lang.code}
+                onPress={() => setSelectedLang(lang.code)}
+                style={[
+                  translateStyles.langBtn,
+                  {
+                    backgroundColor: selectedLang === lang.code ? colors.primary : colors.muted,
+                    borderColor: selectedLang === lang.code ? colors.primary : colors.border,
+                  },
+                ]}
+              >
+                <Text style={translateStyles.langFlag}>{lang.flag}</Text>
+                <Text style={[translateStyles.langLabel, { color: selectedLang === lang.code ? "#fff" : colors.foreground }]}>
+                  {lang.code}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
+          {textToTranslate.trim().length > 0 && (
+            <View style={[translateStyles.previewBox, { backgroundColor: colors.background, borderColor: colors.border }]}>
+              <Text style={[translateStyles.previewText, { color: colors.mutedForeground }]} numberOfLines={3}>
+                "{textToTranslate.trim()}"
+              </Text>
+            </View>
+          )}
+
+          <Pressable
+            style={[translateStyles.translateBtn, { backgroundColor: colors.primary }]}
+            onPress={handleGo}
+          >
+            <Feather name="globe" size={16} color="#fff" />
+            <Text style={translateStyles.translateBtnText}>
+              Translate to {selectedLang}
+            </Text>
+          </Pressable>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
+const translateStyles = StyleSheet.create({
+  sheet: { borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, paddingBottom: 40, gap: 14 },
+  handle: { width: 36, height: 4, borderRadius: 2, backgroundColor: "#d1d5db", alignSelf: "center", marginBottom: 4 },
+  title: { fontSize: 20, fontFamily: "Inter_700Bold", textAlign: "center" },
+  subtitle: { fontSize: 14, fontFamily: "Inter_400Regular", textAlign: "center", marginBottom: 4 },
+  langGrid: { flexDirection: "row", flexWrap: "wrap", gap: 8 },
+  langBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
+  langFlag: { fontSize: 16 },
+  langLabel: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  previewBox: { borderRadius: 10, borderWidth: 1, padding: 12 },
+  previewText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 19, fontStyle: "italic" },
+  translateBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 15, marginTop: 4 },
+  translateBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+});
 
 const TAB_BAR_HEIGHT = 49;
 
@@ -310,6 +467,7 @@ export default function AiScreen() {
   const [isRecording, setIsRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
   const [showVoiceGate, setShowVoiceGate] = useState(false);
+  const [showTranslateModal, setShowTranslateModal] = useState(false);
   const [pendingAttachments, setPendingAttachments] = useState<Array<{ name: string; mimeType: string; data: string }>>([]);
   const [showStoragePicker, setShowStoragePicker] = useState(false);
   const [storageFiles, setStorageFiles] = useState<Array<{ id: number; name: string; mimeType: string; sizeBytes: number }>>([]);
@@ -809,13 +967,7 @@ export default function AiScreen() {
           </TouchableOpacity>
           <TouchableOpacity
             style={s.micBtn}
-            onPress={() => {
-              setInput((prev) =>
-                prev
-                  ? `Translate the following text and detect the language automatically, then provide the translation in English:\n\n${prev}`
-                  : "Translate this text for me — paste it below and tell me the target language:"
-              );
-            }}
+            onPress={() => setShowTranslateModal(true)}
             activeOpacity={0.7}
           >
             <Feather name="globe" size={18} color={colors.mutedForeground} />
@@ -955,6 +1107,16 @@ export default function AiScreen() {
       </Modal>
 
       <ComposeModal visible={composeVisible} onClose={() => setComposeVisible(false)} initialDraft={composeDraft} />
+
+      <TranslateModal
+        visible={showTranslateModal}
+        inputText={input}
+        onClose={() => setShowTranslateModal(false)}
+        onTranslate={(_lang, prompt) => {
+          setInput(prompt);
+          setShowTranslateModal(false);
+        }}
+      />
 
       {/* Voice-to-email Pro gate bottom sheet */}
       <Modal visible={showVoiceGate} transparent animationType="slide" onRequestClose={() => setShowVoiceGate(false)}>

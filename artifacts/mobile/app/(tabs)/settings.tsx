@@ -1,5 +1,5 @@
 import { useGetUserPreferences, useUpdateUserPreferences, getGetUserPreferencesQueryKey } from "@workspace/api-client-react";
-import { useUser } from "@clerk/expo";
+import { useUser, useAuth } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
 import { useOAuthConnect } from "@/lib/useOAuthConnect";
@@ -10,6 +10,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useState, useEffect, useCallback } from "react";
 import { useSubscription } from "@/lib/subscription";
 import { ProPaywallModal } from "@/components/ProPaywallModal";
+import { AutoReplySection } from "@/components/AutoReplySection";
 
 
 
@@ -478,6 +479,8 @@ export default function SettingsScreen() {
           />
         </SettingsCard>
       </View>
+
+      <AutoReplySection />
 
       <View style={styles.section}>
         <SectionHeader title="Account" />
