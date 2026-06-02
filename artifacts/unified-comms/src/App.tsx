@@ -173,7 +173,7 @@ function ClerkQueryClientCacheInvalidator() {
 }
 
 function AuthPageShell({ children }: { children: React.ReactNode }) {
-  const isDark = useDarkMode();
+  const { isDark } = useTheme();
   const shellStyle = isDark
     ? { backgroundColor: brand.dark.background, color: brand.dark.foreground }
     : undefined;
