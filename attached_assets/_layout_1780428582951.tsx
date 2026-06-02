@@ -49,7 +49,6 @@ if (_apiBaseUrl) {
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {

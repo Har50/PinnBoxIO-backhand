@@ -409,3 +409,5 @@ const sty = StyleSheet.create({
   cancelBtn: { borderRadius: 12, borderWidth: 1, paddingVertical: 12, alignItems: "center" },
   cancelText: { fontSize: 14, fontFamily: "Inter_500Medium" },
 });
+
+export { WorkflowBuilder as WorkflowBuilderSection };

@@ -314,13 +314,12 @@ function MessageDetail({
 
       <SnoozePanel
         visible={snoozePanelVisible}
-        messageSubject={message?.subject}
         onClose={() => setSnoozePanelVisible(false)}
-        onSnooze={(until, preset) => {
+        onSnooze={(until: Date) => {
           setSnoozePanelVisible(false);
           Alert.alert(
             "Snoozed",
-            `"${message?.subject}" will remind you ${preset.label.toLowerCase()} at ${until.toLocaleString([], { hour: "2-digit", minute: "2-digit" })}.`,
+            `"${message?.subject}" snoozed until ${until.toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}.`,
             [{ text: "OK" }]
           );
         }}
@@ -726,7 +725,7 @@ export default function InboxScreen() {
 
       {/* Follow-up reminders (sent tab context) */}
       {!selectionMode && activeTab === "sent" && (
-        <FollowUpSection onOpen={(id) => setSelectedId(id)} />
+        <FollowUpSection visible={true} />
       )}
 
       {/* Message list */}

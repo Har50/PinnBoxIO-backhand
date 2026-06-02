@@ -11,7 +11,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSubscription } from "@/lib/subscription";
 import { ProPaywallModal } from "@/components/ProPaywallModal";
 import { AutoReplySection } from "@/components/AutoReplySection";
-import { WorkflowBuilder } from "@/components/WorkflowBuilder";
+import { WorkflowBuilderSection } from "@/components/WorkflowBuilder";
 
 
 
@@ -484,7 +484,7 @@ export default function SettingsScreen() {
       <AutoReplySection />
 
       <View style={styles.section}>
-        <WorkflowBuilder />
+        <WorkflowBuilderSection />
       </View>
 
       <View style={styles.section}>

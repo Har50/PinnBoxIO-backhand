@@ -21,7 +21,7 @@ import { useGetAccounts, useCreateMessage } from "@workspace/api-client-react";
 import { getAuthToken } from "@/lib/authToken";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { EmailTemplatesModal, type EmailTemplate } from "@/components/EmailTemplates";
+import { EmailTemplates } from "@/components/EmailTemplates";
 
 export interface ComposeDraft {
   to?: string;
@@ -755,12 +755,10 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
           </TouchableOpacity>
         </View>
 
-        <EmailTemplatesModal
+        <EmailTemplates
           visible={showTemplates}
           onClose={() => setShowTemplates(false)}
-          currentSubject={subject}
-          currentBody={body}
-          onInsert={(tpl: EmailTemplate) => {
+          onSelectTemplate={(tpl) => {
             if (tpl.subject) setSubject(tpl.subject);
             if (tpl.body) setBody(tpl.body);
           }}

@@ -94,7 +94,7 @@ export function FollowUpSection({ visible }: { visible: boolean }) {
             </View>
             <View style={{ flexDirection: "row", gap: 4 }}>
               <Pressable onPress={() => handleSnooze(item.id)} style={[styles.actionBtn, { backgroundColor: "#f59e0b20" }]}>
-                {dismissing.has(item.id) ? <ActivityIndicator size="small" color="#d97706" /> : <Feather name="clock" size={13} color="#d97706" />}
+                {dismissing.has(item.id) ? <Activityicator size="small" color="#d97706" /> : <Feather name="clock" size={13} color="#d97706" />}
               </Pressable>
               <Pressable onPress={() => handleDismiss(item.id)} style={[styles.actionBtn, { backgroundColor: "#ef444415" }]}>
                 <Feather name="check" size={13} color="#ef4444" />
