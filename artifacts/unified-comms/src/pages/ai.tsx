@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageSquare, Brain, Send, Plus, Trash2, Loader2, Crown,
   Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle,
-  Mic, MicOff, Settings, Search, Command, Languages, Copy, RotateCcw,
+  Mic, MicOff, Settings, Search, Command, Languages,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
@@ -185,10 +185,6 @@ function AiChat() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceGate, setShowVoiceGate] = useState(false);
   const [limitUpgradeBusy, setLimitUpgradeBusy] = useState(false);
-  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
-  const [renamingId, setRenamingId] = useState<number | null>(null);
-  const [renameValue, setRenameValue] = useState("");
-  const [copiedMsgIdx, setCopiedMsgIdx] = useState<number | null>(null);
   const plan = useAiSubscriptionPlan();
   const [, navigate] = useLocation();
   const [historySearch, setHistorySearch] = useState("");
@@ -288,80 +284,11 @@ function AiChat() {
     if (res.ok) { const data = await res.json(); setMessages(data.messages || []); }
   };
 
-  const deleteConversation = (id: number, e: React.MouseEvent) => {
+  const deleteConversation = async (id: number, e: React.MouseEvent) => {
     e.stopPropagation();
-    setDeleteConfirmId(id);
-  };
-
-  const confirmDelete = async () => {
-    if (!deleteConfirmId) return;
-    await apiFetch(`/ai/conversations/${deleteConfirmId}`, { method: "DELETE" });
-    setConversations((prev) => prev.filter((c) => c.id !== deleteConfirmId));
-    if (activeConvId === deleteConfirmId) { setActiveConvId(null); setMessages([]); }
-    setDeleteConfirmId(null);
-  };
-
-  const startRename = (conv: Conversation, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setRenamingId(conv.id);
-    setRenameValue(formatTitle(conv));
-  };
-
-  const submitRename = async (id: number) => {
-    if (!renameValue.trim()) { setRenamingId(null); return; }
-    await apiFetch(`/ai/conversations/${id}`, { method: "PATCH", body: JSON.stringify({ title: renameValue.trim() }) });
-    setConversations((prev) => prev.map((c) => c.id === id ? { ...c, title: renameValue.trim() } : c));
-    setRenamingId(null);
-  };
-
-  const copyMessage = useCallback((content: string, idx: number) => {
-    navigator.clipboard?.writeText(content).catch(() => {});
-    setCopiedMsgIdx(idx);
-    setTimeout(() => setCopiedMsgIdx(null), 1500);
-  }, []);
-
-  const regenerate = async () => {
-    if (streaming || messages.length < 2) return;
-    const lastUserMsg = [...messages].reverse().find((m) => m.role === "user");
-    if (!lastUserMsg || !activeConvId) return;
-    setMessages((prev) => prev.slice(0, -1));
-    setMessages((prev) => [...prev, { role: "assistant", content: "", streaming: true }]);
-    setStreaming(true);
-    let assistantContent = "";
-    try {
-      const res = await apiFetch(`/ai/conversations/${activeConvId}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ content: lastUserMsg.content, provider }),
-      });
-      if (!res.ok) throw new Error("Failed to regenerate");
-      if (!res.body) throw new Error("No response body");
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let sseBuffer = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        sseBuffer += decoder.decode(value, { stream: true });
-        const lines = sseBuffer.split("\n");
-        sseBuffer = lines.pop() ?? "";
-        for (const line of lines) {
-          if (line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
-              if (data.content) {
-                assistantContent += data.content;
-                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistantContent, streaming: true }; return u; });
-              }
-            } catch {}
-          }
-        }
-      }
-    } catch {
-      setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: "Sorry, couldn't regenerate. Please try again.", streaming: false }; return u; });
-    } finally {
-      setMessages((prev) => { const u = [...prev]; if (u.length > 0) u[u.length - 1] = { ...u[u.length - 1], streaming: false }; return u; });
-      setStreaming(false);
-    }
+    await apiFetch(`/ai/conversations/${id}`, { method: "DELETE" });
+    setConversations((prev) => prev.filter((c) => c.id !== id));
+    if (activeConvId === id) { setActiveConvId(null); setMessages([]); }
   };
 
   const addAttachments = useCallback(async (files: FileList | null) => {
@@ -553,29 +480,15 @@ function AiChat() {
                   <button
                     key={conv.id}
                     onClick={() => loadConversation(conv.id)}
-                    onDoubleClick={(e) => startRename(conv, e as unknown as React.MouseEvent)}
                     className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-all group relative hover:bg-muted/50", activeConvId === conv.id ? "text-foreground bg-primary/10" : "text-muted-foreground")}
                     style={{ borderLeft: activeConvId === conv.id ? "2px solid rgba(99,102,241,0.6)" : "2px solid transparent" }}
                   >
                     <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: activeConvId === conv.id ? "#818cf8" : undefined }} />
-                    {renamingId === conv.id ? (
-                      <input
-                        autoFocus
-                        value={renameValue}
-                        onChange={(e) => setRenameValue(e.target.value)}
-                        onBlur={() => submitRename(conv.id)}
-                        onKeyDown={(e) => { if (e.key === "Enter") submitRename(conv.id); if (e.key === "Escape") setRenamingId(null); }}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex-1 bg-transparent text-sm focus:outline-none text-foreground border-b border-primary/60 min-w-0"
-                      />
-                    ) : (
-                      <span className="truncate flex-1">{formatTitle(conv)}</span>
-                    )}
+                    <span className="truncate flex-1">{formatTitle(conv)}</span>
                     <span
                       role="button"
                       onClick={(e) => deleteConversation(conv.id, e as unknown as React.MouseEvent)}
-                      className="shrink-0 opacity-30 group-hover:opacity-70 hover:!opacity-100 transition-opacity text-red-400 cursor-pointer"
-                      title="Delete conversation"
+                      className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-red-400 cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
                     </span>
@@ -725,29 +638,6 @@ function AiChat() {
                       </>
                     );
                   })()}
-                  {msg.role === "assistant" && !msg.streaming && (
-                    <div className="flex items-center gap-1 mt-2 -ml-1">
-                      <button
-                        onClick={() => copyMessage(msg.content, i)}
-                        className="p-1.5 rounded-lg transition-colors text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40"
-                        title="Copy message"
-                      >
-                        {copiedMsgIdx === i
-                          ? <CheckCircle className="h-3.5 w-3.5 text-green-400" />
-                          : <Copy className="h-3.5 w-3.5" />}
-                      </button>
-                      {i === messages.length - 1 && (
-                        <button
-                          onClick={regenerate}
-                          disabled={streaming}
-                          className="p-1.5 rounded-lg transition-colors text-muted-foreground/40 hover:text-muted-foreground hover:bg-muted/40 disabled:opacity-20"
-                          title="Regenerate response"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                  )}
                   {msg.limitReached && (
                     <button
                       disabled={limitUpgradeBusy}
@@ -891,42 +781,6 @@ function AiChat() {
           </div>
         </div>
       </div>
-
-      {deleteConfirmId !== null && (
-        <div
-          onClick={() => setDeleteConfirmId(null)}
-          style={{ position: "fixed", inset: 0, zIndex: 1000, backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="bg-background border border-border rounded-2xl shadow-xl"
-            style={{ maxWidth: 360, width: "100%", padding: 24 }}
-          >
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: "rgba(239,68,68,0.15)" }}>
-                <Trash2 className="h-5 w-5 text-red-400" />
-              </div>
-              <h2 className="text-base font-semibold text-foreground">Delete conversation?</h2>
-            </div>
-            <p className="text-sm text-muted-foreground mb-5">This can't be undone. The conversation and all its messages will be permanently removed.</p>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 h-10 rounded-lg font-medium text-muted-foreground hover:bg-muted/40 transition-colors border border-border"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={confirmDelete}
-                className="flex-1 h-10 rounded-lg font-medium text-white transition-opacity hover:opacity-90"
-                style={{ background: "#ef4444" }}
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {showVoiceGate && (
         <div

@@ -337,7 +337,7 @@ export default function LandingPage() {
         </p>
       </section>
 
-      {/* Value-prop bar (honest, no fabricated numbers) */}
+      {/* Value-prop bar */}
       <section style={{ padding: "0 24px 64px", maxWidth: 900, margin: "0 auto" }}>
         <div
           style={{
