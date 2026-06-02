@@ -587,8 +587,8 @@ export default function LandingPage() {
           >
             <p style={{ fontSize: 13, fontWeight: 600, color: FG_MUTED, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>Free</p>
             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
-              <span style={{ fontSize: 42, fontWeight: 800, color: FG }}>$0</span>
-              <span style={{ fontSize: 15, color: FG_SUBTLE }}>/month</span>
+              <span style={{ fontSize: 42, fontWeight: 800, color: FG }}>₹0</span>
+              <span style={{ fontSize: 15, color: FG_SUBTLE }}>/forever</span>
             </div>
             <p style={{ fontSize: 14, color: FG_MUTED, margin: "0 0 28px" }}>Everything you need to get started.</p>
             <button
@@ -652,13 +652,13 @@ export default function LandingPage() {
             </div>
             <p style={{ fontSize: 13, fontWeight: 600, color: PRIMARY, margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 1 }}>Pro</p>
             <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginBottom: 6 }}>
-              <span style={{ fontSize: 42, fontWeight: 800, color: FG }}>$7.99</span>
+              <span style={{ fontSize: 42, fontWeight: 800, color: FG }}>₹499</span>
               <span style={{ fontSize: 15, color: FG_SUBTLE }}>/month</span>
             </div>
             <p style={{ fontSize: 14, color: FG_MUTED, margin: "0 0 28px" }}>
               Or{" "}
-              <span style={{ color: FG, fontWeight: 600 }}>$59.99/year</span>
-              {" "}— save 37%.
+              <span style={{ color: FG, fontWeight: 600 }}>₹3,999/year</span>
+              {" "}— save 33%.
             </p>
             <button
               onClick={() => goSignUp("pricing_pro")}
@@ -709,7 +709,7 @@ export default function LandingPage() {
             { q: "Is PinnboxIO free?", a: "Yes. The Free plan includes Gmail and Outlook inbox, 20 AI requests per day, 1 GB cloud storage, calendar sync and the mobile app — with no credit card required." },
             { q: "Which AI models does PinnboxIO support?", a: "PinnboxIO works with OpenAI GPT-4o, Anthropic Claude, and Google Gemini. You can pick the best model for any task from the AI tab." },
             { q: "Does it work with both Gmail and Outlook?", a: "Yes. Connect one or more Gmail and Outlook accounts and read, reply, search and draft across all of them from a single unified inbox." },
-            { q: "How much does Pro cost?", a: "Pro is $7.99/month or $59.99/year (save 37%). It unlocks unlimited AI requests, 25 GB cloud storage, all AI models and priority support." },
+            { q: "How much does Pro cost?", a: "Pro is ₹499/month or ₹3,999/year (save 33%). It unlocks unlimited AI requests, 25 GB cloud storage, all AI models and priority support." },
             { q: "Is my email data secure?", a: "Yes. PinnboxIO uses OAuth to connect to Gmail and Outlook, never stores your password, and only accesses the scopes you explicitly approve. You can disconnect any account at any time." },
           ].map((item, i) => {
             const isOpen = openFaq === i;
