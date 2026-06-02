@@ -381,6 +381,15 @@ router.delete("/ai/conversations/:id", async (req: any, res) => {
   }
 });
 
+router.get("/ai/usage", async (req: any, res) => {
+  try {
+    const access = await getUserAiAccess(req.userId);
+    res.json({ usedToday: access.usedToday, limit: access.limit, isPro: access.isPro });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 type Attachment = { name: string; mimeType: string; data: string /* base64 */ };
 
 router.post("/ai/conversations/:id/messages", async (req: any, res) => {

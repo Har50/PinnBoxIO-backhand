@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   MessageSquare, Brain, Send, Plus, Trash2, Loader2, Crown,
   Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle,
-  Mic, MicOff, Settings, Search, Command, Languages,
+  Mic, MicOff, Settings, Search, Command, Languages, Copy, RefreshCw, Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
@@ -33,6 +33,24 @@ function useAiSubscriptionPlan() {
     return () => { cancelled = true; };
   }, []);
   return plan;
+}
+
+function useAiUsage(refreshTrigger: number) {
+  const [usage, setUsage] = useState<{ usedToday: number; limit: number | null; isPro: boolean } | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const headers = await getAuthHeaders();
+        const res = await fetch(`${BASE}/api/ai/usage`, { headers, credentials: "include" });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled) setUsage(data);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, [refreshTrigger]);
+  return usage;
 }
 
 type Provider = "openai" | "claude" | "gemini";
@@ -185,7 +203,13 @@ function AiChat() {
   const [voiceSupported, setVoiceSupported] = useState(false);
   const [showVoiceGate, setShowVoiceGate] = useState(false);
   const [limitUpgradeBusy, setLimitUpgradeBusy] = useState(false);
+  const [deleteConfirm, setDeleteConfirm] = useState<number | null>(null);
+  const [renamingId, setRenamingId] = useState<number | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [usageRefresh, setUsageRefresh] = useState(0);
   const plan = useAiSubscriptionPlan();
+  const usage = useAiUsage(usageRefresh);
   const [, navigate] = useLocation();
   const [historySearch, setHistorySearch] = useState("");
   const speechRef = useRef<any>(null);
@@ -194,6 +218,7 @@ function AiChat() {
   const photoInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const renameInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -284,12 +309,71 @@ function AiChat() {
     if (res.ok) { const data = await res.json(); setMessages(data.messages || []); }
   };
 
-  const deleteConversation = async (id: number, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const deleteConversation = async (id: number) => {
     await apiFetch(`/ai/conversations/${id}`, { method: "DELETE" });
     setConversations((prev) => prev.filter((c) => c.id !== id));
     if (activeConvId === id) { setActiveConvId(null); setMessages([]); }
+    setDeleteConfirm(null);
   };
+
+  const submitRename = async () => {
+    if (!renamingId || !renameValue.trim()) { setRenamingId(null); return; }
+    await apiFetch(`/ai/conversations/${renamingId}`, { method: "PATCH", body: JSON.stringify({ title: renameValue.trim() }) });
+    setConversations((prev) => prev.map((c) => c.id === renamingId ? { ...c, title: renameValue.trim() } : c));
+    setRenamingId(null);
+  };
+
+  const copyMessage = useCallback((text: string, idx: number) => {
+    navigator.clipboard.writeText(text).then(() => {
+      setCopiedIdx(idx);
+      setTimeout(() => setCopiedIdx(null), 2000);
+    });
+  }, []);
+
+  const regenerate = useCallback(async () => {
+    if (streaming) return;
+    const lastUserIdx = [...messages].reverse().findIndex((m) => m.role === "user");
+    if (lastUserIdx === -1) return;
+    const lastUser = messages[messages.length - 1 - lastUserIdx];
+    setMessages((prev) => prev.slice(0, prev.length - 1 - lastUserIdx + 1).concat({ role: "assistant", content: "", streaming: true }));
+    setStreaming(true);
+    let assistantContent = "";
+    try {
+      const res = await apiFetch(`/ai/conversations/${activeConvId}/messages`, {
+        method: "POST",
+        body: JSON.stringify({ content: lastUser.content || "(see attached file)", provider }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      if (!res.body) throw new Error("No response body");
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let sseBuffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        sseBuffer += decoder.decode(value, { stream: true });
+        const lines = sseBuffer.split("\n");
+        sseBuffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              if (data.content) {
+                assistantContent += data.content;
+                setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: assistantContent, streaming: true }; return u; });
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch {
+      setMessages((prev) => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: "Sorry, couldn't regenerate. Please try again.", streaming: false }; return u; });
+    } finally {
+      setMessages((prev) => { const u = [...prev]; if (u.length > 0) u[u.length - 1] = { ...u[u.length - 1], streaming: false }; return u; });
+      setStreaming(false);
+      setUsageRefresh((n) => n + 1);
+    }
+  }, [streaming, messages, activeConvId, provider]);
 
   const addAttachments = useCallback(async (files: FileList | null) => {
     if (!files) return;
@@ -376,6 +460,7 @@ function AiChat() {
     } finally {
       setMessages((prev) => { const u = [...prev]; if (u.length > 0) u[u.length - 1] = { ...u[u.length - 1], streaming: false }; return u; });
       setStreaming(false);
+      setUsageRefresh((n) => n + 1);
       setTimeout(() => fetchConversations(), 1200);
     }
   };
@@ -477,22 +562,41 @@ function AiChat() {
               <div key={group.label}>
                 <p className="px-2 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">{group.label}</p>
                 {group.items.map((conv) => (
-                  <button
+                  <div
                     key={conv.id}
-                    onClick={() => loadConversation(conv.id)}
-                    className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-all group relative hover:bg-muted/50", activeConvId === conv.id ? "text-foreground bg-primary/10" : "text-muted-foreground")}
+                    onClick={() => { if (renamingId !== conv.id) loadConversation(conv.id); }}
+                    className={cn("flex w-full items-center gap-2.5 rounded-lg px-2 py-2 text-left text-sm transition-all group relative hover:bg-muted/50 cursor-pointer", activeConvId === conv.id ? "text-foreground bg-primary/10" : "text-muted-foreground")}
                     style={{ borderLeft: activeConvId === conv.id ? "2px solid rgba(99,102,241,0.6)" : "2px solid transparent" }}
                   >
                     <MessageSquare className="h-3.5 w-3.5 shrink-0" style={{ color: activeConvId === conv.id ? "#818cf8" : undefined }} />
-                    <span className="truncate flex-1">{formatTitle(conv)}</span>
+                    {renamingId === conv.id ? (
+                      <input
+                        ref={renameInputRef}
+                        value={renameValue}
+                        autoFocus
+                        onChange={(e) => setRenameValue(e.target.value)}
+                        onBlur={submitRename}
+                        onKeyDown={(e) => { if (e.key === "Enter") submitRename(); if (e.key === "Escape") setRenamingId(null); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex-1 bg-muted/60 rounded px-1.5 py-0.5 text-sm text-foreground focus:outline-none border border-primary/40 min-w-0"
+                      />
+                    ) : (
+                      <span
+                        className="truncate flex-1"
+                        onDoubleClick={(e) => { e.stopPropagation(); setRenamingId(conv.id); setRenameValue(formatTitle(conv)); }}
+                        title="Double-click to rename"
+                      >
+                        {formatTitle(conv)}
+                      </span>
+                    )}
                     <span
                       role="button"
-                      onClick={(e) => deleteConversation(conv.id, e as unknown as React.MouseEvent)}
-                      className="shrink-0 opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity text-red-400 cursor-pointer"
+                      onClick={(e) => { e.stopPropagation(); setDeleteConfirm(conv.id); }}
+                      className="shrink-0 opacity-30 hover:!opacity-100 transition-opacity text-red-400 cursor-pointer"
                     >
                       <Trash2 className="h-3 w-3" />
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             ))}
@@ -500,7 +604,33 @@ function AiChat() {
         </ScrollArea>
 
         {/* Footer */}
-        <div className="p-4 border-t border-border">
+        <div className="p-4 border-t border-border space-y-3">
+          {usage && !usage.isPro && usage.limit !== null && (
+            <div>
+              <div className="flex items-center justify-between text-[11px] mb-1.5 text-muted-foreground">
+                <span>AI requests today</span>
+                <span className="font-medium" style={{ color: usage.usedToday >= usage.limit ? "#f87171" : "rgba(255,255,255,0.6)" }}>
+                  {usage.usedToday} / {usage.limit}
+                </span>
+              </div>
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.08)" }}>
+                <div
+                  className="h-full rounded-full transition-all"
+                  style={{
+                    width: `${Math.min(100, (usage.usedToday / usage.limit) * 100)}%`,
+                    background: usage.usedToday >= usage.limit
+                      ? "linear-gradient(90deg, #ef4444, #dc2626)"
+                      : usage.usedToday >= usage.limit * 0.8
+                      ? "linear-gradient(90deg, #f59e0b, #d97706)"
+                      : "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                  }}
+                />
+              </div>
+              {usage.usedToday >= usage.limit && (
+                <p className="text-[10px] text-red-400/80 mt-1">Limit reached — resets at midnight UTC</p>
+              )}
+            </div>
+          )}
           <div className="flex items-center gap-3 w-full p-2 rounded-lg">
             <div className="w-8 h-8 rounded-full p-[1.5px] shrink-0" style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)" }}>
               <div className="w-full h-full rounded-full flex items-center justify-center text-xs font-semibold bg-card text-foreground">AI</div>
@@ -509,7 +639,7 @@ function AiChat() {
               <div className="text-sm font-medium text-foreground">Pinnbox AI</div>
               <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
                 <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                Connected
+                {usage?.isPro ? "Pro · Unlimited" : "Connected"}
               </div>
             </div>
           </div>
@@ -586,83 +716,106 @@ function AiChat() {
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <div key={i} className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start gap-3")}>
-              {msg.role === "assistant" && (
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 border"
-                  style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderColor: "rgba(255,255,255,0.15)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
-                >
-                  <Brain className="h-3.5 w-3.5 text-white" />
-                </div>
-              )}
-              <div
-                className={cn("max-w-[88%] sm:max-w-[75%] rounded-2xl px-4 sm:px-5 py-3.5 text-sm leading-relaxed relative", msg.role === "user" ? "rounded-br-sm" : "rounded-tl-sm")}
-                style={msg.role === "user" ? {
-                  background: "linear-gradient(135deg, #3b4fd1, #6366f1)",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  color: "white",
-                } : {
-                  background: "rgba(255,255,255,0.04)",
-                  backdropFilter: "blur(20px)",
-                  borderColor: "rgba(255,255,255,0.12)",
-                  border: "1px solid rgba(255,255,255,0.12)",
-                  boxShadow: "0 8px 32px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.08)",
-                  color: "rgba(255,255,255,0.88)",
-                }}
-              >
-                {msg.role === "assistant" && (
-                  <div className="absolute inset-0 rounded-2xl rounded-tl-sm pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%)" }} />
-                )}
-                {msg.attachments && msg.attachments.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-2">
-                    {msg.attachments.map((a, ai) => (
-                      a.preview ? (
-                        <img key={ai} src={a.preview} alt={a.name} className="max-h-40 max-w-full rounded-lg object-cover" />
-                      ) : (
-                        <div key={ai} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs" style={{ background: "rgba(255,255,255,0.1)" }}>
-                          <FileText className="w-3 h-3 shrink-0" />
-                          <span className="truncate max-w-[150px]">{a.name}</span>
-                        </div>
-                      )
-                    ))}
-                  </div>
-                )}
-                <div className="relative z-10">
-                  {(() => {
-                    const { draft, clean } = parseEmailDraft(msg.content);
-                    return (
+          {messages.map((msg, i) => {
+            const isLastAssistant = msg.role === "assistant" && i === messages.length - 1;
+            const { draft, clean } = parseEmailDraft(msg.content);
+            return (
+              <div key={i} className={cn("flex flex-col", msg.role === "user" ? "items-end" : "items-start")}>
+                <div className={cn("flex", msg.role === "user" ? "justify-end" : "justify-start gap-3")}>
+                  {msg.role === "assistant" && (
+                    <div
+                      className="w-8 h-8 rounded-full flex items-center justify-center shrink-0 mt-1 border"
+                      style={{ background: "linear-gradient(135deg, #6366f1, #8b5cf6)", borderColor: "rgba(255,255,255,0.15)", boxShadow: "0 0 10px rgba(99,102,241,0.3)" }}
+                    >
+                      <Brain className="h-3.5 w-3.5 text-white" />
+                    </div>
+                  )}
+                  <div
+                    className={cn("max-w-[88%] sm:max-w-[75%] rounded-2xl px-4 sm:px-5 py-3.5 text-sm leading-relaxed relative", msg.role === "user" ? "rounded-br-sm" : "rounded-tl-sm")}
+                    style={msg.role === "user" ? {
+                      background: "linear-gradient(135deg, #3b4fd1, #6366f1)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      color: "white",
+                    } : {
+                      background: "rgba(255,255,255,0.04)",
+                      backdropFilter: "blur(20px)",
+                      borderColor: "rgba(255,255,255,0.12)",
+                      border: "1px solid rgba(255,255,255,0.12)",
+                      boxShadow: "0 8px 32px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.08)",
+                      color: "rgba(255,255,255,0.88)",
+                    }}
+                  >
+                    {msg.role === "assistant" && (
+                      <div className="absolute inset-0 rounded-2xl rounded-tl-sm pointer-events-none" style={{ background: "linear-gradient(135deg, rgba(255,255,255,0.04) 0%, transparent 60%)" }} />
+                    )}
+                    {msg.attachments && msg.attachments.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {msg.attachments.map((a, ai) => (
+                          a.preview ? (
+                            <img key={ai} src={a.preview} alt={a.name} className="max-h-40 max-w-full rounded-lg object-cover" />
+                          ) : (
+                            <div key={ai} className="flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs" style={{ background: "rgba(255,255,255,0.1)" }}>
+                              <FileText className="w-3 h-3 shrink-0" />
+                              <span className="truncate max-w-[150px]">{a.name}</span>
+                            </div>
+                          )
+                        ))}
+                      </div>
+                    )}
+                    <div className="relative z-10">
                       <>
                         <div className="whitespace-pre-wrap">{clean || (msg.streaming ? <span className="inline-block w-2 h-4 bg-current animate-pulse rounded-sm" /> : "")}</div>
                         {draft && !msg.streaming && <EmailDraftCard draft={draft} />}
                       </>
-                    );
-                  })()}
-                  {msg.limitReached && (
-                    <button
-                      disabled={limitUpgradeBusy}
-                      className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
-                      style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
-                      onClick={async () => {
-                        if (limitUpgradeBusy) return;
-                        setLimitUpgradeBusy(true);
-                        try {
-                          await startUpgrade("annual");
-                        } catch (err: any) {
-                          alert(`Couldn't open checkout: ${err?.message || "Unknown error"}`);
-                        } finally {
-                          setLimitUpgradeBusy(false);
-                        }
-                      }}
-                    >
-                      <Crown className="w-4 h-4" />
-                      Upgrade to Pro
-                    </button>
-                  )}
+                      {msg.limitReached && (
+                        <button
+                          disabled={limitUpgradeBusy}
+                          className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all disabled:opacity-60"
+                          style={{ background: "linear-gradient(135deg, #6366f1, #4f46e5)", color: "white", boxShadow: "0 0 16px rgba(99,102,241,0.4)" }}
+                          onClick={async () => {
+                            if (limitUpgradeBusy) return;
+                            setLimitUpgradeBusy(true);
+                            try { await startUpgrade("annual"); }
+                            catch (err: any) { alert(`Couldn't open checkout: ${err?.message || "Unknown error"}`); }
+                            finally { setLimitUpgradeBusy(false); }
+                          }}
+                        >
+                          <Crown className="w-4 h-4" />
+                          Upgrade to Pro
+                        </button>
+                      )}
+                    </div>
+                  </div>
                 </div>
+                {/* Action buttons for assistant messages */}
+                {msg.role === "assistant" && !msg.streaming && clean && (
+                  <div className="flex items-center gap-1.5 mt-1.5 ml-11">
+                    <button
+                      onClick={() => copyMessage(clean, i)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all"
+                      style={{ color: copiedIdx === i ? "#86efac" : "rgba(255,255,255,0.35)", background: "transparent" }}
+                      title="Copy message"
+                    >
+                      {copiedIdx === i ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
+                      {copiedIdx === i ? "Copied" : "Copy"}
+                    </button>
+                    {isLastAssistant && !msg.limitReached && (
+                      <button
+                        onClick={regenerate}
+                        disabled={streaming}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all disabled:opacity-40"
+                        style={{ color: "rgba(255,255,255,0.35)", background: "transparent" }}
+                        title="Regenerate response"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        Regenerate
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
 
         {/* Input area */}
@@ -781,6 +934,42 @@ function AiChat() {
           </div>
         </div>
       </div>
+
+      {deleteConfirm !== null && (
+        <div
+          onClick={() => setDeleteConfirm(null)}
+          style={{ position: "fixed", inset: 0, zIndex: 1000, backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)", display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="bg-background border border-border rounded-2xl shadow-xl"
+            style={{ maxWidth: 360, width: "100%", padding: 24 }}
+          >
+            <div className="flex items-center gap-3 mb-2">
+              <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ background: "rgba(239,68,68,0.15)" }}>
+                <Trash2 className="w-4 h-4 text-red-400" />
+              </div>
+              <h2 className="text-base font-semibold text-foreground">Delete conversation?</h2>
+            </div>
+            <p className="text-sm text-muted-foreground mb-5">This conversation and all its messages will be permanently removed.</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 h-10 rounded-lg font-medium text-sm text-muted-foreground hover:bg-muted/40 transition-colors border border-border"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => deleteConversation(deleteConfirm)}
+                className="flex-1 h-10 rounded-lg font-medium text-sm text-white transition-all"
+                style={{ background: "linear-gradient(135deg, #ef4444, #dc2626)" }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showVoiceGate && (
         <div
