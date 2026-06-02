@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   Modal,
   View,
@@ -21,6 +21,7 @@ import { useGetAccounts, useCreateMessage } from "@workspace/api-client-react";
 import { getAuthToken } from "@/lib/authToken";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
+import { EmailTemplatesModal, type EmailTemplate } from "@/components/EmailTemplates";
 
 export interface ComposeDraft {
   to?: string;
@@ -91,6 +92,7 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
   const [activePanel, setActivePanel] = useState<FormatPanel>("none");
   const [showSchedulePicker, setShowSchedulePicker] = useState(false);
   const [showStoragePicker, setShowStoragePicker] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [storageFiles, setStorageFiles] = useState<StorageFile[]>([]);
   const [loadingStorage, setLoadingStorage] = useState(false);
@@ -736,6 +738,14 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             <Feather name="hard-drive" size={22} color={colors.foreground} />
           </TouchableOpacity>
 
+          {/* Templates */}
+          <TouchableOpacity
+            style={s.toolbarBtn}
+            onPress={() => setShowTemplates(true)}
+          >
+            <Feather name="file-text" size={22} color={colors.foreground} />
+          </TouchableOpacity>
+
           {/* More */}
           <TouchableOpacity
             style={[s.toolbarBtn, activePanel === "more" && { opacity: 0.5 }]}
@@ -744,6 +754,17 @@ export function ComposeModal({ visible, onClose, initialDraft }: Props) {
             <Feather name="more-horizontal" size={22} color={colors.foreground} />
           </TouchableOpacity>
         </View>
+
+        <EmailTemplatesModal
+          visible={showTemplates}
+          onClose={() => setShowTemplates(false)}
+          currentSubject={subject}
+          currentBody={body}
+          onInsert={(tpl: EmailTemplate) => {
+            if (tpl.subject) setSubject(tpl.subject);
+            if (tpl.body) setBody(tpl.body);
+          }}
+        />
       </KeyboardAvoidingView>
 
       {/* Schedule Picker */}

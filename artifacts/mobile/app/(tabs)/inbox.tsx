@@ -23,6 +23,9 @@ import { PdfViewerModal } from "@/components/PdfViewerModal";
 import { speakText, stopSpeaking, isSpeaking, isTtsSupported } from "@/lib/tts";
 import { exportEmailToWord } from "@/lib/wordExport";
 import { getAuthToken } from "@/lib/authToken";
+import { SnoozePanel } from "@/components/SnoozePanel";
+import { FollowUpSection } from "@/components/FollowUpSection";
+import { categorizeMessages, SMART_TABS, type SmartTabKey } from "@/lib/smartTabs";
 
 function formatEmailDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -40,12 +43,13 @@ const API_BASE = process.env.EXPO_PUBLIC_API_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
     : "https://pinn-box-io.replit.app";
 
-type TabKey = "all" | "unread" | "starred" | "sent" | "drafts" | "saved" | "spam" | "trash";
+type TabKey = "all" | "unread" | "starred" | "sent" | "drafts" | "saved" | "spam" | "trash" | "snoozed";
 
 const TABS: { key: TabKey; label: string; folder?: string; filter?: string }[] = [
   { key: "all",     label: "All Mail" },
   { key: "unread",  label: "Unread",  filter: "unread" },
   { key: "starred", label: "Starred", filter: "starred" },
+  { key: "snoozed", label: "Snoozed" },
   { key: "sent",    label: "Sent",    folder: "Sent" },
   { key: "drafts",  label: "Drafts",  folder: "Drafts" },
   { key: "saved",   label: "Saved",   folder: "Archive" },
@@ -213,6 +217,7 @@ function MessageDetail({
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
   const [pdfViewerFile, setPdfViewerFile] = useState<{ title: string; url?: string } | null>(null);
   const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [snoozePanelVisible, setSnoozePanelVisible] = useState(false);
 
   const receivedDate = message ? new Date(message.receivedAt) : new Date();
 
@@ -295,11 +300,31 @@ function MessageDetail({
                 >
                   <Feather name="file-text" size={14} color={colors.foreground} />
                 </Pressable>
+                <Pressable
+                  onPress={() => setSnoozePanelVisible(true)}
+                  style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Feather name="clock" size={14} color={colors.foreground} />
+                </Pressable>
               </>
             )}
           </View>
         </View>
       </View>
+
+      <SnoozePanel
+        visible={snoozePanelVisible}
+        messageSubject={message?.subject}
+        onClose={() => setSnoozePanelVisible(false)}
+        onSnooze={(until, preset) => {
+          setSnoozePanelVisible(false);
+          Alert.alert(
+            "Snoozed",
+            `"${message?.subject}" will remind you ${preset.label.toLowerCase()} at ${until.toLocaleString([], { hour: "2-digit", minute: "2-digit" })}.`,
+            [{ text: "OK" }]
+          );
+        }}
+      />
 
       {isLoading ? (
         <View style={styles.loadingCenter}><ActivityIndicator color={colors.primary} size="large" /></View>
@@ -417,6 +442,10 @@ export default function InboxScreen() {
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
 
+  // Smart AI tabs
+  const [activeSmartTab, setActiveSmartTab] = useState<SmartTabKey | "all">("all");
+  const [snoozedIds, setSnoozedIds] = useState<Set<number>>(new Set());
+
   // Multi-select / delete
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
@@ -453,13 +482,27 @@ export default function InboxScreen() {
     }
   }, [data]);
 
+  // Smart AI categorization on All Mail tab
+  const categories = useRef<Map<number, SmartTabKey>>(new Map());
+  useEffect(() => {
+    if (activeTab === "all" && allMessages.length > 0) {
+      const results = categorizeMessages(allMessages);
+      results.forEach(r => categories.current.set(r.id, r.category));
+    }
+  }, [allMessages, activeTab]);
+
   const filteredMessages = allMessages.filter(msg => {
+    if (activeTab === "snoozed") return snoozedIds.has(msg.id);
+    if (snoozedIds.has(msg.id)) return false;
     if (searchQuery) {
       const q = searchQuery.toLowerCase();
       if (!msg.subject.toLowerCase().includes(q) && !msg.fromName.toLowerCase().includes(q)) return false;
     }
     if (currentTab.filter === "unread") return !msg.isRead;
     if (currentTab.filter === "starred") return msg.isStarred;
+    if (activeTab === "all" && activeSmartTab !== "all") {
+      return categories.current.get(msg.id) === activeSmartTab;
+    }
     return true;
   });
 
@@ -607,6 +650,34 @@ export default function InboxScreen() {
         </View>
       )}
 
+      {/* Smart AI tabs — shown on All Mail */}
+      {!selectionMode && activeTab === "all" && (
+        <View style={[styles.smartTabsWrapper, { backgroundColor: colors.background }]}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContent}>
+            <Pressable
+              onPress={() => setActiveSmartTab("all")}
+              style={[styles.smartTabPill, activeSmartTab === "all" ? styles.smartTabActive : { backgroundColor: "transparent" }]}
+            >
+              <Text style={[styles.smartTabText, { color: activeSmartTab === "all" ? colors.foreground : colors.mutedForeground }, activeSmartTab === "all" && { fontFamily: "Inter_600SemiBold" }]}>
+                All
+              </Text>
+            </Pressable>
+            {SMART_TABS.map(st => (
+              <Pressable
+                key={st.key}
+                onPress={() => setActiveSmartTab(st.key)}
+                style={[styles.smartTabPill, activeSmartTab === st.key ? { backgroundColor: st.color + "20", borderColor: st.color } : { backgroundColor: "transparent", borderColor: "transparent" }]}
+              >
+                <Feather name={st.icon as any} size={12} color={activeSmartTab === st.key ? st.color : colors.mutedForeground} />
+                <Text style={[styles.smartTabText, { color: activeSmartTab === st.key ? st.color : colors.mutedForeground }, activeSmartTab === st.key && { fontFamily: "Inter_600SemiBold" }]}>
+                  {st.label}
+                </Text>
+              </Pressable>
+            ))}
+          </ScrollView>
+        </View>
+      )}
+
       {/* Tabs */}
       {!selectionMode && (
         <View style={[styles.tabsWrapper, { backgroundColor: colors.background }]}>
@@ -620,7 +691,7 @@ export default function InboxScreen() {
               return (
                 <Pressable
                   key={tab.key}
-                  onPress={() => { setActiveTab(tab.key); setSearchQuery(""); }}
+                  onPress={() => { setActiveTab(tab.key); setSearchQuery(""); setActiveSmartTab("all"); }}
                   style={[
                     styles.tabPill,
                     isActive
@@ -652,6 +723,11 @@ export default function InboxScreen() {
       )}
 
       <View style={[styles.divider, { backgroundColor: colors.border }]} />
+
+      {/* Follow-up reminders (sent tab context) */}
+      {!selectionMode && activeTab === "sent" && (
+        <FollowUpSection onOpen={(id) => setSelectedId(id)} />
+      )}
 
       {/* Message list */}
       {isLoading && allMessages.length === 0 ? (
@@ -739,6 +815,10 @@ const styles = StyleSheet.create({
   tabsContent: { paddingHorizontal: 16, gap: 6, flexDirection: "row" },
   tabPill: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 20 },
   tabPillText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  smartTabsWrapper: { paddingBottom: 6 },
+  smartTabPill: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 11, paddingVertical: 5, borderRadius: 20, borderWidth: 1 },
+  smartTabActive: { backgroundColor: "#00000012", borderColor: "#00000030" },
+  smartTabText: { fontSize: 12, fontFamily: "Inter_500Medium" },
   divider: { height: StyleSheet.hairlineWidth },
   loadingCenter: { flex: 1, alignItems: "center", justifyContent: "center" },
   emptyState: { flex: 1, alignItems: "center", justifyContent: "center", gap: 8, paddingBottom: 80 },
