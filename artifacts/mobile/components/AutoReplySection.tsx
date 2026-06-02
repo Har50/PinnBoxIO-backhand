@@ -1,494 +1,349 @@
-import { useColors } from "@/hooks/useColors";
-import { Feather } from "@expo/vector-icons";
 import { useState, useEffect, useCallback } from "react";
 import {
-  ActivityIndicator,
-  Alert,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Switch,
-  Text,
-  TextInput,
-  View,
-  Modal,
+  View, Text, Pressable, TextInput, Switch, Alert, ActivityIndicator, StyleSheet,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { Feather } from "@expo/vector-icons";
+import { useColors } from "@/hooks/useColors";
 import { getAuthToken } from "@/lib/authToken";
 
 const API_BASE = process.env.EXPO_PUBLIC_API_DOMAIN
   ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
   : process.env.EXPO_PUBLIC_DOMAIN
     ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-    : "";
+    : "https://pinn-box-io.replit.app";
 
-async function authedFetch(path: string, init?: RequestInit) {
-  const token = await getAuthToken();
-  return fetch(`${API_BASE}/api${path}`, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(init?.headers ?? {}),
-    },
-  });
-}
-
-type TriggerType = "all" | "keyword" | "sender";
-
-interface AutoReplySettings {
-  vacationEnabled: boolean;
-  vacationSubject: string;
-  vacationBody: string;
-  vacationStart?: string | null;
-  vacationEnd?: string | null;
-}
-
-interface AutoReplyRule {
+type AutoReplyRule = {
   id: number;
-  triggerType: TriggerType;
-  triggerValue?: string | null;
+  trigger: "keyword" | "sender" | "all";
+  value: string;
   replySubject: string;
   replyBody: string;
-  isActive: boolean;
-}
-
-const DEFAULT_SETTINGS: AutoReplySettings = {
-  vacationEnabled: false,
-  vacationSubject: "Out of office",
-  vacationBody: "Thanks for your email. I'm currently out of the office and will reply when I return.",
+  enabled: boolean;
 };
 
-function RuleRow({
-  rule,
-  onDelete,
-  onToggle,
-}: {
-  rule: AutoReplyRule;
-  onDelete: () => void;
-  onToggle: () => void;
-}) {
+type VacationResponder = {
+  enabled: boolean;
+  subject: string;
+  message: string;
+  startDate: string | null;
+  endDate: string | null;
+};
+
+function SectionHeader({ title }: { title: string }) {
   const colors = useColors();
-
-  const triggerLabel =
-    rule.triggerType === "all"
-      ? "All incoming emails"
-      : rule.triggerType === "keyword"
-        ? `Keyword: "${rule.triggerValue ?? ""}"`
-        : `From: ${rule.triggerValue ?? ""}`;
-
   return (
-    <View style={[s.ruleRow, { borderBottomColor: colors.border }]}>
-      <View style={[s.ruleIcon, { backgroundColor: rule.isActive ? colors.primary + "15" : colors.muted }]}>
-        <Feather name="zap" size={14} color={rule.isActive ? colors.primary : colors.mutedForeground} />
-      </View>
-      <View style={s.ruleInfo}>
-        <Text style={[s.ruleTrigger, { color: colors.foreground }]} numberOfLines={1}>{triggerLabel}</Text>
-        <Text style={[s.ruleReply, { color: colors.mutedForeground }]} numberOfLines={1}>
-          Reply: {rule.replySubject}
-        </Text>
-      </View>
-      <Switch
-        value={rule.isActive}
-        onValueChange={onToggle}
-        trackColor={{ false: colors.border, true: colors.primary }}
-        thumbColor="#fff"
-      />
-      <Pressable onPress={onDelete} hitSlop={8} style={s.deleteBtn}>
-        <Feather name="trash-2" size={16} color="#ef4444" />
-      </Pressable>
-    </View>
+    <Text style={[styles.sectionHeader, { color: colors.mutedForeground }]}>{title}</Text>
   );
 }
 
-interface AddRuleModalProps {
-  visible: boolean;
-  onClose: () => void;
-  onSave: (rule: Omit<AutoReplyRule, "id">) => Promise<void>;
-}
-
-function AddRuleModal({ visible, onClose, onSave }: AddRuleModalProps) {
-  const colors = useColors();
-  const [triggerType, setTriggerType] = useState<TriggerType>("all");
-  const [triggerValue, setTriggerValue] = useState("");
-  const [replySubject, setReplySubject] = useState("");
-  const [replyBody, setReplyBody] = useState("");
-  const [saving, setSaving] = useState(false);
-
-  function reset() {
-    setTriggerType("all");
-    setTriggerValue("");
-    setReplySubject("");
-    setReplyBody("");
-  }
-
-  async function handleSave() {
-    if (!replySubject.trim() || !replyBody.trim()) {
-      Alert.alert("Required", "Please fill in a reply subject and body.");
-      return;
-    }
-    if ((triggerType === "keyword" || triggerType === "sender") && !triggerValue.trim()) {
-      Alert.alert("Required", `Please enter a ${triggerType === "keyword" ? "keyword" : "sender email"}.`);
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSave({
-        triggerType,
-        triggerValue: triggerType === "all" ? null : triggerValue.trim(),
-        replySubject: replySubject.trim(),
-        replyBody: replyBody.trim(),
-        isActive: true,
-      });
-      reset();
-      onClose();
-    } catch (err: any) {
-      Alert.alert("Error", err.message ?? "Could not save rule.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  const TRIGGER_OPTS: { key: TriggerType; label: string; icon: React.ComponentProps<typeof Feather>["name"] }[] = [
-    { key: "all", label: "All emails", icon: "inbox" },
-    { key: "keyword", label: "Keyword", icon: "tag" },
-    { key: "sender", label: "Sender email", icon: "at-sign" },
-  ];
-
+function SettingsCard({ children, colors }: { children: React.ReactNode; colors: any }) {
   return (
-    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={[s.modalContainer, { backgroundColor: colors.background }]} edges={["top"]}>
-        <View style={[s.modalHeader, { borderBottomColor: colors.border }]}>
-          <Text style={[s.modalTitle, { color: colors.foreground }]}>New Auto-Reply Rule</Text>
-          <Pressable onPress={() => { reset(); onClose(); }} style={s.modalClose}>
-            <Feather name="x" size={22} color={colors.foreground} />
-          </Pressable>
-        </View>
-
-        <ScrollView
-          style={{ flex: 1 }}
-          contentContainerStyle={s.modalBody}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>TRIGGER</Text>
-          <View style={[s.triggerRow, { borderColor: colors.border }]}>
-            {TRIGGER_OPTS.map((opt) => (
-              <Pressable
-                key={opt.key}
-                onPress={() => setTriggerType(opt.key)}
-                style={[
-                  s.triggerBtn,
-                  { backgroundColor: triggerType === opt.key ? colors.primary : colors.card, borderColor: colors.border },
-                ]}
-              >
-                <Feather name={opt.icon} size={14} color={triggerType === opt.key ? "#fff" : colors.mutedForeground} />
-                <Text style={[s.triggerBtnText, { color: triggerType === opt.key ? "#fff" : colors.mutedForeground }]}>
-                  {opt.label}
-                </Text>
-              </Pressable>
-            ))}
-          </View>
-
-          {triggerType !== "all" && (
-            <>
-              <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>
-                {triggerType === "keyword" ? "KEYWORD" : "SENDER EMAIL"}
-              </Text>
-              <TextInput
-                style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-                placeholder={triggerType === "keyword" ? "e.g. urgent, invoice…" : "e.g. noreply@example.com"}
-                placeholderTextColor={colors.mutedForeground}
-                value={triggerValue}
-                onChangeText={setTriggerValue}
-                autoCapitalize="none"
-                autoCorrect={false}
-              />
-            </>
-          )}
-
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>REPLY SUBJECT</Text>
-          <TextInput
-            style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-            placeholder="e.g. Re: Got your message"
-            placeholderTextColor={colors.mutedForeground}
-            value={replySubject}
-            onChangeText={setReplySubject}
-          />
-
-          <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>REPLY BODY</Text>
-          <TextInput
-            style={[s.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.card }]}
-            placeholder="Your automatic reply message…"
-            placeholderTextColor={colors.mutedForeground}
-            value={replyBody}
-            onChangeText={setReplyBody}
-            multiline
-            numberOfLines={5}
-            textAlignVertical="top"
-          />
-
-          <Pressable
-            style={[s.saveBtn, { backgroundColor: colors.primary, opacity: saving ? 0.7 : 1 }]}
-            onPress={handleSave}
-            disabled={saving}
-          >
-            {saving
-              ? <ActivityIndicator color="#fff" size="small" />
-              : <><Feather name="check" size={16} color="#fff" /><Text style={s.saveBtnText}>Save Rule</Text></>}
-          </Pressable>
-        </ScrollView>
-      </SafeAreaView>
-    </Modal>
+    <View style={[styles.card, { borderColor: colors.border }]}>
+      {children}
+    </View>
   );
 }
 
 export function AutoReplySection() {
   const colors = useColors();
-  const [settings, setSettings] = useState<AutoReplySettings>(DEFAULT_SETTINGS);
+  const [vacation, setVacation] = useState<VacationResponder>({
+    enabled: false, subject: "", message: "", startDate: null, endDate: null,
+  });
   const [rules, setRules] = useState<AutoReplyRule[]>([]);
   const [loading, setLoading] = useState(true);
-  const [savingSettings, setSavingSettings] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showAddRule, setShowAddRule] = useState(false);
+  const [newRule, setNewRule] = useState<Omit<AutoReplyRule, "id">>({
+    trigger: "all", value: "", replySubject: "", replyBody: "", enabled: true,
+  });
 
-  const loadData = useCallback(async () => {
+  const fetchAutoReply = useCallback(async () => {
+    const token = await getAuthToken();
+    if (!token) { setLoading(false); return; }
     try {
-      const [settingsRes, rulesRes] = await Promise.all([
-        authedFetch("/auto-reply/settings"),
-        authedFetch("/auto-reply/rules"),
-      ]);
-      if (settingsRes.ok) {
-        const data = await settingsRes.json();
-        setSettings({ ...DEFAULT_SETTINGS, ...data });
-      }
-      if (rulesRes.ok) {
-        const data = await rulesRes.json();
-        setRules(data.rules ?? data ?? []);
+      const res = await fetch(`${API_BASE}/api/settings/auto-reply`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.vacation) setVacation(data.vacation);
+        if (data.rules) setRules(data.rules);
       }
     } catch {}
     setLoading(false);
   }, []);
 
-  useEffect(() => { loadData(); }, [loadData]);
+  useEffect(() => { fetchAutoReply(); }, [fetchAutoReply]);
 
-  async function saveSettings(updated: AutoReplySettings) {
-    setSavingSettings(true);
+  const saveVacation = async (updated: VacationResponder) => {
+    setVacation(updated);
+    setSaving(true);
+    const token = await getAuthToken();
+    if (token) {
+      try {
+        await fetch(`${API_BASE}/api/settings/auto-reply/vacation`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify(updated),
+        });
+      } catch {}
+    }
+    setSaving(false);
+  };
+
+  const addRule = async () => {
+    if (!newRule.replyBody.trim()) {
+      Alert.alert("Validation", "Reply body is required.");
+      return;
+    }
+    const token = await getAuthToken();
+    if (!token) return;
+    setSaving(true);
     try {
-      const res = await authedFetch("/auto-reply/settings", {
-        method: "PUT",
-        body: JSON.stringify(updated),
+      const res = await fetch(`${API_BASE}/api/settings/auto-reply/rules`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(newRule),
       });
-      if (!res.ok) {
-        const b = await res.json().catch(() => ({}));
-        throw new Error((b as any)?.error ?? "Failed to save");
+      if (res.ok) {
+        const created = await res.json();
+        setRules((prev) => [...prev, created]);
+        setShowAddRule(false);
+        setNewRule({ trigger: "all", value: "", replySubject: "", replyBody: "", enabled: true });
       }
-      setSettings(updated);
-    } catch (err: any) {
-      Alert.alert("Error", err.message ?? "Could not save settings.");
-    } finally {
-      setSavingSettings(false);
-    }
-  }
+    } catch {}
+    setSaving(false);
+  };
 
-  async function addRule(rule: Omit<AutoReplyRule, "id">) {
-    const res = await authedFetch("/auto-reply/rules", {
-      method: "POST",
-      body: JSON.stringify(rule),
-    });
-    if (!res.ok) {
-      const b = await res.json().catch(() => ({}));
-      throw new Error((b as any)?.error ?? "Failed to create rule");
+  const toggleRule = async (ruleId: number, enabled: boolean) => {
+    setRules((prev) => prev.map((r) => (r.id === ruleId ? { ...r, enabled } : r)));
+    const token = await getAuthToken();
+    if (token) {
+      try {
+        await fetch(`${API_BASE}/api/settings/auto-reply/rules/${ruleId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ enabled }),
+        });
+      } catch {}
     }
-    const created = await res.json();
-    setRules((prev) => [created, ...prev]);
-  }
+  };
 
-  async function deleteRule(id: number) {
+  const deleteRule = (ruleId: number) => {
     Alert.alert("Delete Rule", "Remove this auto-reply rule?", [
       { text: "Cancel", style: "cancel" },
       {
         text: "Delete", style: "destructive",
         onPress: async () => {
-          try {
-            await authedFetch(`/auto-reply/rules/${id}`, { method: "DELETE" });
-            setRules((prev) => prev.filter((r) => r.id !== id));
-          } catch {
-            Alert.alert("Error", "Could not delete rule.");
+          setRules((prev) => prev.filter((r) => r.id !== ruleId));
+          const token = await getAuthToken();
+          if (token) {
+            try {
+              await fetch(`${API_BASE}/api/settings/auto-reply/rules/${ruleId}`, { method: "DELETE" });
+            } catch {}
           }
         },
       },
     ]);
-  }
+  };
 
-  async function toggleRule(id: number) {
-    const rule = rules.find((r) => r.id === id);
-    if (!rule) return;
-    const updated = { ...rule, isActive: !rule.isActive };
-    setRules((prev) => prev.map((r) => (r.id === id ? updated : r)));
-    try {
-      await authedFetch(`/auto-reply/rules/${id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ isActive: updated.isActive }),
-      });
-    } catch {
-      setRules((prev) => prev.map((r) => (r.id === id ? rule : r)));
-    }
-  }
-
-  if (loading) {
-    return (
-      <View style={s.loadingRow}>
-        <ActivityIndicator color={colors.mutedForeground} size="small" />
-      </View>
-    );
-  }
+  if (loading) return null;
 
   return (
-    <>
-      <View style={s.section}>
-        <Text style={[s.sectionHeader, { color: colors.mutedForeground }]}>Auto-Reply</Text>
-
-        {/* Vacation Responder */}
-        <View style={[s.card, { borderColor: colors.border }]}>
-          <View style={[s.row, { backgroundColor: colors.card }]}>
-            <View style={[s.rowIcon, { backgroundColor: settings.vacationEnabled ? "#f59e0b20" : colors.muted }]}>
-              <Feather name="sun" size={16} color={settings.vacationEnabled ? "#f59e0b" : colors.mutedForeground} />
+    <View style={{ gap: 8 }}>
+      {/* Vacation Responder */}
+      <View style={styles.section}>
+        <SectionHeader title="Vacation Responder" />
+        <SettingsCard colors={colors}>
+          <View style={[styles.row, { backgroundColor: colors.card }]}>
+            <View style={[styles.rowIcon, { backgroundColor: colors.primary + "18" }]}>
+              <Feather name="sun" size={16} color={colors.primary} />
             </View>
-            <View style={s.rowContent}>
-              <Text style={[s.rowLabel, { color: colors.foreground }]}>Vacation Responder</Text>
-              <Text style={[s.rowDescription, { color: colors.mutedForeground }]}>
-                {settings.vacationEnabled ? "Auto-replying to incoming emails" : "Automatically reply when you're away"}
+            <View style={styles.rowContent}>
+              <Text style={[styles.rowLabel, { color: colors.foreground }]}>Auto-reply while away</Text>
+              <Text style={[styles.rowDesc, { color: colors.mutedForeground }]}>
+                {vacation.enabled ? "Active" : "Send automatic replies"}
               </Text>
             </View>
-            {savingSettings
-              ? <ActivityIndicator size="small" color={colors.mutedForeground} />
-              : <Switch
-                  value={settings.vacationEnabled}
-                  onValueChange={(val) => saveSettings({ ...settings, vacationEnabled: val })}
-                  trackColor={{ false: colors.border, true: "#f59e0b" }}
-                  thumbColor="#fff"
-                />}
+            <Switch
+              value={vacation.enabled}
+              onValueChange={(v) => saveVacation({ ...vacation, enabled: v })}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor="#fff"
+            />
           </View>
-
-          {settings.vacationEnabled && (
+          {vacation.enabled && (
             <>
-              <View style={[s.divider, { backgroundColor: colors.border }]} />
-              <View style={s.vacationBody}>
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>SUBJECT</Text>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.fieldRow, { backgroundColor: colors.card }]}>
+                <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Subject</Text>
                 <TextInput
-                  style={[s.input, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-                  value={settings.vacationSubject}
-                  onChangeText={(v) => setSettings({ ...settings, vacationSubject: v })}
-                  onEndEditing={() => saveSettings(settings)}
+                  style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+                  value={vacation.subject}
+                  onChangeText={(v) => setVacation((p) => ({ ...p, subject: v }))}
+                  onBlur={() => saveVacation(vacation)}
                   placeholder="Out of office"
                   placeholderTextColor={colors.mutedForeground}
                 />
-                <Text style={[s.fieldLabel, { color: colors.mutedForeground }]}>MESSAGE</Text>
+              </View>
+              <View style={[styles.divider, { backgroundColor: colors.border }]} />
+              <View style={[styles.fieldRow, { backgroundColor: colors.card, paddingBottom: 16 }]}>
+                <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Message</Text>
                 <TextInput
-                  style={[s.textArea, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.background }]}
-                  value={settings.vacationBody}
-                  onChangeText={(v) => setSettings({ ...settings, vacationBody: v })}
-                  onEndEditing={() => saveSettings(settings)}
-                  placeholder="I'm currently out of the office…"
+                  style={[styles.fieldInputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+                  value={vacation.message}
+                  onChangeText={(v) => setVacation((p) => ({ ...p, message: v }))}
+                  onBlur={() => saveVacation(vacation)}
+                  placeholder="I'm currently out of the office..."
                   placeholderTextColor={colors.mutedForeground}
                   multiline
-                  numberOfLines={4}
-                  textAlignVertical="top"
+                  numberOfLines={3}
                 />
               </View>
             </>
           )}
-        </View>
-
-        {/* Rules */}
-        <View style={[s.card, { borderColor: colors.border, marginTop: 10 }]}>
-          <View style={[s.rulesHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-            <View style={[s.rowIcon, { backgroundColor: colors.muted }]}>
-              <Feather name="zap" size={16} color={colors.mutedForeground} />
-            </View>
-            <View style={s.rowContent}>
-              <Text style={[s.rowLabel, { color: colors.foreground }]}>Reply Rules</Text>
-              <Text style={[s.rowDescription, { color: colors.mutedForeground }]}>
-                {rules.length === 0 ? "Trigger replies by keyword or sender" : `${rules.length} rule${rules.length !== 1 ? "s" : ""} configured`}
-              </Text>
-            </View>
-            <Pressable
-              onPress={() => setShowAddRule(true)}
-              style={[s.addRuleBtn, { backgroundColor: colors.primary }]}
-            >
-              <Feather name="plus" size={14} color="#fff" />
-              <Text style={s.addRuleBtnText}>Add</Text>
-            </Pressable>
-          </View>
-          {rules.map((rule, i) => (
-            <RuleRow
-              key={rule.id}
-              rule={rule}
-              onDelete={() => deleteRule(rule.id)}
-              onToggle={() => toggleRule(rule.id)}
-            />
-          ))}
-          {rules.length === 0 && (
-            <Pressable
-              onPress={() => setShowAddRule(true)}
-              style={[s.emptyRules, { backgroundColor: colors.card }]}
-            >
-              <Feather name="plus-circle" size={20} color={colors.mutedForeground} />
-              <Text style={[s.emptyRulesText, { color: colors.mutedForeground }]}>Add your first auto-reply rule</Text>
-            </Pressable>
-          )}
-        </View>
+        </SettingsCard>
       </View>
 
-      <AddRuleModal
-        visible={showAddRule}
-        onClose={() => setShowAddRule(false)}
-        onSave={addRule}
-      />
-    </>
+      {/* Auto-Reply Rules */}
+      <View style={styles.section}>
+        <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+          <SectionHeader title="Auto-Reply Rules" />
+          <Pressable onPress={() => setShowAddRule(!showAddRule)} style={[styles.addRuleBtn, { backgroundColor: colors.primary + "15" }]}>
+            <Feather name="plus" size={14} color={colors.primary} />
+            <Text style={[styles.addRuleBtnText, { color: colors.primary }]}>Add Rule</Text>
+          </Pressable>
+        </View>
+        {rules.length === 0 && !showAddRule && (
+          <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+            No auto-reply rules configured. Rules automatically respond to incoming emails based on keywords or sender.
+          </Text>
+        )}
+        {rules.length > 0 && (
+          <SettingsCard colors={colors}>
+            {rules.map((rule, idx) => (
+              <View key={rule.id}>
+                {idx > 0 && <View style={[styles.divider, { backgroundColor: colors.border }]} />}
+                <View style={[styles.ruleRow, { backgroundColor: colors.card }]}>
+                  <View style={styles.ruleInfo}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <View style={[styles.triggerBadge, { backgroundColor: colors.primary + "15" }]}>
+                        <Text style={[styles.triggerBadgeText, { color: colors.primary }]}>
+                          {rule.trigger === "all" ? "All" : rule.trigger === "sender" ? "Sender" : "Keyword"}
+                        </Text>
+                      </View>
+                      <Text style={[styles.ruleValue, { color: colors.foreground }]} numberOfLines={1}>
+                        {rule.value || "—"}
+                      </Text>
+                    </View>
+                    <Text style={[styles.replyPreview, { color: colors.mutedForeground }]} numberOfLines={1}>
+                      {rule.replyBody}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={rule.enabled}
+                    onValueChange={(v) => toggleRule(rule.id, v)}
+                    trackColor={{ false: colors.border, true: colors.primary }}
+                    thumbColor="#fff"
+                  />
+                  <Pressable onPress={() => deleteRule(rule.id)} style={styles.deleteRuleBtn}>
+                    <Feather name="trash-2" size={14} color={colors.destructive} />
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </SettingsCard>
+        )}
+        {showAddRule && (
+          <SettingsCard colors={colors}>
+            <View style={[styles.row, { backgroundColor: colors.card, flexDirection: "column", gap: 10 }]}>
+              <Text style={[styles.fieldLabel, { color: colors.foreground }]}>Trigger</Text>
+              <View style={{ flexDirection: "row", gap: 6 }}>
+                {(["all", "sender", "keyword"] as const).map((t) => (
+                  <Pressable
+                    key={t}
+                    onPress={() => setNewRule((p) => ({ ...p, trigger: t, value: t === "all" ? "" : p.value }))}
+                    style={[styles.triggerOption, { backgroundColor: newRule.trigger === t ? colors.primary : colors.muted }]}
+                  >
+                    <Text style={[styles.triggerOptionText, { color: newRule.trigger === t ? "#fff" : colors.mutedForeground }]}>
+                      {t === "all" ? "All emails" : t === "sender" ? "Specific sender" : "Keyword match"}
+                    </Text>
+                  </Pressable>
+                ))}
+              </View>
+              {newRule.trigger !== "all" && (
+                <TextInput
+                  style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+                  value={newRule.value}
+                  onChangeText={(v) => setNewRule((p) => ({ ...p, value: v }))}
+                  placeholder={newRule.trigger === "sender" ? "sender@example.com" : "keyword"}
+                  placeholderTextColor={colors.mutedForeground}
+                />
+              )}
+              <TextInput
+                style={[styles.fieldInput, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+                value={newRule.replySubject}
+                onChangeText={(v) => setNewRule((p) => ({ ...p, replySubject: v }))}
+                placeholder="Reply subject (optional)"
+                placeholderTextColor={colors.mutedForeground}
+              />
+              <TextInput
+                style={[styles.fieldInputMultiline, { color: colors.foreground, borderColor: colors.border, backgroundColor: colors.muted }]}
+                value={newRule.replyBody}
+                onChangeText={(v) => setNewRule((p) => ({ ...p, replyBody: v }))}
+                placeholder="Reply body *"
+                placeholderTextColor={colors.mutedForeground}
+                multiline
+                numberOfLines={3}
+              />
+              <View style={{ flexDirection: "row", gap: 8, justifyContent: "flex-end" }}>
+                <Pressable onPress={() => setShowAddRule(false)} style={[styles.cancelBtn, { borderColor: colors.border }]}>
+                  <Text style={[styles.cancelBtnText, { color: colors.mutedForeground }]}>Cancel</Text>
+                </Pressable>
+                <Pressable onPress={addRule} disabled={saving} style={[styles.saveBtn, { backgroundColor: colors.primary }]}>
+                  {saving ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.saveBtnText}>Add Rule</Text>}
+                </Pressable>
+              </View>
+            </View>
+          </SettingsCard>
+        )}
+      </View>
+    </View>
   );
 }
 
-const s = StyleSheet.create({
-  section: { gap: 0 },
+const styles = StyleSheet.create({
+  section: { gap: 8 },
   sectionHeader: {
-    fontSize: 12,
-    fontFamily: "Inter_600SemiBold",
-    textTransform: "uppercase",
-    letterSpacing: 0.8,
-    marginBottom: 8,
+    fontSize: 12, fontFamily: "Inter_600SemiBold", textTransform: "uppercase", letterSpacing: 0.8,
   },
   card: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
-  row: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12 },
+  row: {
+    flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12,
+  },
   rowIcon: { width: 32, height: 32, borderRadius: 8, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   rowContent: { flex: 1, minWidth: 0 },
   rowLabel: { fontSize: 14, fontFamily: "Inter_500Medium" },
-  rowDescription: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
+  rowDesc: { fontSize: 12, fontFamily: "Inter_400Regular", marginTop: 1 },
   divider: { height: StyleSheet.hairlineWidth, marginLeft: 60 },
-  vacationBody: { paddingHorizontal: 16, paddingBottom: 16, gap: 6 },
-  fieldLabel: { fontSize: 11, fontFamily: "Inter_600SemiBold", letterSpacing: 0.6, marginTop: 8, marginBottom: 4 },
-  input: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular" },
-  textArea: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, fontFamily: "Inter_400Regular", minHeight: 100 },
-  rulesHeader: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 13, gap: 12, borderBottomWidth: StyleSheet.hairlineWidth },
-  addRuleBtn: { flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
-  addRuleBtnText: { color: "#fff", fontSize: 12, fontFamily: "Inter_600SemiBold" },
-  ruleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 10, borderBottomWidth: StyleSheet.hairlineWidth },
-  ruleIcon: { width: 28, height: 28, borderRadius: 7, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  ruleInfo: { flex: 1, minWidth: 0 },
-  ruleTrigger: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  ruleReply: { fontSize: 11, fontFamily: "Inter_400Regular", marginTop: 1 },
-  deleteBtn: { padding: 4 },
-  emptyRules: { alignItems: "center", justifyContent: "center", gap: 10, paddingVertical: 24, flexDirection: "row" },
-  emptyRulesText: { fontSize: 13, fontFamily: "Inter_400Regular" },
-  loadingRow: { paddingVertical: 20, alignItems: "center" },
-  modalContainer: { flex: 1 },
-  modalHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingVertical: 16, borderBottomWidth: StyleSheet.hairlineWidth },
-  modalTitle: { fontSize: 17, fontFamily: "Inter_600SemiBold" },
-  modalClose: { padding: 4 },
-  modalBody: { padding: 20, gap: 4, paddingBottom: 60 },
-  triggerRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 16 },
-  triggerBtn: { flexDirection: "row", alignItems: "center", gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
-  triggerBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
-  saveBtn: { flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, borderRadius: 14, paddingVertical: 15, marginTop: 24 },
-  saveBtnText: { color: "#fff", fontSize: 15, fontFamily: "Inter_600SemiBold" },
+  fieldRow: { paddingHorizontal: 16, paddingTop: 12, gap: 6 },
+  fieldLabel: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  fieldInput: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, fontFamily: "Inter_400Regular" },
+  fieldInputMultiline: { borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, fontSize: 13, fontFamily: "Inter_400Regular", minHeight: 70, textAlignVertical: "top" },
+  emptyText: { fontSize: 13, fontFamily: "Inter_400Regular", lineHeight: 20, paddingHorizontal: 4 },
+  addRuleBtn: { flexDirection: "row", alignItems: "center", gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  addRuleBtnText: { fontSize: 12, fontFamily: "Inter_600SemiBold" },
+  ruleRow: { flexDirection: "row", alignItems: "center", paddingHorizontal: 16, paddingVertical: 12, gap: 8 },
+  ruleInfo: { flex: 1, minWidth: 0, gap: 4 },
+  triggerBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 6, alignSelf: "flex-start" },
+  triggerBadgeText: { fontSize: 10, fontFamily: "Inter_600SemiBold" },
+  ruleValue: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  replyPreview: { fontSize: 11, fontFamily: "Inter_400Regular" },
+  deleteRuleBtn: { padding: 6 },
+  triggerOption: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
+  triggerOptionText: { fontSize: 12, fontFamily: "Inter_500Medium" },
+  cancelBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, borderWidth: 1 },
+  cancelBtnText: { fontSize: 13, fontFamily: "Inter_500Medium" },
+  saveBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 8, minWidth: 80, alignItems: "center" },
+  saveBtnText: { color: "#fff", fontSize: 13, fontFamily: "Inter_600SemiBold" },
 });

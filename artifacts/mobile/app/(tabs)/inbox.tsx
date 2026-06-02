@@ -20,9 +20,9 @@ import { format, isToday, isThisWeek, isThisYear } from "date-fns";
 import * as Haptics from "expo-haptics";
 import { ComposeModal, type ComposeDraft } from "@/components/ComposeModal";
 import { PdfViewerModal } from "@/components/PdfViewerModal";
+import { speakText, stopSpeaking, isSpeaking, isTtsSupported } from "@/lib/tts";
+import { exportEmailToWord } from "@/lib/wordExport";
 import { getAuthToken } from "@/lib/authToken";
-import { speakText, stopSpeaking, isTTSSupported } from "@/lib/tts";
-import { exportAsWord } from "@/lib/wordExport";
 
 function formatEmailDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -210,55 +210,9 @@ function MessageDetail({
   const insets = useSafeAreaInsets();
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [bodyScale, setBodyScale] = useState(1);
-  const [isSpeakingNow, setIsSpeakingNow] = useState(false);
   const [pdfViewerVisible, setPdfViewerVisible] = useState(false);
-  const [pdfViewerUrl, setPdfViewerUrl] = useState("");
-  const [pdfViewerFilename, setPdfViewerFilename] = useState("");
-  const [exportingWord, setExportingWord] = useState(false);
-
-  function handleTTS() {
-    if (!message) return;
-    if (isSpeakingNow) {
-      stopSpeaking();
-      setIsSpeakingNow(false);
-      return;
-    }
-    const text = `${message.subject}. From ${message.fromName}. ${message.bodyText ?? ""}`;
-    speakText(text);
-    setIsSpeakingNow(true);
-    setTimeout(() => setIsSpeakingNow(false), (text.length / 12) * 1000 + 3000);
-  }
-
-  async function handleWordExport() {
-    if (!message) return;
-    setExportingWord(true);
-    try {
-      await exportAsWord({
-        subject: message.subject,
-        fromName: message.fromName,
-        fromEmail: message.fromEmail,
-        date: format(new Date(message.receivedAt), "MMM d, yyyy 'at' h:mm a"),
-        body: message.bodyText ?? "",
-      });
-    } catch {
-      Alert.alert("Export Failed", "Could not export as Word document.");
-    } finally {
-      setExportingWord(false);
-    }
-  }
-
-  function openPdfViewer(att: { filename: string }) {
-    const token_placeholder = "";
-    const API_BASE_LOCAL = process.env.EXPO_PUBLIC_API_DOMAIN
-      ? `https://${process.env.EXPO_PUBLIC_API_DOMAIN}`
-      : process.env.EXPO_PUBLIC_DOMAIN
-        ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-        : "";
-    const url = `${API_BASE_LOCAL}/api/messages/${messageId}/attachments/${att.filename}`;
-    setPdfViewerUrl(url);
-    setPdfViewerFilename(att.filename);
-    setPdfViewerVisible(true);
-  }
+  const [pdfViewerFile, setPdfViewerFile] = useState<{ title: string; url?: string } | null>(null);
+  const [ttsPlaying, setTtsPlaying] = useState(false);
 
   const receivedDate = message ? new Date(message.receivedAt) : new Date();
 
@@ -320,25 +274,26 @@ function MessageDetail({
                 <Pressable onPress={() => setBodyScale((v) => Math.min(1.6, Number((v + 0.1).toFixed(1))))} style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}>
                   <Feather name="zoom-in" size={14} color={colors.foreground} />
                 </Pressable>
-                {isTTSSupported() && (
+                {isTtsSupported() && (
                   <Pressable
-                    onPress={handleTTS}
-                    style={[styles.iconActionButton, { backgroundColor: isSpeakingNow ? colors.primary + "20" : colors.card, borderColor: isSpeakingNow ? colors.primary : colors.border }]}
+                    onPress={() => {
+                      if (isSpeaking()) { stopSpeaking(); setTtsPlaying(false); return; }
+                      setTtsPlaying(true);
+                      speakText(`${message.subject}. ${message.bodyText || ""}`, () => setTtsPlaying(false));
+                    }}
+                    style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
                   >
-                    <Feather name={isSpeakingNow ? "volume-2" : "volume-1"} size={14} color={isSpeakingNow ? colors.primary : colors.foreground} />
+                    <Feather name={ttsPlaying ? "volume-x" : "volume-2"} size={14} color={ttsPlaying ? colors.destructive : colors.foreground} />
                   </Pressable>
                 )}
-                <Pressable
-                  onPress={handleWordExport}
-                  disabled={exportingWord}
-                  style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
-                >
-                  {exportingWord
-                    ? <ActivityIndicator size="small" color={colors.foreground} />
-                    : <Feather name="file-text" size={14} color="#2563eb" />}
-                </Pressable>
                 <Pressable onPress={toggleStar} style={styles.starButton}>
                   <Ionicons name={message.isStarred ? "star" : "star-outline"} size={20} color={message.isStarred ? "#f59e0b" : colors.mutedForeground} />
+                </Pressable>
+                <Pressable
+                  onPress={() => exportEmailToWord(message)}
+                  style={[styles.iconActionButton, { backgroundColor: colors.card, borderColor: colors.border }]}
+                >
+                  <Feather name="file-text" size={14} color={colors.foreground} />
                 </Pressable>
               </>
             )}
@@ -416,27 +371,22 @@ function MessageDetail({
             <View style={[styles.attachmentsSection, { borderTopColor: colors.border }]}>
               <Text style={[styles.attachmentsTitle, { color: colors.mutedForeground }]}>Attachments ({message.attachments.length})</Text>
               {message.attachments.map((att) => {
-                const isPdf = att.filename.toLowerCase().endsWith(".pdf") || att.filename.toLowerCase().includes(".pdf");
+                const isPdf = att.filename.toLowerCase().endsWith(".pdf");
                 return (
-                  <View key={att.id} style={[styles.attachmentRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                    <Feather name={isPdf ? "file-text" : "paperclip"} size={14} color={isPdf ? "#3b82f6" : colors.mutedForeground} />
-                    {isPdf && (
-                      <View style={styles.pdfBadge}>
-                        <Text style={styles.pdfBadgeText}>PDF</Text>
-                      </View>
-                    )}
+                  <Pressable
+                    key={att.id}
+                    onPress={isPdf ? () => { setPdfViewerFile({ title: att.filename }); setPdfViewerVisible(true); } : undefined}
+                    style={[styles.attachmentRow, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  >
+                    <Feather name={isPdf ? "file-text" : "paperclip"} size={14} color={isPdf ? "#ef4444" : colors.mutedForeground} />
                     <Text style={[styles.attachmentName, { color: colors.foreground }]} numberOfLines={1}>{att.filename}</Text>
                     <Text style={[styles.attachmentSize, { color: colors.mutedForeground }]}>{(att.size / 1024).toFixed(0)} KB</Text>
                     {isPdf && (
-                      <Pressable
-                        onPress={() => openPdfViewer(att)}
-                        style={[styles.viewPdfBtn, { backgroundColor: "#3b82f610", borderColor: "#3b82f640" }]}
-                      >
-                        <Feather name="eye" size={12} color="#3b82f6" />
-                        <Text style={styles.viewPdfBtnText}>View</Text>
-                      </Pressable>
+                      <View style={[styles.badge, { backgroundColor: "#ef444415" }]}>
+                        <Text style={[styles.badgeText, { color: "#ef4444" }]}>PDF</Text>
+                      </View>
                     )}
-                  </View>
+                  </Pressable>
                 );
               })}
             </View>
@@ -445,9 +395,9 @@ function MessageDetail({
       )}
       <PdfViewerModal
         visible={pdfViewerVisible}
-        url={pdfViewerUrl}
-        filename={pdfViewerFilename}
-        onClose={() => setPdfViewerVisible(false)}
+        title={pdfViewerFile?.title ?? "Document"}
+        url={pdfViewerFile?.url}
+        onClose={() => { setPdfViewerVisible(false); setPdfViewerFile(null); }}
       />
     </View>
   );
@@ -860,8 +810,6 @@ const styles = StyleSheet.create({
   attachmentRow: { flexDirection: "row", alignItems: "center", gap: 8, borderRadius: 8, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 10 },
   attachmentName: { flex: 1, fontSize: 13, fontFamily: "Inter_400Regular" },
   attachmentSize: { fontSize: 11, fontFamily: "Inter_400Regular", flexShrink: 0 },
-  pdfBadge: { backgroundColor: "#3b82f620", borderRadius: 4, paddingHorizontal: 5, paddingVertical: 2, flexShrink: 0 },
-  pdfBadgeText: { fontSize: 9, fontFamily: "Inter_600SemiBold", color: "#3b82f6", letterSpacing: 0.5 },
-  viewPdfBtn: { flexDirection: "row", alignItems: "center", gap: 4, borderWidth: 1, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 5, flexShrink: 0 },
-  viewPdfBtnText: { fontSize: 11, fontFamily: "Inter_500Medium", color: "#3b82f6" },
+  badge: { paddingHorizontal: 5, paddingVertical: 2, borderRadius: 4 },
+  badgeText: { fontSize: 9, fontFamily: "Inter_600SemiBold", letterSpacing: 0.5 },
 });
