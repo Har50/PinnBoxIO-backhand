@@ -1,21 +1,17 @@
 import { useGetUserPreferences, useUpdateUserPreferences, getGetUserPreferencesQueryKey } from "@workspace/api-client-react";
-import { useAuth, useUser } from "@clerk/expo";
+import { useUser } from "@clerk/expo";
 import { useColors } from "@/hooks/useColors";
 import { useThemeMode } from "@/contexts/ThemeContext";
+import { useOAuthConnect } from "@/lib/useOAuthConnect";
 import { Feather } from "@expo/vector-icons";
 import { useQueryClient } from "@tanstack/react-query";
 import { Alert, ActivityIndicator, Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import * as WebBrowser from "expo-web-browser";
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSubscription } from "@/lib/subscription";
 import { ProPaywallModal } from "@/components/ProPaywallModal";
 
-const API_DOMAIN = process.env.EXPO_PUBLIC_API_DOMAIN ?? process.env.EXPO_PUBLIC_DOMAIN;
-const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
-const OAUTH_BASE = process.env.EXPO_PUBLIC_DOMAIN
-  ? `https://${process.env.EXPO_PUBLIC_DOMAIN}`
-  : API_BASE;
+
 
 function SectionHeader({ title }: { title: string }) {
   const colors = useColors();
@@ -248,58 +244,40 @@ function ConnectBadge({ connected, loading }: { connected: boolean; loading: boo
 }
 
 function EmailAccountsSection() {
-  const { getToken } = useAuth();
   const colors = useColors();
+  const { connectOAuth, disconnectOAuth, fetchConnectedStatus } = useOAuthConnect();
   const [gmailConnected, setGmailConnected] = useState(false);
   const [outlookConnected, setOutlookConnected] = useState(false);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState<"gmail" | "outlook" | null>(null);
 
-  // Keep getToken in a ref so fetchConnected never changes identity,
-  // preventing the useEffect from re-firing after every state update.
-  const getTokenRef = useRef(getToken);
-  getTokenRef.current = getToken;
-
   const fetchConnected = useCallback(async () => {
     try {
-      const token = await getTokenRef.current();
-      if (!token) { setLoading(false); return; }
-      const res = await fetch(`${API_BASE}/api/accounts/connected`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setGmailConnected(!!data.gmail);
-        setOutlookConnected(!!data.outlook);
-      }
+      const status = await fetchConnectedStatus();
+      setGmailConnected(status.gmail);
+      setOutlookConnected(status.outlook);
     } catch {}
     setLoading(false);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchConnectedStatus]);
 
   useEffect(() => {
     fetchConnected();
   }, [fetchConnected]);
 
   const connectAccount = async (provider: "gmail" | "outlook") => {
-    const token = await getToken();
-    if (!token) {
-      Alert.alert("Session error", "Please restart the app and try again.");
-      return;
-    }
     setActionLoading(provider);
     try {
-      const url = `${OAUTH_BASE}/api/auth/${provider}/connect?mobileToken=${encodeURIComponent(token)}`;
-      const completeUrl = `${OAUTH_BASE}/api/mobile-oauth-complete`;
-      await WebBrowser.openAuthSessionAsync(url, completeUrl);
+      await connectOAuth(provider);
       setLoading(true);
       await fetchConnected();
+    } catch {
+      Alert.alert("Session error", "Please restart the app and try again.");
     } finally {
       setActionLoading(null);
     }
   };
 
-  const disconnectAccount = (provider: "gmail" | "outlook") => {
+  const handleDisconnect = (provider: "gmail" | "outlook") => {
     const name = provider === "gmail" ? "Gmail" : "Outlook";
     Alert.alert(
       `Disconnect ${name}`,
@@ -310,20 +288,11 @@ function EmailAccountsSection() {
           text: "Disconnect",
           style: "destructive",
           onPress: async () => {
-            const token = await getToken();
-            if (!token) return;
             setActionLoading(provider);
             try {
-              const res = await fetch(`${API_BASE}/api/auth/${provider}/disconnect`, {
-                method: "DELETE",
-                headers: { Authorization: `Bearer ${token}` },
-              });
-              if (res.ok) {
-                if (provider === "gmail") setGmailConnected(false);
-                else setOutlookConnected(false);
-              } else {
-                Alert.alert("Error", `Could not disconnect ${name}. Please try again.`);
-              }
+              await disconnectOAuth(provider);
+              if (provider === "gmail") setGmailConnected(false);
+              else setOutlookConnected(false);
             } catch {
               Alert.alert("Error", `Could not disconnect ${name}. Please try again.`);
             } finally {
@@ -353,7 +322,7 @@ function EmailAccountsSection() {
             <ActivityIndicator size="small" color={colors.mutedForeground} />
           ) : gmailConnected ? (
             <Pressable
-              onPress={() => disconnectAccount("gmail")}
+              onPress={() => handleDisconnect("gmail")}
               disabled={actionLoading === "gmail"}
               style={[styles.actionBtn, { borderColor: colors.destructive + "60", opacity: actionLoading === "gmail" ? 0.5 : 1 }]}
             >
@@ -392,7 +361,7 @@ function EmailAccountsSection() {
             <ActivityIndicator size="small" color={colors.mutedForeground} />
           ) : outlookConnected ? (
             <Pressable
-              onPress={() => disconnectAccount("outlook")}
+              onPress={() => handleDisconnect("outlook")}
               disabled={actionLoading === "outlook"}
               style={[styles.actionBtn, { borderColor: colors.destructive + "60", opacity: actionLoading === "outlook" ? 0.5 : 1 }]}
             >

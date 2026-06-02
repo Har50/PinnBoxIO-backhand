@@ -49,11 +49,10 @@ if (_apiBaseUrl) {
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-// Force-hide splash after 4 seconds so a slow/failed font download never
-// leaves the user staring at a blank white screen.
+const SPLASH_FORCE_HIDE_MS = 4000;
 setTimeout(() => {
   SplashScreen.hideAsync().catch(() => {});
-}, 4000);
+}, SPLASH_FORCE_HIDE_MS);
 
 const queryClient = new QueryClient({
   defaultOptions: {

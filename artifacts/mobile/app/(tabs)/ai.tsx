@@ -303,7 +303,7 @@ export default function AiScreen() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [streaming, setStreaming] = useState(false);
-  const provider: Provider = "openai";
+  const [provider, setProvider] = useState<Provider>("openai");
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [composeVisible, setComposeVisible] = useState(false);
   const [composeDraft, setComposeDraft] = useState<ComposeDraft | undefined>();
@@ -335,7 +335,7 @@ export default function AiScreen() {
   const loadConversations = useCallback(async () => {
     try {
       const headers = await fetchHeaders();
-      const res = await fetch(`${apiUrl}/ai/conversations`, { headers, credentials: "include" });
+      const res = await fetch(`${apiUrl}/ai/conversations`, { headers });
       if (res.ok) {
         const data = await res.json();
         setConversations(data.conversations ?? data ?? []);
@@ -348,7 +348,6 @@ export default function AiScreen() {
     const res = await fetch(`${apiUrl}/ai/conversations`, {
       method: "POST",
       headers,
-      credentials: "include",
       body: JSON.stringify({ title: "New chat" }),
     });
     if (res.ok) {
@@ -364,7 +363,7 @@ export default function AiScreen() {
     setSidebarVisible(false);
     try {
       const headers = await fetchHeaders();
-      const res = await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { headers, credentials: "include" });
+      const res = await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { headers });
       if (res.ok) {
         const data = await res.json();
         setMessages(
@@ -383,7 +382,7 @@ export default function AiScreen() {
         onPress: async () => {
           try {
             const headers = await fetchHeaders();
-            await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { method: "DELETE", headers, credentials: "include" });
+            await fetch(`${apiUrl}/ai/conversations/${conv.id}`, { method: "DELETE", headers });
             if (conversation?.id === conv.id) {
               setConversation(null);
               setMessages([]);
@@ -494,7 +493,7 @@ export default function AiScreen() {
     setStorageFilesLoading(true);
     try {
       const headers = await fetchHeaders();
-      const res = await fetch(`${apiUrl}/storage/files`, { headers, credentials: "include" });
+      const res = await fetch(`${apiUrl}/storage/files`, { headers });
       if (res.ok) {
         const data = await res.json();
         setStorageFiles(data.files ?? []);
@@ -507,7 +506,7 @@ export default function AiScreen() {
     setShowStoragePicker(false);
     try {
       const headers = await fetchHeaders();
-      const urlRes = await fetch(`${apiUrl}/storage/files/${file.id}/download-url`, { headers, credentials: "include" });
+      const urlRes = await fetch(`${apiUrl}/storage/files/${file.id}/download-url`, { headers });
       if (!urlRes.ok) {
         Alert.alert("Error", "Could not access this file. Please try again.");
         return;
@@ -588,7 +587,6 @@ export default function AiScreen() {
         const res = await fetch(`${apiUrl}/ai/conversations`, {
           method: "POST",
           headers,
-          credentials: "include",
           body: JSON.stringify({ title: "New chat" }),
         });
         if (res.ok) {
@@ -614,7 +612,6 @@ export default function AiScreen() {
       const res = await fetch(`${apiUrl}/ai/conversations/${activeConversation.id}/messages`, {
         method: "POST",
         headers,
-        credentials: "include",
         body: JSON.stringify({ content: userMsg, provider, attachments: attachmentsToSend }),
       });
 
@@ -714,6 +711,21 @@ export default function AiScreen() {
         </TouchableOpacity>
       </View>
 
+
+      <View style={[s.providerBar, { borderBottomColor: colors.border }]}>
+        {(["openai", "claude", "gemini"] as const).map((p) => (
+          <TouchableOpacity
+            key={p}
+            style={[s.providerPill, provider === p && s.providerPillActive]}
+            onPress={() => setProvider(p)}
+            activeOpacity={0.7}
+          >
+            <Text style={[s.providerPillText, provider === p && s.providerPillTextActive]}>
+              {p === "openai" ? "GPT-4o" : p === "claude" ? "Claude" : "Gemini"}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView

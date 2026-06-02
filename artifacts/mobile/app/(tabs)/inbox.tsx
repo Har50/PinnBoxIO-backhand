@@ -50,6 +50,12 @@ const TABS: { key: TabKey; label: string; folder?: string; filter?: string }[] =
   { key: "trash",   label: "Trash",   folder: "Trash" },
 ];
 
+type Attachment = {
+  id: number;
+  filename: string;
+  size: number;
+};
+
 type Message = {
   id: number;
   accountName: string;
@@ -66,6 +72,7 @@ type Message = {
   isRead: boolean;
   isStarred: boolean;
   hasAttachments: boolean;
+  attachments?: Attachment[];
   receivedAt: string;
   createdAt: string;
 };
@@ -75,7 +82,7 @@ async function deleteMessage(id: number): Promise<void> {
   const res = await fetch(`${API_BASE}/api/messages/${id}`, {
     method: "DELETE",
     headers: token ? { Authorization: `Bearer ${token}` } : {},
-    credentials: "include",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
   });
   if (!res.ok && res.status !== 204) throw new Error("Failed");
 }
@@ -202,7 +209,7 @@ function MessageDetail({
   const topPad = Platform.OS === "web" ? 67 : insets.top;
   const [bodyScale, setBodyScale] = useState(1);
 
-  const receivedDate = isLoading ? new Date() : message ? new Date(message.receivedAt) : new Date();
+  const receivedDate = message ? new Date(message.receivedAt) : new Date();
 
   function toggleStar() {
     if (!message) return;

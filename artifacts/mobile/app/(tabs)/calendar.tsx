@@ -68,7 +68,6 @@ const API_BASE = API_DOMAIN ? `https://${API_DOMAIN}` : "";
 async function apiFetch(path: string, token: string | null, options?: RequestInit) {
   const res = await fetch(`${API_BASE}${path}`, {
     ...options,
-    credentials: "include",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -353,6 +352,12 @@ export default function CalendarScreen() {
       Alert.alert("Error", "Please enter a title.");
       return;
     }
+    const startDate = new Date(createStart);
+    const endDate = new Date(createEnd);
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+      Alert.alert("Invalid date", "Please enter valid start and end dates (YYYY-MM-DDTHH:MM).");
+      return;
+    }
     setSaving(true);
     try {
       const token = await getTokenRef.current();
@@ -361,8 +366,8 @@ export default function CalendarScreen() {
         body: JSON.stringify({
           title: createTitle.trim(),
           location: createLocation.trim() || undefined,
-          startAt: new Date(createStart).toISOString(),
-          endAt: new Date(createEnd).toISOString(),
+          startAt: startDate.toISOString(),
+          endAt: endDate.toISOString(),
         }),
       });
       setShowCreate(false);

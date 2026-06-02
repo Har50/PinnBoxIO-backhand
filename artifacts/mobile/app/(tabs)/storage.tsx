@@ -188,7 +188,7 @@ export default function StorageScreen() {
   const [searchQuery, setSearchQuery] = useState("");
   const [fileFilter, setFileFilter] = useState<FileFilter>("all");
 
-  const loadData = useCallback(async (folder = currentFolder) => {
+  const loadData = useCallback(async (folder: string) => {
     try {
       const [quotaRes, filesRes, foldersRes] = await Promise.all([
         apiGet<{ quota: Quota }>("/storage/quota"),
@@ -204,7 +204,7 @@ export default function StorageScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [currentFolder]);
+  }, []);
 
   useEffect(() => { loadData(currentFolder); }, [currentFolder]);
 
@@ -220,7 +220,7 @@ export default function StorageScreen() {
   const handleRefresh = useCallback(() => {
     setRefreshing(true);
     loadData(currentFolder);
-  }, [loadData, currentFolder]);
+  }, [currentFolder]);
 
   const handleNewFolder = useCallback(async () => {
     const name = newFolderName.trim();
@@ -236,7 +236,7 @@ export default function StorageScreen() {
     } finally {
       setCreatingFolder(false);
     }
-  }, [newFolderName, currentFolder, loadData]);
+    }, [newFolderName, currentFolder]);
 
   const handleScan = useCallback(async () => {
     try {
@@ -288,7 +288,7 @@ export default function StorageScreen() {
     } finally {
       setUploading(false);
     }
-  }, [currentFolder, loadData]);
+      }, [currentFolder]);
 
   const handleUpload = useCallback(async () => {
     try {
@@ -330,7 +330,7 @@ export default function StorageScreen() {
     } finally {
       setUploading(false);
     }
-  }, [currentFolder, loadData]);
+  }, [currentFolder]);
 
   const handleDownload = useCallback(async (file: StorageFile) => {
     try {
@@ -357,7 +357,7 @@ export default function StorageScreen() {
         },
       },
     ]);
-  }, [loadData, currentFolder]);
+  }, [currentFolder]);
 
   const handleDeleteFolder = useCallback((folder: StorageFolder) => {
     Alert.alert(
@@ -388,7 +388,7 @@ export default function StorageScreen() {
         },
       ]
     );
-  }, [loadData, currentFolder]);
+  }, [currentFolder]);
 
   const handleMoveFile = useCallback(async (file: StorageFile, targetFolder: string) => {
     try {
@@ -398,7 +398,7 @@ export default function StorageScreen() {
     } catch (err: any) {
       Alert.alert("Error", err.message);
     }
-  }, [loadData, currentFolder]);
+  }, [currentFolder]);
 
   const handleAnalyzeWithAi = useCallback(async (file: StorageFile) => {
     try {
