@@ -6,10 +6,13 @@ import {
   MessageSquare, Brain, Send, Plus, Trash2, Loader2, Crown,
   Camera, ImageIcon, FileText, X, Mail, CheckCircle, AlertCircle,
   Mic, MicOff, Settings, Search, Command, Languages, Copy, RefreshCw, Check,
+  Volume2, VolumeX, FileDown,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { getAuthHeaders } from "@/lib/api-client";
 import { startUpgrade } from "@/lib/subscription";
+import { isTTSSupported, speak, stop, isSpeaking } from "@/lib/tts";
+import { exportTextAsWord } from "@/lib/wordExport";
 
 const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 
@@ -22,7 +25,7 @@ function useAiSubscriptionPlan() {
     (async () => {
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers });
         if (!res.ok) throw new Error("Failed");
         const data: AiSubscriptionPlan = await res.json();
         if (!cancelled) setPlan(data.plan === "pro" ? "pro" : "free");
@@ -42,7 +45,7 @@ function useAiUsage(refreshTrigger: number) {
     (async () => {
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${BASE}/api/ai/usage`, { headers, credentials: "include" });
+        const res = await fetch(`${BASE}/api/ai/usage`, { headers });
         if (!res.ok) return;
         const data = await res.json();
         if (!cancelled) setUsage(data);
@@ -85,7 +88,6 @@ interface Conversation {
 async function apiFetch(path: string, options?: RequestInit) {
   const authHeaders = await getAuthHeaders();
   return fetch(`/api${path}`, {
-    credentials: "include",
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -122,7 +124,6 @@ function EmailDraftCard({ draft }: { draft: EmailDraft }) {
       const authHeaders = await getAuthHeaders();
       const res = await fetch("/api/messages/send", {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ to: draft.to, subject: draft.subject, body: draft.body, provider }),
       });
@@ -207,6 +208,7 @@ function AiChat() {
   const [renamingId, setRenamingId] = useState<number | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
+  const [speakingIdx, setSpeakingIdx] = useState<number | null>(null);
   const [usageRefresh, setUsageRefresh] = useState(0);
   const plan = useAiSubscriptionPlan();
   const usage = useAiUsage(usageRefresh);
@@ -328,6 +330,21 @@ function AiChat() {
       setCopiedIdx(idx);
       setTimeout(() => setCopiedIdx(null), 2000);
     });
+  }, []);
+
+  const toggleSpeak = useCallback((text: string, idx: number) => {
+    if (speakingIdx === idx && isSpeaking()) {
+      stop();
+      setSpeakingIdx(null);
+    } else {
+      if (isSpeaking()) stop();
+      setSpeakingIdx(idx);
+      speak(text, () => setSpeakingIdx(null));
+    }
+  }, [speakingIdx]);
+
+  const handleExportWord = useCallback((text: string) => {
+    exportTextAsWord(text, "AI response");
   }, []);
 
   const regenerate = useCallback(async () => {
@@ -789,7 +806,7 @@ function AiChat() {
                 </div>
                 {/* Action buttons for assistant messages */}
                 {msg.role === "assistant" && !msg.streaming && clean && (
-                  <div className="flex items-center gap-1.5 mt-1.5 ml-11">
+                  <div className="flex items-center gap-1.5 mt-1.5 ml-11 flex-wrap">
                     <button
                       onClick={() => copyMessage(clean, i)}
                       className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all"
@@ -798,6 +815,26 @@ function AiChat() {
                     >
                       {copiedIdx === i ? <Check className="w-3 h-3" /> : <Copy className="w-3 h-3" />}
                       {copiedIdx === i ? "Copied" : "Copy"}
+                    </button>
+                    {isTTSSupported() && (
+                      <button
+                        onClick={() => toggleSpeak(clean, i)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all"
+                        style={{ color: speakingIdx === i ? "#a5b4fc" : "rgba(255,255,255,0.35)", background: "transparent" }}
+                        title={speakingIdx === i ? "Stop listening" : "Listen"}
+                      >
+                        {speakingIdx === i ? <VolumeX className="w-3 h-3" /> : <Volume2 className="w-3 h-3" />}
+                        {speakingIdx === i ? "Stop" : "Listen"}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleExportWord(clean)}
+                      className="flex items-center gap-1 px-2 py-1 rounded-md text-[11px] transition-all"
+                      style={{ color: "rgba(255,255,255,0.35)", background: "transparent" }}
+                      title="Export as Word document"
+                    >
+                      <FileDown className="w-3 h-3" />
+                      Export
                     </button>
                     {isLastAssistant && !msg.limitReached && (
                       <button

@@ -15,7 +15,6 @@ const BASE = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
 async function apiFetch<T>(path: string, opts: RequestInit = {}): Promise<T> {
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`${BASE}/api${path}`, {
-    credentials: "include",
     ...opts,
     headers: { ...authHeaders, ...(opts.headers as Record<string, string> || {}) },
   });
@@ -166,7 +165,6 @@ function AiPanel({
       const authHeaders = await getAuthHeaders();
       const convRes = await fetch(`${BASE}/api/ai/conversations`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ title: selectedFiles.length > 0 ? `Drive: ${selectedFiles[0].name}` : "Drive AI" }),
       });
@@ -175,7 +173,6 @@ function AiPanel({
 
       const msgRes = await fetch(`${BASE}/api/ai/conversations/${convId}/messages`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ content: context, provider: "openai" }),
       });
@@ -577,7 +574,6 @@ export default function StoragePage() {
       const authHeaders = await getAuthHeaders();
       const res = await fetch(`${BASE}/api/storage/search`, {
         method: "POST",
-        credentials: "include",
         headers: { "Content-Type": "application/json", ...authHeaders },
         body: JSON.stringify({ query: q }),
       });

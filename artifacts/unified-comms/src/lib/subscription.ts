@@ -41,7 +41,6 @@ async function _startUpgradeInner(
     const res = await fetch(`${BASE}/api/subscription/create-order`, {
       method: "POST",
       headers: { ...headers, "Content-Type": "application/json" },
-      credentials: "include",
       body: JSON.stringify({
         planKey: cycle === "annual" ? "pro_annual" : "pro_monthly",
         currency,

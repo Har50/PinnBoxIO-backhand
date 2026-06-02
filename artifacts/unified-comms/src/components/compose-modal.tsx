@@ -13,9 +13,10 @@ import {
   Loader2, Send, Paperclip, Image, Bold, Italic, Underline,
   Strikethrough, AlignLeft, AlignCenter, AlignRight,
   List, ListOrdered, Link, X, File, Clock, MoreHorizontal,
-  ChevronDown,
+  ChevronDown, FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { SaveTemplateDialog } from "./EmailTemplates";
 
 const composeSchema = z.object({
   accountId: z.string().min(1, "Select an account"),
@@ -68,6 +69,7 @@ export function ComposeModal({
   const [showFontSize, setShowFontSize] = useState(false);
   const [showScheduled, setShowScheduled] = useState(false);
   const [activeFormats, setActiveFormats] = useState<Set<string>>(new Set());
+  const [showSaveTemplate, setShowSaveTemplate] = useState(false);
 
   const form = useForm<ComposeValues>({
     resolver: zodResolver(composeSchema),
@@ -178,6 +180,7 @@ export function ComposeModal({
   const isActive = (fmt: string) => activeFormats.has(fmt);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-[680px] p-0 overflow-hidden border-0 shadow-2xl flex flex-col max-h-[90vh]">
         {/* Header */}
@@ -479,6 +482,16 @@ export function ComposeModal({
                   )}
                 </div>
 
+                {/* Save as template */}
+                <button
+                  type="button"
+                  onClick={() => setShowSaveTemplate(true)}
+                  className="p-2 rounded hover:bg-muted text-muted-foreground transition-colors"
+                  title="Save as template"
+                >
+                  <FileText className="h-4 w-4" />
+                </button>
+
                 {/* More options */}
                 <button type="button" className="p-2 rounded hover:bg-muted text-muted-foreground transition-colors" title="More options">
                   <MoreHorizontal className="h-4 w-4" />
@@ -503,5 +516,13 @@ export function ComposeModal({
         </Form>
       </DialogContent>
     </Dialog>
+
+    <SaveTemplateDialog
+      open={showSaveTemplate}
+      onClose={() => setShowSaveTemplate(false)}
+      subject={form.getValues("subject")}
+      body={bodyRef.current?.innerHTML ?? ""}
+    />
+    </>
   );
 }

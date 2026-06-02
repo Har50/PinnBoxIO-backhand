@@ -31,7 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
     (async () => {
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers });
         if (!res.ok) throw new Error();
         const data = await res.json();
         if (!cancelled) setIsPro(data?.plan === "pro");

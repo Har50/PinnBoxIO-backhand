@@ -26,6 +26,8 @@ import {
   Zap,
   HardDrive,
 } from "lucide-react";
+import { AutoReplySection } from "@/components/AutoReplySection";
+import { WorkflowBuilderSection } from "@/components/WorkflowBuilder";
 import { Link } from "wouter";
 import {
   useGetAccounts,
@@ -59,7 +61,7 @@ function useSubscriptionStatus() {
     (async () => {
       try {
         const headers = await getAuthHeaders();
-        const res = await fetch(`${BASE}/api/subscription/status`, { headers, credentials: "include" });
+        const res = await fetch(`${BASE}/api/subscription/status`, { headers });
         if (!res.ok) throw new Error("Failed");
         const data: SubscriptionStatus = await res.json();
         if (!cancelled) setStatus(data);
@@ -440,6 +442,12 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Auto Reply */}
+        <AutoReplySection />
+
+        {/* Workflow Builder */}
+        <WorkflowBuilderSection />
 
         {/* Account & Security */}
         <Card data-testid="section-account-security">

@@ -2,7 +2,7 @@ import { useState, useCallback } from "react";
 import { useGetMessages, useGetAccounts, useUpdateMessage, useGetMessage, useGetFolderCounts } from "@workspace/api-client-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Mail, Inbox as InboxIcon, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw, Paperclip, Star, Trash2 } from "lucide-react";
+import { Mail, Inbox as InboxIcon, Clock, File, Search, RefreshCw, ChevronLeft, Reply, Forward, ZoomIn, ZoomOut, RotateCcw, Paperclip, Star, Trash2, Bell, FileDown, FileText } from "lucide-react";
 import { format, isToday, isThisWeek, isThisYear } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SnoozePanel } from "@/components/SnoozePanel";
+import { FollowUpButton } from "@/components/FollowUpSection";
+import { PdfViewerModal } from "@/components/PdfViewerModal";
+import { EmailTemplatesDialog } from "@/components/EmailTemplates";
+import { exportHtmlAsWord } from "@/lib/wordExport";
 
 function formatEmailDate(dateStr: string): string {
   const date = new Date(dateStr);
@@ -54,6 +59,9 @@ export default function Inbox() {
   const [previewItem, setPreviewItem] = useState<PreviewItem | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showSnooze, setShowSnooze] = useState(false);
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [showTemplates, setShowTemplates] = useState(false);
 
   const handleBodyLinkClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const target = (e.target as HTMLElement).closest("a");
@@ -415,6 +423,32 @@ export default function Inbox() {
             <Button variant="ghost" size="icon" onClick={e => handleToggleRead(activeMessage.id, activeMessage.isRead, e)}>
               <InboxIcon className="h-4 w-4 text-muted-foreground" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Snooze"
+              onClick={() => setShowSnooze(s => !s)}
+              className={showSnooze ? "text-amber-500" : "text-muted-foreground"}
+            >
+              <Bell className="h-4 w-4" />
+            </Button>
+            <FollowUpButton messageId={activeMessage.id} subject={activeMessage.subject} />
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Export as Word"
+              onClick={() => exportHtmlAsWord(activeMessage.bodyHtml || activeMessage.bodyText || "", activeMessage.subject)}
+            >
+              <FileDown className="h-4 w-4 text-muted-foreground" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              title="Use a template"
+              onClick={() => setShowTemplates(true)}
+            >
+              <FileText className="h-4 w-4 text-muted-foreground" />
+            </Button>
             <div className="flex items-center gap-1 rounded-md border bg-background ml-2">
               <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setBodyZoom(z => Math.max(80, z - 10))}><ZoomOut className="h-4 w-4" /></Button>
               <button className="text-xs font-medium text-muted-foreground min-w-10" onClick={() => setBodyZoom(100)}>{bodyZoom}%</button>
@@ -429,6 +463,15 @@ export default function Inbox() {
           </div>
         )}
       </div>
+
+      {showSnooze && activeMessage && (
+        <div className="border-b px-4 py-2 bg-muted/20">
+          <SnoozePanel
+            onSnooze={() => { setShowSnooze(false); refetch(); }}
+            onClose={() => setShowSnooze(false)}
+          />
+        </div>
+      )}
 
       {messageLoading ? (
         <div className="p-8 space-y-6 overflow-y-auto flex-1">
@@ -526,21 +569,30 @@ export default function Inbox() {
                   Attachments ({activeMessage.attachments.length})
                 </h3>
                 <div className="flex flex-wrap gap-3">
-                  {activeMessage.attachments.map(att => (
-                    <div
-                      key={att.id}
-                      className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 hover:border-primary/30 transition-colors max-w-[240px] cursor-pointer group"
-                      onClick={() => setPreviewItem({ kind: "attachment", filename: att.filename, url: att.url ?? "", size: att.size, mimeType: att.mimeType ?? undefined })}
-                    >
-                      <div className="p-2 bg-background rounded border shadow-sm group-hover:border-primary/30 transition-colors">
-                        <File className="w-5 h-5 text-primary" />
+                  {activeMessage.attachments.map(att => {
+                    const isPdf = att.mimeType === "application/pdf" || att.filename.toLowerCase().endsWith(".pdf");
+                    return (
+                      <div
+                        key={att.id}
+                        className="flex items-center gap-3 p-3 border rounded-lg bg-muted/20 hover:bg-muted/50 hover:border-primary/30 transition-colors max-w-[240px] cursor-pointer group"
+                        onClick={() => {
+                          if (isPdf && att.url) {
+                            setPdfViewerUrl(att.url);
+                          } else {
+                            setPreviewItem({ kind: "attachment", filename: att.filename, url: att.url ?? "", size: att.size, mimeType: att.mimeType ?? undefined });
+                          }
+                        }}
+                      >
+                        <div className="p-2 bg-background rounded border shadow-sm group-hover:border-primary/30 transition-colors">
+                          <File className="w-5 h-5 text-primary" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate" title={att.filename}>{att.filename}</div>
+                          <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</div>
+                        </div>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="text-sm font-medium truncate" title={att.filename}>{att.filename}</div>
-                        <div className="text-xs text-muted-foreground">{(att.size / 1024).toFixed(1)} KB</div>
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -550,13 +602,33 @@ export default function Inbox() {
     </div>
   );
 
+  const sharedModals = (
+    <>
+      <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
+      <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
+      <PdfViewerModal
+        open={!!pdfViewerUrl}
+        url={pdfViewerUrl ?? ""}
+        onClose={() => setPdfViewerUrl(null)}
+      />
+      <EmailTemplatesDialog
+        open={showTemplates}
+        onClose={() => setShowTemplates(false)}
+        onSelect={(tpl) => {
+          setComposeDraft(d => ({ ...d, subject: tpl.subject, body: tpl.body }));
+          setShowTemplates(false);
+          setIsComposeOpen(true);
+        }}
+      />
+    </>
+  );
+
   // Mobile and desktop both now use the same drill-down pattern
   if (selectedMessageId) {
     return (
       <div className="h-full flex flex-col bg-background">
         {messageDetailView}
-        <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
-        <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
+        {sharedModals}
       </div>
     );
   }
@@ -564,8 +636,7 @@ export default function Inbox() {
   return (
     <div className="h-full flex flex-col bg-background overflow-hidden">
       {messageListView}
-      <ComposeModal open={isComposeOpen} onOpenChange={setIsComposeOpen} initialDraft={composeDraft} />
-      <PreviewPanel item={previewItem} onClose={() => setPreviewItem(null)} />
+      {sharedModals}
     </div>
   );
 }

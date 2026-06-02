@@ -25,7 +25,6 @@ export async function apiFetch<T>(
   const base = (import.meta.env.BASE_URL ?? "/").replace(/\/$/, "");
   const authHeaders = await getAuthHeaders();
   const res = await fetch(`${base}${path}`, {
-    credentials: "include",
     ...options,
     headers: {
       "Content-Type": "application/json",
