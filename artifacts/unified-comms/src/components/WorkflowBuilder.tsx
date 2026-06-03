@@ -1,64 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Button } from "./ui/button";
 import { Badge } from "./ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "./ui/select";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
-import { Zap, Plus, Trash2, ChevronRight, AlertCircle } from "lucide-react";
+import { Zap, Plus, Trash2, ChevronRight, AlertCircle, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { apiFetch } from "@/lib/api-client";
+import { useToast } from "@/hooks/use-toast";
 
-type TriggerType = "from_contains" | "subject_contains" | "has_attachment" | "to_contains";
-type ActionType = "label" | "move_to" | "mark_read" | "star" | "forward_to";
+type TriggerType = "from" | "subject_contains" | "has_attachment" | "any";
+type ActionType = "label" | "star" | "mark_read" | "forward" | "delete";
 
 interface WorkflowRule {
-  id: string;
-  enabled: boolean;
+  id: number;
   name: string;
-  trigger: {
-    type: TriggerType;
-    value: string;
-  };
-  action: {
-    type: ActionType;
-    value: string;
-  };
+  isEnabled: boolean;
+  triggerType: TriggerType;
+  triggerValue: string | null;
+  actionType: ActionType;
+  actionValue: string | null;
+  createdAt: string;
 }
 
 const TRIGGER_LABELS: Record<TriggerType, string> = {
-  from_contains: "From contains",
+  from: "From contains",
   subject_contains: "Subject contains",
   has_attachment: "Has attachment",
-  to_contains: "To contains",
+  any: "Any email",
 };
 
 const ACTION_LABELS: Record<ActionType, string> = {
   label: "Add label",
-  move_to: "Move to folder",
-  mark_read: "Mark as read",
   star: "Star message",
-  forward_to: "Forward to",
+  mark_read: "Mark as read",
+  forward: "Forward to",
+  delete: "Delete",
 };
 
-const TRIGGER_NEEDS_VALUE: TriggerType[] = ["from_contains", "subject_contains", "to_contains"];
-const ACTION_NEEDS_VALUE: ActionType[] = ["label", "move_to", "forward_to"];
-
-const STORAGE_KEY = "pinnbox_workflows";
-
-function loadRules(): WorkflowRule[] {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) ?? "[]");
-  } catch {
-    return [];
-  }
-}
-
-function saveRules(rules: WorkflowRule[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rules));
-}
+const TRIGGER_NEEDS_VALUE: TriggerType[] = ["from", "subject_contains"];
+const ACTION_NEEDS_VALUE: ActionType[] = ["label", "forward"];
 
 interface EditingRule {
-  id?: string;
+  id?: number;
   name: string;
   triggerType: TriggerType;
   triggerValue: string;
@@ -68,29 +53,49 @@ interface EditingRule {
 
 const DEFAULT_EDITING: EditingRule = {
   name: "",
-  triggerType: "from_contains",
+  triggerType: "from",
   triggerValue: "",
   actionType: "label",
   actionValue: "",
 };
 
 export function WorkflowBuilderSection() {
-  const [rules, setRules] = useState<WorkflowRule[]>(() => loadRules());
+  const { toast } = useToast();
+  const [rules, setRules] = useState<WorkflowRule[]>([]);
+  const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<EditingRule | null>(null);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
-  const persist = (updated: WorkflowRule[]) => {
-    setRules(updated);
-    saveRules(updated);
-  };
+  useEffect(() => {
+    apiFetch<WorkflowRule[]>("/api/automation/workflows")
+      .then((data) => setRules(data))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
 
-  const toggleRule = (id: string) => {
-    persist(rules.map((r) => (r.id === id ? { ...r, enabled: !r.enabled } : r)));
-  };
+  async function toggleRule(rule: WorkflowRule) {
+    const prev = rule.isEnabled;
+    setRules((rs) => rs.map((r) => (r.id === rule.id ? { ...r, isEnabled: !prev } : r)));
+    try {
+      await apiFetch(`/api/automation/workflows/${rule.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isEnabled: !prev }),
+      });
+    } catch {
+      setRules((rs) => rs.map((r) => (r.id === rule.id ? { ...r, isEnabled: prev } : r)));
+      toast({ title: "Failed to update rule", variant: "destructive" });
+    }
+  }
 
-  const deleteRule = (id: string) => {
-    persist(rules.filter((r) => r.id !== id));
-  };
+  async function deleteRule(id: number) {
+    setRules((rs) => rs.filter((r) => r.id !== id));
+    try {
+      await apiFetch(`/api/automation/workflows/${id}`, { method: "DELETE" });
+    } catch {
+      toast({ title: "Failed to delete rule", variant: "destructive" });
+    }
+  }
 
   const startNew = () => {
     setEditing(DEFAULT_EDITING);
@@ -101,15 +106,15 @@ export function WorkflowBuilderSection() {
     setEditing({
       id: r.id,
       name: r.name,
-      triggerType: r.trigger.type,
-      triggerValue: r.trigger.value,
-      actionType: r.action.type,
-      actionValue: r.action.value,
+      triggerType: r.triggerType,
+      triggerValue: r.triggerValue ?? "",
+      actionType: r.actionType,
+      actionValue: r.actionValue ?? "",
     });
     setError("");
   };
 
-  const handleSave = () => {
+  async function handleSave() {
     if (!editing) return;
     if (!editing.name.trim()) { setError("Please give this rule a name."); return; }
     if (TRIGGER_NEEDS_VALUE.includes(editing.triggerType) && !editing.triggerValue.trim()) {
@@ -119,20 +124,41 @@ export function WorkflowBuilderSection() {
       setError("Please fill in the action value."); return;
     }
     setError("");
-    const rule: WorkflowRule = {
-      id: editing.id ?? crypto.randomUUID(),
-      enabled: true,
-      name: editing.name.trim(),
-      trigger: { type: editing.triggerType, value: editing.triggerValue.trim() },
-      action: { type: editing.actionType, value: editing.actionValue.trim() },
-    };
-    if (editing.id) {
-      persist(rules.map((r) => (r.id === editing.id ? rule : r)));
-    } else {
-      persist([rule, ...rules]);
+    setSaving(true);
+    try {
+      const body = {
+        name: editing.name.trim(),
+        triggerType: editing.triggerType,
+        triggerValue: editing.triggerValue.trim() || null,
+        actionType: editing.actionType,
+        actionValue: editing.actionValue.trim() || null,
+        isEnabled: true,
+      };
+
+      if (editing.id !== undefined) {
+        const updated = await apiFetch<WorkflowRule>(`/api/automation/workflows/${editing.id}`, {
+          method: "PATCH",
+          body: JSON.stringify(body),
+        });
+        setRules((rs) => rs.map((r) => (r.id === editing.id ? updated : r)));
+        toast({ title: "Rule updated" });
+      } else {
+        const created = await apiFetch<WorkflowRule>("/api/automation/workflows", {
+          method: "POST",
+          body: JSON.stringify(body),
+        });
+        setRules((rs) => [created, ...rs]);
+        toast({ title: "Rule created" });
+      }
+      setEditing(null);
+    } catch {
+      toast({ title: "Failed to save rule", variant: "destructive" });
+    } finally {
+      setSaving(false);
     }
-    setEditing(null);
-  };
+  }
+
+  const activeCount = rules.filter((r) => r.isEnabled).length;
 
   return (
     <Card data-testid="section-workflows">
@@ -140,9 +166,9 @@ export function WorkflowBuilderSection() {
         <div className="flex items-center gap-2">
           <Zap className="w-4 h-4 text-muted-foreground" />
           <CardTitle className="text-sm font-semibold">Email Workflows</CardTitle>
-          {rules.filter((r) => r.enabled).length > 0 && (
+          {activeCount > 0 && (
             <Badge variant="secondary" className="text-[10px] ml-1">
-              {rules.filter((r) => r.enabled).length} active
+              {activeCount} active
             </Badge>
           )}
         </div>
@@ -220,17 +246,28 @@ export function WorkflowBuilderSection() {
             )}
 
             <div className="flex gap-2 pt-1">
-              <Button size="sm" className="flex-1 h-7 text-xs" onClick={handleSave}>Save rule</Button>
-              <Button size="sm" variant="ghost" className="px-3 h-7 text-xs" onClick={() => { setEditing(null); setError(""); }}>Cancel</Button>
+              <Button size="sm" className="flex-1 h-7 text-xs gap-1.5" onClick={handleSave} disabled={saving}>
+                {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+                Save rule
+              </Button>
+              <Button size="sm" variant="ghost" className="px-3 h-7 text-xs" onClick={() => { setEditing(null); setError(""); }}>
+                Cancel
+              </Button>
             </div>
           </div>
         ) : (
           <>
-            {rules.length === 0 ? (
+            {loading ? (
+              <div className="flex flex-col gap-2">
+                {[0, 1].map((i) => (
+                  <div key={i} className="h-12 rounded-lg bg-muted/40 animate-pulse" />
+                ))}
+              </div>
+            ) : rules.length === 0 ? (
               <div className="flex flex-col items-center py-6 text-center">
                 <Zap className="w-8 h-8 text-muted-foreground/20 mb-2" />
                 <p className="text-sm font-medium text-muted-foreground">No workflow rules yet</p>
-                <p className="text-xs text-muted-foreground mt-1">Automate labeling, moving, or starring emails.</p>
+                <p className="text-xs text-muted-foreground mt-1">Automate labeling, forwarding, or starring emails.</p>
               </div>
             ) : (
               <div className="flex flex-col gap-1.5">
@@ -239,13 +276,13 @@ export function WorkflowBuilderSection() {
                     key={r.id}
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-colors cursor-pointer group hover:bg-muted/30",
-                      r.enabled ? "border-border/50 bg-muted/10" : "border-border/30 opacity-60"
+                      r.isEnabled ? "border-border/50 bg-muted/10" : "border-border/30 opacity-60"
                     )}
                     onClick={() => startEdit(r)}
                   >
                     <Switch
-                      checked={r.enabled}
-                      onCheckedChange={() => toggleRule(r.id)}
+                      checked={r.isEnabled}
+                      onCheckedChange={() => toggleRule(r)}
                       onClick={(e) => e.stopPropagation()}
                       className="shrink-0"
                       aria-label={`Toggle ${r.name}`}
@@ -253,7 +290,7 @@ export function WorkflowBuilderSection() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium truncate">{r.name}</p>
                       <p className="text-xs text-muted-foreground truncate">
-                        {TRIGGER_LABELS[r.trigger.type]}{r.trigger.value ? ` "${r.trigger.value}"` : ""} → {ACTION_LABELS[r.action.type]}{r.action.value ? ` "${r.action.value}"` : ""}
+                        {TRIGGER_LABELS[r.triggerType]}{r.triggerValue ? ` "${r.triggerValue}"` : ""} → {ACTION_LABELS[r.actionType]}{r.actionValue ? ` "${r.actionValue}"` : ""}
                       </p>
                     </div>
                     <button

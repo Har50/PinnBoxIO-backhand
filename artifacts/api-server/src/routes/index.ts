@@ -17,6 +17,7 @@ import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
 import preferencesRouter from "./preferences";
 import calendarRouter from "./calendar";
 import paymentsRouter, { paymentsPublicRouter } from "./payments";
+import automationRouter from "./automation";
 import waitlistRouter from "./waitlist";
 import blogRouter from "./blog";
 import { ensureUser } from "../services/tokenManager";
@@ -220,5 +221,6 @@ router.use(storageRouter);
 router.use(paymentsRouter);
 router.use(preferencesRouter);
 router.use(calendarRouter);
+router.use(automationRouter);
 
 export default router;
