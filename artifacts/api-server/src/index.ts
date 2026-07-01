@@ -1,6 +1,4 @@
-import app from "./app";
 import { logger } from "./lib/logger";
-import { syncClerkEmailsOnStartup } from "./services/startupSync";
 
 process.on("unhandledRejection", (reason) => {
   logger.warn({ reason }, "Unhandled promise rejection — continuing");
@@ -13,48 +11,52 @@ process.on("uncaughtException", (err) => {
 const rawPort = process.env["PORT"];
 
 if (!rawPort) {
-  throw new Error(
-    "PORT environment variable is required but was not provided.",
-  );
+  logger.error("PORT environment variable is required but was not provided.");
+  process.exit(1);
 }
 
 const port = Number(rawPort);
 
 if (Number.isNaN(port) || port <= 0) {
-  throw new Error(`Invalid PORT value: "${rawPort}"`);
+  logger.error({ rawPort: String(rawPort) }, "Invalid PORT value");
+  process.exit(1);
 }
 
-const server = app.listen(port, (err) => {
-  if (err) {
-    logger.error({ err }, "Error listening on port");
-    process.exit(1);
-  }
+// Dynamic import ensures error handlers are active before any module evaluation.
+import("./app").then(({ default: app }) => {
+  import("./services/startupSync").then(({ syncClerkEmailsOnStartup }) => {
+    const server = app.listen(port, (err) => {
+      if (err) {
+        logger.error({ err }, "Error listening on port");
+        process.exit(1);
+      }
 
-  logger.info({ port }, "Server listening");
+      logger.info({ port }, "Server listening");
 
-  // Run email sync after a short delay to let the DB connection warm up.
-  // This fixes any Clerk users missing emails and migrates their mobile
-  // sessions so web and mobile data are shared immediately on every deploy.
-  setTimeout(() => {
-    syncClerkEmailsOnStartup().catch((e) =>
-      logger.warn({ err: String(e) }, "Startup email sync threw unexpectedly")
-    );
-  }, 3000);
-});
+      setTimeout(() => {
+        syncClerkEmailsOnStartup().catch((e: unknown) =>
+          logger.warn({ err: String(e) }, "Startup email sync threw unexpectedly")
+        );
+      }, 3000);
+    });
 
-function shutdown(signal: string) {
-  logger.info({ signal }, "Received signal — starting graceful shutdown");
-  server.close(() => {
-    logger.info("HTTP server closed — exiting");
-    process.exit(0);
+    function shutdown(signal: string) {
+      logger.info({ signal }, "Received signal — starting graceful shutdown");
+      server.close(() => {
+        logger.info("HTTP server closed — exiting");
+        process.exit(0);
+      });
+
+      setTimeout(() => {
+        logger.warn("Graceful shutdown timed out — forcing exit");
+        process.exit(1);
+      }, 10_000).unref();
+    }
+
+    process.on("SIGTERM", () => shutdown("SIGTERM"));
+    process.on("SIGINT", () => shutdown("SIGINT"));
   });
-
-  // Force-exit after 10 s if connections don't drain in time
-  setTimeout(() => {
-    logger.warn("Graceful shutdown timed out — forcing exit");
-    process.exit(1);
-  }, 10_000).unref();
-}
-
-process.on("SIGTERM", () => shutdown("SIGTERM"));
-process.on("SIGINT", () => shutdown("SIGINT"));
+}).catch((err) => {
+  logger.error({ err }, "Failed to start server — module import error");
+  process.exit(1);
+});
