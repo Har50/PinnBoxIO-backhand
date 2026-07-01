@@ -1,9 +1,11 @@
 import { Router, type IRouter } from "express";
+import express from "express";
 import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
 import { eq, and, sql, ne, desc } from "drizzle-orm";
 import { objectStorageClient, signObjectURL } from "../lib/objectStorage";
+import * as localStorage from "../lib/localFileStorage";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const FILE_CATEGORIES = ["invoice", "contract", "receipt", "report", "presentation", "spreadsheet", "photo", "video", "audio", "code", "document", "other"] as const;
@@ -452,6 +454,44 @@ router.delete("/storage/files/:id/share", async (req: any, res) => {
       .returning();
 
     res.json({ file: updated });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+/** Object storage routes — no auth (accessed via generated URLs). */
+export const storageObjectRouter: IRouter = Router();
+
+storageObjectRouter.put("/storage/object/upload/:bucket/:key(*)", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
+  try {
+    const { bucket, key } = req.params;
+    await localStorage.objectWrite(bucket, key, req.body as Buffer);
+    res.json({ success: true });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+storageObjectRouter.get("/storage/object/download/:bucket/:key(*)", async (req, res) => {
+  try {
+    const { bucket, key } = req.params;
+    const meta = await localStorage.objectMetadata(bucket, key);
+    if (!meta) return res.status(404).json({ error: "Object not found" });
+
+    const stream = localStorage.objectStream(bucket, key);
+    res.setHeader("Content-Type", "application/octet-stream");
+    res.setHeader("Content-Length", meta.size);
+    stream.pipe(res);
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+storageObjectRouter.delete("/storage/object/delete/:bucket/:key(*)", async (req, res) => {
+  try {
+    const { bucket, key } = req.params;
+    await localStorage.objectDelete(bucket, key);
+    res.json({ success: true });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }

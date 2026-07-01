@@ -10,7 +10,7 @@ import searchRouter from "./search";
 import statsRouter from "./stats";
 import aiRouter from "./ai";
 import { linkedinPublicRouter, linkedinRouter } from "./linkedin";
-import storageRouter, { storagePublicRouter } from "./storage";
+import storageRouter, { storagePublicRouter, storageObjectRouter } from "./storage";
 import authOAuthRouter from "./auth-oauth";
 import authImapRouter from "./auth-imap";
 import mobileAuthRouter, { getMobileSessionUser } from "./mobile-auth";
@@ -52,6 +52,7 @@ router.use(paymentsPublicRouter);
 router.use(blogRouter);
 router.use(authOAuthRouter);
 router.use(mobileAuthRouter);
+router.use(storageObjectRouter);
 
 /**
  * After storing a Clerk user's email, find any Replit-OIDC users that share

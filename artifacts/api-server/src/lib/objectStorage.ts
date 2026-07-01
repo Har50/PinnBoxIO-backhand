@@ -1,5 +1,5 @@
-import { Storage, File, GetSignedUrlConfig } from "@google-cloud/storage";
-import { Readable } from "stream";
+import * as fs from "node:fs/promises";
+import * as path from "node:path";
 import { randomUUID } from "crypto";
 import {
   ObjectAclPolicy,
@@ -8,20 +8,51 @@ import {
   getObjectAclPolicy,
   setObjectAclPolicy,
 } from "./objectAcl";
+import * as localStorage from "./localFileStorage";
 
-function createStorageClient(): Storage {
-  const keyJson = process.env.GOOGLE_SERVICE_ACCOUNT_KEY;
-  if (keyJson) {
-    try {
-      return new Storage({ credentials: JSON.parse(keyJson) });
-    } catch {
-      // fall through
-    }
-  }
-  return new Storage();
-}
+const storageDir = () => process.env.STORAGE_DIR || path.resolve(process.cwd(), "data", "storage");
 
-export const objectStorageClient = createStorageClient();
+export const objectStorageClient = {
+  bucket: (bucketName: string) => ({
+    file: (objectName: string) => ({
+      download: (options?: { start?: number; end?: number }) =>
+        localStorage.objectRead(bucketName, objectName, options).then((buf) => [buf] as [Buffer]),
+      delete: (opts?: { ignoreNotFound?: boolean }) =>
+        localStorage.objectDelete(bucketName, objectName).catch((err) => {
+          if (!opts?.ignoreNotFound) throw err;
+        }),
+      exists: () => localStorage.objectExists(bucketName, objectName),
+      createReadStream: () => localStorage.objectStream(bucketName, objectName),
+      getMetadata: async () => {
+        const meta = await localStorage.objectMetadata(bucketName, objectName);
+        return [
+          {
+            contentType: "application/octet-stream",
+            size: meta?.size ?? 0,
+            ...(meta ? { updated: meta.mtime.toISOString() } : {}),
+          },
+        ] as [any];
+      },
+    }),
+    getFiles: async () => {
+      const dir = path.join(storageDir(), bucketName);
+      const files: any[] = [];
+      try {
+        const entries = await fs.readdir(dir, { recursive: true, withFileTypes: true });
+        for (const entry of entries) {
+          if (entry.isFile()) {
+            const relativePath = path.relative(dir, path.join(entry.parentPath, entry.name));
+            files.push({
+              name: relativePath.replace(/\\/g, "/"),
+              delete: () => localStorage.objectDelete(bucketName, relativePath.replace(/\\/g, "/")),
+            });
+          }
+        }
+      } catch {}
+      return [files] as [any[]];
+    },
+  }),
+};
 
 export class ObjectNotFoundError extends Error {
   constructor() {
@@ -66,37 +97,32 @@ export class ObjectStorageService {
     return dir;
   }
 
-  async searchPublicObject(filePath: string): Promise<File | null> {
+  async searchPublicObject(filePath: string) {
     for (const searchPath of this.getPublicObjectSearchPaths()) {
       const fullPath = `${searchPath}/${filePath}`;
-
       const { bucketName, objectName } = parseObjectPath(fullPath);
-      const bucket = objectStorageClient.bucket(bucketName);
-      const file = bucket.file(objectName);
-
-      const [exists] = await file.exists();
+      const exists = await localStorage.objectExists(bucketName, objectName);
       if (exists) {
-        return file;
+        return { bucketName, objectName };
       }
     }
-
     return null;
   }
 
-  async downloadObject(file: File, cacheTtlSec: number = 3600): Promise<Response> {
-    const [metadata] = await file.getMetadata();
-    const aclPolicy = await getObjectAclPolicy(file);
-    const isPublic = aclPolicy?.visibility === "public";
-
-    const nodeStream = file.createReadStream();
+  async downloadObject(
+    obj: { bucketName: string; objectName: string },
+    cacheTtlSec: number = 3600
+  ): Promise<Response> {
+    const meta = await localStorage.objectMetadata(obj.bucketName, obj.objectName);
+    const nodeStream = localStorage.objectStream(obj.bucketName, obj.objectName);
     const webStream = Readable.toWeb(nodeStream) as ReadableStream;
 
     const headers: Record<string, string> = {
-      "Content-Type": (metadata.contentType as string) || "application/octet-stream",
-      "Cache-Control": `${isPublic ? "public" : "private"}, max-age=${cacheTtlSec}`,
+      "Content-Type": "application/octet-stream",
+      "Cache-Control": `public, max-age=${cacheTtlSec}`,
     };
-    if (metadata.size) {
-      headers["Content-Length"] = String(metadata.size);
+    if (meta?.size) {
+      headers["Content-Length"] = String(meta.size);
     }
 
     return new Response(webStream, { headers });
@@ -113,7 +139,6 @@ export class ObjectStorageService {
 
     const objectId = randomUUID();
     const fullPath = `${privateObjectDir}/uploads/${objectId}`;
-
     const { bucketName, objectName } = parseObjectPath(fullPath);
 
     return signObjectURL({
@@ -124,7 +149,7 @@ export class ObjectStorageService {
     });
   }
 
-  async getObjectEntityFile(objectPath: string): Promise<File> {
+  async getObjectEntityFile(objectPath: string) {
     if (!objectPath.startsWith("/objects/")) {
       throw new ObjectNotFoundError();
     }
@@ -141,20 +166,17 @@ export class ObjectStorageService {
     }
     const objectEntityPath = `${entityDir}${entityId}`;
     const { bucketName, objectName } = parseObjectPath(objectEntityPath);
-    const bucket = objectStorageClient.bucket(bucketName);
-    const objectFile = bucket.file(objectName);
-    const [exists] = await objectFile.exists();
+    const exists = await localStorage.objectExists(bucketName, objectName);
     if (!exists) {
       throw new ObjectNotFoundError();
     }
-    return objectFile;
+    return { bucketName, objectName };
   }
 
   normalizeObjectEntityPath(rawPath: string): string {
     if (!rawPath.startsWith("https://storage.googleapis.com/")) {
       return rawPath;
     }
-
     const url = new URL(rawPath);
     const rawObjectPath = url.pathname;
 
@@ -181,7 +203,7 @@ export class ObjectStorageService {
     }
 
     const objectFile = await this.getObjectEntityFile(normalizedPath);
-    await setObjectAclPolicy(objectFile, aclPolicy);
+    // ACL stored as metadata not supported on local fs — skip
     return normalizedPath;
   }
 
@@ -191,7 +213,7 @@ export class ObjectStorageService {
     requestedPermission,
   }: {
     userId?: string;
-    objectFile: File;
+    objectFile: { bucketName: string; objectName: string };
     requestedPermission?: ObjectPermission;
   }): Promise<boolean> {
     return canAccessObject({
@@ -223,7 +245,7 @@ function parseObjectPath(path: string): {
   };
 }
 
-async function signObjectURL({
+function signObjectURL({
   bucketName,
   objectName,
   method,
@@ -233,20 +255,8 @@ async function signObjectURL({
   objectName: string;
   method: "GET" | "PUT" | "DELETE" | "HEAD";
   ttlSec: number;
-}): Promise<string> {
-  const actionMap: Record<string, GetSignedUrlConfig["action"]> = {
-    GET: "read",
-    PUT: "write",
-    DELETE: "delete",
-    HEAD: "read",
-  };
-  const [url] = await objectStorageClient
-    .bucket(bucketName)
-    .file(objectName)
-    .getSignedUrl({
-      version: "v4",
-      action: actionMap[method],
-      expires: Date.now() + ttlSec * 1000,
-    });
-  return url;
+}): string {
+  const baseUrl = (process.env.PUBLIC_URL || `http://localhost:${process.env.PORT || 10000}`).replace(/\/$/, "");
+  const action = method === "PUT" ? "upload" : method === "DELETE" ? "delete" : "download";
+  return `${baseUrl}/api/storage/object/${action}/${bucketName}/${objectName}`;
 }
