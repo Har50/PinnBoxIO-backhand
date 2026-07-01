@@ -1,6 +1,7 @@
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { randomUUID } from "crypto";
+import { Readable } from "node:stream";
 import {
   ObjectAclPolicy,
   ObjectPermission,
