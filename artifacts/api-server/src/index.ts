@@ -1,5 +1,7 @@
 import { logger } from "./lib/logger";
 
+console.log("DIAGNOSTIC_BUILD_470a48c");
+
 process.on("unhandledRejection", (reason) => {
   logger.warn({ reason }, "Unhandled promise rejection — continuing");
 });
