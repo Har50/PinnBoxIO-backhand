@@ -462,7 +462,7 @@ router.delete("/storage/files/:id/share", async (req: any, res) => {
 /** Object storage routes — no auth (accessed via generated URLs). */
 export const storageObjectRouter: IRouter = Router();
 
-storageObjectRouter.put("/storage/object/upload/:bucket/:key(*)", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
+storageObjectRouter.put("/storage/object/upload/:bucket/:key*", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
   try {
     const { bucket, key } = req.params;
     await localStorage.objectWrite(bucket, key, req.body as Buffer);
@@ -472,7 +472,7 @@ storageObjectRouter.put("/storage/object/upload/:bucket/:key(*)", express.raw({ 
   }
 });
 
-storageObjectRouter.get("/storage/object/download/:bucket/:key(*)", async (req, res) => {
+storageObjectRouter.get("/storage/object/download/:bucket/:key*", async (req, res) => {
   try {
     const { bucket, key } = req.params;
     const meta = await localStorage.objectMetadata(bucket, key);
@@ -487,7 +487,7 @@ storageObjectRouter.get("/storage/object/download/:bucket/:key(*)", async (req, 
   }
 });
 
-storageObjectRouter.delete("/storage/object/delete/:bucket/:key(*)", async (req, res) => {
+storageObjectRouter.delete("/storage/object/delete/:bucket/:key*", async (req, res) => {
   try {
     const { bucket, key } = req.params;
     await localStorage.objectDelete(bucket, key);
