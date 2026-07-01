@@ -22,7 +22,6 @@
 import { createProxyMiddleware } from "http-proxy-middleware";
 import type { RequestHandler } from "express";
 
-const CLERK_FAPI = "https://frontend-api.clerk.dev";
 export const CLERK_PROXY_PATH = "/api/__clerk";
 
 export function clerkProxyMiddleware(): RequestHandler {
@@ -35,8 +34,14 @@ export function clerkProxyMiddleware(): RequestHandler {
     return (_req, _res, next) => next();
   }
 
+  // Dev instances use frontend-api.clerk.dev, production uses .clerk.services.
+  const isProduction = secretKey.startsWith("sk_live_");
+  const target = isProduction
+    ? "https://frontend-api.clerk.services"
+    : "https://frontend-api.clerk.dev";
+
   return createProxyMiddleware({
-    target: CLERK_FAPI,
+    target,
     changeOrigin: true,
     pathRewrite: (path: string) =>
       path.replace(new RegExp(`^${CLERK_PROXY_PATH}`), ""),
