@@ -462,9 +462,10 @@ router.delete("/storage/files/:id/share", async (req: any, res) => {
 /** Object storage routes — no auth (accessed via generated URLs). */
 export const storageObjectRouter: IRouter = Router();
 
-storageObjectRouter.put("/storage/object/upload/:bucket/:key*", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
+storageObjectRouter.put("/storage/object/upload/:bucket/*key", express.raw({ type: "*/*", limit: "50mb" }), async (req, res) => {
   try {
-    const { bucket, key } = req.params;
+    const { bucket } = req.params;
+    const key = (req.params.key as string[]).join("/");
     await localStorage.objectWrite(bucket, key, req.body as Buffer);
     res.json({ success: true });
   } catch (err: any) {
@@ -472,9 +473,10 @@ storageObjectRouter.put("/storage/object/upload/:bucket/:key*", express.raw({ ty
   }
 });
 
-storageObjectRouter.get("/storage/object/download/:bucket/:key*", async (req, res) => {
+storageObjectRouter.get("/storage/object/download/:bucket/*key", async (req, res) => {
   try {
-    const { bucket, key } = req.params;
+    const { bucket } = req.params;
+    const key = (req.params.key as string[]).join("/");
     const meta = await localStorage.objectMetadata(bucket, key);
     if (!meta) return res.status(404).json({ error: "Object not found" });
 
@@ -487,9 +489,10 @@ storageObjectRouter.get("/storage/object/download/:bucket/:key*", async (req, re
   }
 });
 
-storageObjectRouter.delete("/storage/object/delete/:bucket/:key*", async (req, res) => {
+storageObjectRouter.delete("/storage/object/delete/:bucket/*key", async (req, res) => {
   try {
-    const { bucket, key } = req.params;
+    const { bucket } = req.params;
+    const key = (req.params.key as string[]).join("/");
     await localStorage.objectDelete(bucket, key);
     res.json({ success: true });
   } catch (err: any) {
