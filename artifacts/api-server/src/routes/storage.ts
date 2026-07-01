@@ -3,7 +3,7 @@ import { randomBytes } from "crypto";
 import { db } from "@workspace/db";
 import { storageFilesTable, storageQuotasTable } from "@workspace/db/schema";
 import { eq, and, sql, ne, desc } from "drizzle-orm";
-import { objectStorageClient } from "../lib/objectStorage";
+import { objectStorageClient, signObjectURL } from "../lib/objectStorage";
 import { openai } from "@workspace/integrations-openai-ai-server";
 
 const FILE_CATEGORIES = ["invoice", "contract", "receipt", "report", "presentation", "spreadsheet", "photo", "video", "audio", "code", "document", "other"] as const;
@@ -31,32 +31,10 @@ const router: IRouter = Router();
 
 const FREE_QUOTA_BYTES = 1 * 1024 * 1024 * 1024; // 1 GB
 
-const REPLIT_SIDECAR_ENDPOINT = "http://127.0.0.1:1106";
-
 async function signedUrl(storageKey: string, method: "GET" | "PUT" | "DELETE", ttlSec: number): Promise<string> {
   const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
   if (!bucketId) throw new Error("Object storage not configured");
-
-  const request = {
-    bucket_name: bucketId,
-    object_name: storageKey,
-    method,
-    expires_at: new Date(Date.now() + ttlSec * 1000).toISOString(),
-  };
-
-  const response = await fetch(`${REPLIT_SIDECAR_ENDPOINT}/object-storage/signed-object-url`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(request),
-    signal: AbortSignal.timeout(30_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Failed to get signed URL: ${response.status}`);
-  }
-
-  const { signed_url } = await response.json();
-  return signed_url;
+  return signObjectURL({ bucketName: bucketId, objectName: storageKey, method, ttlSec });
 }
 
 const LEGACY_FREE_QUOTA_BYTES = 2 * 1024 * 1024 * 1024; // old incorrect 2 GB value
