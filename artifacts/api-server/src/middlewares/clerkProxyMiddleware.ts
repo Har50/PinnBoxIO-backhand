@@ -1,3 +1,4 @@
+import { logger } from "../lib/logger";
 import type { RequestHandler } from "express";
 import { request as httpsRequest } from "node:https";
 import { request as httpRequest } from "node:http";
@@ -23,12 +24,15 @@ export function clerkProxyMiddleware(): RequestHandler {
     const host = req.headers.host || "";
     const proxyUrl = `${protocol}://${host}${CLERK_PROXY_PATH}`;
 
+    logger.info({ method: req.method, url: req.url, host }, "Clerk proxy received request");
+
     const bodyChunks: Buffer[] = [];
     req.on("data", (chunk: Buffer) => bodyChunks.push(chunk));
     req.on("end", () => {
       const body = Buffer.concat(bodyChunks);
 
       const path = req.url || "/";
+      const destUrl = `${targetUrl.origin}${path}`;
       const requestModule = targetUrl.protocol === "https:" ? httpsRequest : httpRequest;
 
       const xff = req.headers["x-forwarded-for"];
@@ -37,6 +41,8 @@ export function clerkProxyMiddleware(): RequestHandler {
         req.socket?.remoteAddress ||
         "";
 
+      logger.info({ path, destUrl, clientIp, proxyUrl }, "Clerk proxy forwarding");
+
       const options = {
         hostname: targetUrl.hostname,
         port: targetUrl.port || (targetUrl.protocol === "https:" ? 443 : 80),
@@ -44,20 +50,26 @@ export function clerkProxyMiddleware(): RequestHandler {
         method: req.method,
         headers: {
           ...req.headers,
+          host: targetUrl.host,
           "Clerk-Proxy-Url": proxyUrl,
           "Clerk-Secret-Key": secretKey,
           "X-Forwarded-For": clientIp,
         },
       };
 
-      delete options.headers["host"];
-
       const proxyReq = requestModule(options, (proxyRes) => {
+        logger.info(
+          { statusCode: proxyRes.statusCode },
+          "Clerk proxy received response from target",
+        );
         res.writeHead(proxyRes.statusCode || 500, proxyRes.headers);
         proxyRes.pipe(res);
       });
 
-      proxyReq.on("error", (err) => next(err));
+      proxyReq.on("error", (err) => {
+        logger.error({ err: String(err) }, "Clerk proxy error");
+        next(err);
+      });
 
       if (body.length > 0) proxyReq.write(body);
       proxyReq.end();
