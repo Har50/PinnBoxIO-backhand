@@ -1,5 +1,6 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
+import path from "node:path";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
 import { CLERK_PROXY_PATH, clerkProxyMiddleware } from "./middlewares/clerkProxyMiddleware";
@@ -38,6 +39,17 @@ app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 app.use(clerkMiddleware());
 
 app.use("/api", router);
+
+const frontendDir = path.resolve(__dirname, "../../unified-comms/dist/public");
+app.use(express.static(frontendDir));
+
+app.get("/health", (_req: Request, res: Response) => {
+  res.send("OK");
+});
+
+app.use((_req: Request, res: Response) => {
+  res.sendFile(path.join(frontendDir, "index.html"));
+});
 
 app.use((err: Error, req: Request, res: Response, _next: NextFunction) => {
   logger.error({ err, url: req.url, method: req.method }, "Unhandled route error");
