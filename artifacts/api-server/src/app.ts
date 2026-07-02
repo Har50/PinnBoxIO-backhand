@@ -46,21 +46,51 @@ app.use(
     },
     on: {
       proxyReq: (proxyReq, req: Request) => {
-        // Add Clerk-specific headers that Clerk FAPI expects
+        // Clerk identifies the instance from Clerk-Proxy-Url. It MUST exactly
+        // match the Proxy URL registered in the Clerk Dashboard. Pin it via env
+        // so it never drifts with the incoming Host header (www vs apex, Render
+        // internal hostnames, etc.) — a mismatch makes Clerk reset the socket on
+        // strict endpoints like prepare_verification while allowing sign_ups.
         const protocol = req.protocol || (req.secure ? "https" : "http");
         const host = req.get("host") || "localhost";
-        const publicOrigin = `${protocol}://${host}`;
+        const derived = `${protocol}://${host}/api/__clerk`;
+        const proxyUrl = process.env.CLERK_PROXY_URL || derived;
 
-        proxyReq.setHeader("Clerk-Proxy-Url", `${publicOrigin}/api/__clerk`);
+        proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", process.env.CLERK_SECRET_KEY || "");
 
-        // Remove content-length to let http-proxy-middleware handle it
-        proxyReq.removeHeader("content-length");
+        logger.info(
+          { method: req.method, path: req.url, proxyUrl },
+          "Clerk proxy → FAPI",
+        );
       },
       proxyRes: (proxyRes, req: Request, res: Response) => {
         // Add CORS headers to proxy response
         res.setHeader("Access-Control-Allow-Origin", req.get("origin") || "*");
         res.setHeader("Access-Control-Allow-Credentials", "true");
+      },
+      error: (err: Error, req, res) => {
+        // Surface the REAL underlying error (ECONNRESET / ETIMEDOUT / TLS / etc.)
+        // instead of a generic 502, so we can diagnose the socket-level failure.
+        const e = err as NodeJS.ErrnoException;
+        logger.error(
+          {
+            message: e.message,
+            code: e.code,
+            syscall: e.syscall,
+            errno: e.errno,
+            method: (req as Request).method,
+            url: (req as Request).url,
+          },
+          "Clerk proxy transport error",
+        );
+        const response = res as Response;
+        if (typeof response.writeHead === "function" && !response.headersSent) {
+          response.writeHead(502, { "Content-Type": "application/json" });
+          response.end(
+            JSON.stringify({ error: "Clerk proxy failed", code: e.code ?? null, message: e.message }),
+          );
+        }
       },
     },
     logLevel: "warn" as const,
