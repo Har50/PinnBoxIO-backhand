@@ -7,7 +7,12 @@ import { createProxyMiddleware } from "http-proxy-middleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
-const CLERK_FAPI_URL = "https://frontend-api.clerk.services";
+// Clerk Frontend API host for this instance, derived from the publishable key
+// (pk_live_Y2xlcmsucGlubmJveGlvLm5ldCQ → clerk.pinnboxio.net). This is what
+// @clerk/backend's fapiUrlFromPublishableKey resolves to. Do NOT use
+// frontend-api.clerk.services — it is a CNAME target with no TLS cert of its
+// own and fails the handshake (SSL alert 40 / EPROTO).
+const CLERK_FAPI_URL = process.env.CLERK_FAPI_URL || "https://clerk.pinnboxio.net";
 
 const app: Express = express();
 app.set("trust proxy", 1);
