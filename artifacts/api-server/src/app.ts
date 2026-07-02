@@ -1,19 +1,13 @@
 import express, { type Express, type Request, type Response, type NextFunction } from "express";
 import cors from "cors";
 import path from "node:path";
-import { Readable } from "node:stream";
 import pinoHttp from "pino-http";
 import { clerkMiddleware } from "@clerk/express";
+import { createProxyMiddleware } from "http-proxy-middleware";
 import router from "./routes";
 import { logger } from "./lib/logger";
 
 const CLERK_FAPI_URL = "https://frontend-api.clerk.services";
-
-// Headers to strip per RFC 9113 (hop-by-hop) and Clerk proxy logic
-const HOP_BY_HOP = new Set([
-  "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-  "te", "trailer", "transfer-encoding", "upgrade",
-]);
 
 const app: Express = express();
 app.set("trust proxy", 1);
@@ -40,99 +34,39 @@ app.use(
 
 app.use(cors({ credentials: true, origin: true }));
 
-// Custom proxy for Clerk Frontend API — buffers the body to avoid
-// Node.js Readable.toWeb() streaming issues with POST requests containing path params
-app.use("/api/__clerk", async (req: Request, res: Response, next: NextFunction) => {
-  try {
-    const buffers: Buffer[] = [];
-    for await (const chunk of req) {
-      buffers.push(chunk);
-    }
-    const rawBody = Buffer.concat(buffers);
+// Proxy Clerk Frontend API using http-proxy-middleware
+// This handles all request types (GET, POST with path params, etc.) reliably
+app.use(
+  "/api/__clerk",
+  createProxyMiddleware({
+    target: CLERK_FAPI_URL,
+    changeOrigin: true,
+    pathRewrite: {
+      "^/api/__clerk": "",
+    },
+    on: {
+      proxyReq: (proxyReq, req: Request) => {
+        // Add Clerk-specific headers that Clerk FAPI expects
+        const protocol = req.protocol || (req.secure ? "https" : "http");
+        const host = req.get("host") || "localhost";
+        const publicOrigin = `${protocol}://${host}`;
 
-    const protocol = req.protocol || (req.secure ? "https" : "http");
-    const host = req.get("host") || "localhost";
-    const publicOrigin = `${protocol}://${host}`;
-    const proxyPath = "/api/__clerk";
+        proxyReq.setHeader("Clerk-Proxy-Url", `${publicOrigin}/api/__clerk`);
+        proxyReq.setHeader("Clerk-Secret-Key", process.env.CLERK_SECRET_KEY || "");
 
-    // Build target FAPI URL
-    const targetPath = req.path.slice(proxyPath.length) || "/";
-    const targetUrl = new URL(`${CLERK_FAPI_URL}${targetPath}`);
-    targetUrl.search = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
-
-    // Forward headers, stripping hop-by-hop and adding Clerk-specific ones
-    const headers = new Headers();
-    for (const [key, value] of Object.entries(req.headers)) {
-      const lower = key.toLowerCase();
-      if (HOP_BY_HOP.has(lower)) continue;
-      if (value) {
-        headers.set(key, Array.isArray(value) ? value.join(", ") : value);
-      }
-    }
-    headers.set("Clerk-Proxy-Url", `${publicOrigin}${proxyPath}`);
-    headers.set("Clerk-Secret-Key", process.env.CLERK_SECRET_KEY || "");
-    headers.set("Host", new URL(CLERK_FAPI_URL).host);
-    headers.set("Accept-Encoding", "identity");
-    if (!headers.has("X-Forwarded-Host")) headers.set("X-Forwarded-Host", host);
-    if (!headers.has("X-Forwarded-Proto")) headers.set("X-Forwarded-Proto", protocol.replace(":", ""));
-
-    const hasBody = ["POST", "PUT", "PATCH"].includes(req.method);
-    if (hasBody && rawBody.length > 0) {
-      headers.set("content-length", String(rawBody.length));
-    }
-    const response = await fetch(targetUrl.toString(), {
-      method: req.method,
-      headers,
-      body: hasBody ? rawBody : void 0,
-      redirect: "manual",
-    });
-
-    // Rewrite Location headers from FAPI host back to proxy URL
-    const fapiHost = new URL(CLERK_FAPI_URL).host;
-    res.status(response.status);
-    for (const [key, value] of response.headers) {
-      const lower = key.toLowerCase();
-      if (HOP_BY_HOP.has(lower)) continue;
-      if (lower === "content-encoding" || lower === "content-length") continue;
-      if (lower === "set-cookie") {
-        res.appendHeader(key, value);
-      } else if (lower === "location") {
-        try {
-          const locUrl = new URL(value, CLERK_FAPI_URL);
-          if (locUrl.host === fapiHost) {
-            res.setHeader(key, `${publicOrigin}${proxyPath}${locUrl.pathname}${locUrl.search}${locUrl.hash}`);
-          } else {
-            res.setHeader(key, value);
-          }
-        } catch {
-          res.setHeader(key, value);
-        }
-      } else {
-        res.setHeader(key, value);
-      }
-    }
-
-    if (response.body) {
-      const reader = response.body.getReader();
-      const stream = new Readable({
-        async read() {
-          const { done, value } = await reader.read();
-          if (done) {
-            this.push(null);
-          } else {
-            this.push(Buffer.from(value));
-          }
-        },
-      });
-      stream.pipe(res);
-    } else {
-      res.end();
-    }
-  } catch (err) {
-    logger.error({ err, method: req.method, path: req.path, url: req.url }, "Clerk proxy fetch error");
-    next(err);
-  }
-});
+        // Remove content-length to let http-proxy-middleware handle it
+        proxyReq.removeHeader("content-length");
+      },
+      proxyRes: (proxyRes, req: Request, res: Response) => {
+        // Add CORS headers to proxy response
+        res.setHeader("Access-Control-Allow-Origin", req.get("origin") || "*");
+        res.setHeader("Access-Control-Allow-Credentials", "true");
+      },
+    },
+    logLevel: "warn" as const,
+    ws: false,
+  }),
+);
 
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
