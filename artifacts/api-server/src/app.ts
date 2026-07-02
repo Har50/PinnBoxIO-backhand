@@ -77,12 +77,14 @@ app.use("/api/__clerk", async (req: Request, res: Response, next: NextFunction) 
     if (!headers.has("X-Forwarded-Proto")) headers.set("X-Forwarded-Proto", protocol.replace(":", ""));
 
     const hasBody = ["POST", "PUT", "PATCH"].includes(req.method);
+    if (hasBody && rawBody.length > 0) {
+      headers.set("content-length", String(rawBody.length));
+    }
     const response = await fetch(targetUrl.toString(), {
       method: req.method,
       headers,
       body: hasBody ? rawBody : void 0,
       redirect: "manual",
-      ...(hasBody ? { duplex: "half" as const } : {}),
     });
 
     // Rewrite Location headers from FAPI host back to proxy URL
@@ -127,6 +129,7 @@ app.use("/api/__clerk", async (req: Request, res: Response, next: NextFunction) 
       res.end();
     }
   } catch (err) {
+    logger.error({ err, method: req.method, path: req.path, url: req.url }, "Clerk proxy fetch error");
     next(err);
   }
 });
