@@ -14,8 +14,25 @@ import { logger } from "./lib/logger";
 // own and fails the handshake (SSL alert 40 / EPROTO).
 const CLERK_FAPI_URL = process.env.CLERK_FAPI_URL || "https://clerk.pinnboxio.net";
 
+// Public origin + Clerk proxy URL. Auth lives on the apex domain — www is
+// redirected there (below) so Clerk cookies/session stay on one host.
+const PUBLIC_ORIGIN = process.env.PUBLIC_ORIGIN || "https://pinnboxio.net";
+const CLERK_PROXY_URL = process.env.CLERK_PROXY_URL || `${PUBLIC_ORIGIN}/api/__clerk`;
+
 const app: Express = express();
 app.set("trust proxy", 1);
+
+// Redirect www → apex before anything else. Serving the app on both hosts
+// splits Clerk's cookies (client_uat is domain-wide, session token is not),
+// which sends browsers into the FAPI handshake flow.
+app.use((req: Request, res: Response, next: NextFunction) => {
+  const host = req.get("host") || "";
+  if (host.startsWith("www.")) {
+    res.redirect(301, `https://${host.slice(4)}${req.originalUrl}`);
+    return;
+  }
+  next();
+});
 
 app.use(
   pinoHttp({
@@ -52,14 +69,9 @@ app.use(
     on: {
       proxyReq: (proxyReq, req: Request) => {
         // Clerk identifies the instance from Clerk-Proxy-Url. It MUST exactly
-        // match the Proxy URL registered in the Clerk Dashboard. Pin it via env
-        // so it never drifts with the incoming Host header (www vs apex, Render
-        // internal hostnames, etc.) — a mismatch makes Clerk reset the socket on
-        // strict endpoints like prepare_verification while allowing sign_ups.
-        const protocol = req.protocol || (req.secure ? "https" : "http");
-        const host = req.get("host") || "localhost";
-        const derived = `${protocol}://${host}/api/__clerk`;
-        const proxyUrl = process.env.CLERK_PROXY_URL || derived;
+        // match the Proxy URL registered in the Clerk Dashboard — never derive
+        // it from the incoming Host header (www vs apex, Render internals).
+        const proxyUrl = CLERK_PROXY_URL;
 
         proxyReq.setHeader("Clerk-Proxy-Url", proxyUrl);
         proxyReq.setHeader("Clerk-Secret-Key", process.env.CLERK_SECRET_KEY || "");
@@ -106,7 +118,11 @@ app.use(
 app.use(express.json({ limit: "25mb" }));
 app.use(express.urlencoded({ extended: true, limit: "25mb" }));
 
-app.use(clerkMiddleware());
+// proxyUrl is REQUIRED here: without it clerkMiddleware derives the FAPI host
+// from the publishable key (clerk.pinnboxio.net) for handshake redirects — a
+// host with no TLS cert (proxy mode; Clerk never provisioned one). With it,
+// handshakes route through our /api/__clerk proxy instead.
+app.use(clerkMiddleware({ proxyUrl: CLERK_PROXY_URL }));
 
 app.use("/api", router);
 
