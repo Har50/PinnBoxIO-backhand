@@ -36,9 +36,20 @@ minimumReleaseAgeExclude:
 
 onlyBuiltDependencies:
   - '@swc/core'
+  - '@whiskeysockets/baileys'
+  - better-sqlite3
+  - bufferutil
+  - canvas
   - esbuild
   - msw
+  - protobufjs
   - unrs-resolver
+  - utf-8-validate
+
+ignoredBuiltDependencies:
+  - '@clerk/shared'
+  - browser-tabs-lock
+  - core-js
 
 overrides:
   '@clerk/shared@3': '>=3.47.5'
